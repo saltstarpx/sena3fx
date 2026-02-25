@@ -1,87 +1,104 @@
 # CLAUDE.md
 
-This file provides guidance for AI assistants working with the **sena3fx** repository.
+sena3fx — 完全自律型トレードPDCAエージェント v3.0（やがみメソッド準拠）
 
-## Repository Overview
+## プロジェクト概要
 
-**sena3fx** is a newly initialized project. The codebase is in its early stages — contribute carefully and establish good patterns from the start.
+XAUUSD（金）のティックレベルバックテストとPDCA自動化システム。
+やがみメソッド（ローソク足の本・ポジり方の本）の5条件評価を完全実装。
 
-- **Primary branch**: `master`
-- **Remote**: GitHub (via `origin`)
+- **対象通貨ペア**: XAUUSD（OANDA）
+- **データソース**: Dukascopyティックデータ
+- **ブランチ**: `main`
+- **リモート**: GitHub `saltstarpx/sena3fx`
 
-## Project Structure
+## ディレクトリ構成
 
 ```
 sena3fx/
-├── CLAUDE.md        # AI assistant guidance (this file)
-├── README.md        # Project overview
-└── .git/            # Git version control
+├── CLAUDE.md               # このファイル
+├── .gitignore
+├── lib/                    # コアライブラリ
+│   ├── __init__.py
+│   ├── candle.py           # ローソク足パターン検出
+│   ├── patterns.py         # チャートパターン検出
+│   ├── levels.py           # レジサポ自動検出
+│   ├── timing.py           # 足更新タイミング・MTF・セッション
+│   ├── yagami.py           # やがみ5条件統合シグナルエンジン（コア）
+│   └── backtest.py         # バックテストエンジン v3.0
+├── scripts/
+│   ├── fetch_data.py       # Dukascopyティックデータ取得
+│   └── main_loop.py        # PDCA自動実行ループ
+├── tick_backtest.py        # v1.0エンジン（レガシー）
+├── tick_backtest_fast.py   # v2.0エンジン（レガシー、main_loopが参照）
+├── data/tick/              # ティックデータCSV（gitignore対象）
+├── results/                # バックテスト結果CSV
+├── reports/                # PDCAレポートMarkdown
+└── docs/                   # やがみPDF等
 ```
 
-> Update this section as the project grows with source directories, configs, and tooling.
+## やがみメソッド 5条件
 
-## Development Workflow
+エントリーは以下5条件の複合評価で判定（`lib/yagami.py`）:
 
-### Branching
+1. **レジサポの位置** (`lib/levels.py`) — ヒゲ先端・実体からS/R水平線を抽出
+2. **ローソク足の強弱** (`lib/candle.py`) — 大陽線・包み足・ハンマー・ピンバー・Doji等
+3. **プライスアクション** (`lib/candle.py`) — リバーサルロー/ハイ・ダブルボトム・ヒゲ埋め・実体揃い
+4. **チャートパターン** (`lib/patterns.py`) — 逆三尊・フラッグ・ウェッジ・三角持ち合い等
+5. **足更新タイミング** (`lib/timing.py`) — 上位足更新時・5分間隔エントリー
 
-- Work on feature branches; never push directly to `master` without review.
-- Branch naming: `<scope>/<short-description>` (e.g., `feat/add-auth`, `fix/null-check`).
+### 評価グレード
+- **A評価（4-5条件）**: 高品質エントリー
+- **B評価（3条件）**: 慎重にエントリー
+- **C評価（2条件以下）**: エントリー禁止（養分）
 
-### Commits
+### 禁止ルール
+- 大陽線/大陰線への逆張り禁止（「逆らうと死にます」）
+- アジア時間のブレイクアウトは見送り
+- Doji4本以上連続 → トレンドレス → ノーポジ
+- 二番底/二番天井を待ってからエントリー
 
-- Write clear, imperative-mood commit messages (e.g., "Add user login endpoint").
-- Keep commits focused — one logical change per commit.
-- Do not amend published commits.
+## 開発ワークフロー
 
-### Pull Requests
+### 実行コマンド
 
-- Provide a summary and test plan in PR descriptions.
-- Ensure CI passes (once configured) before merging.
+```bash
+# PDCAサイクル1回実行
+python scripts/main_loop.py
 
-## Code Conventions
+# ティックデータ取得（Dukascopy）
+python scripts/fetch_data.py
 
-### General
+# 統合テスト
+python -c "from lib.candle import *; from lib.yagami import *; print('OK')"
+```
 
-- Prefer simplicity and readability over cleverness.
-- Do not add features, abstractions, or error handling beyond what is needed for the current task.
-- Delete unused code rather than commenting it out.
+### 依存パッケージ
 
-### Security
+```
+numpy, pandas, lzma（標準ライブラリ）, struct（標準ライブラリ）
+```
 
-- Never commit secrets, credentials, or `.env` files.
-- Validate all external input at system boundaries.
-- Follow OWASP best practices.
+`pip install numpy pandas` で十分。
 
-## Testing
+### バックテスト合格基準
 
-> No test framework has been configured yet. When one is added, document it here:
-> - Test runner and command (e.g., `npm test`, `mvn test`, `pytest`)
-> - Test file location conventions
-> - Minimum coverage expectations
+| 指標 | 基準 |
+|------|------|
+| プロフィットファクター | ≥ 1.5 |
+| 最大ドローダウン | ≤ 10% |
+| 勝率 | ≥ 50%（RR≥2.0なら35%可） |
+| トレード数 | ≥ 30 |
 
-## Build & Run
+### コミット
 
-> No build system has been configured yet. When one is added, document it here:
-> - Build command (e.g., `npm run build`, `mvn package`)
-> - Run command (e.g., `npm start`, `java -jar ...`)
-> - Required environment variables
+- 明確な日本語/英語のコミットメッセージ
+- 1コミット = 1つの論理的変更
+- `__pycache__`やデータファイルはコミットしない
 
-## CI/CD
+## 注意事項
 
-> No CI/CD pipeline has been configured yet. When one is added, document it here:
-> - Pipeline location (e.g., `.github/workflows/`)
-> - Required checks before merge
-
-## Dependencies
-
-> No dependency management has been configured yet. When one is added, document it here:
-> - Package manager (e.g., npm, maven, pip)
-> - Lock file policy
-> - How to add/update dependencies
-
-## Notes for AI Assistants
-
-- Read existing code before modifying it.
-- Do not create files unless strictly necessary — prefer editing existing ones.
-- Keep changes minimal and scoped to the task at hand.
-- When the project structure evolves, update this CLAUDE.md to reflect the current state.
+- `tick_backtest.py`と`tick_backtest_fast.py`はv1/v2レガシー。新規開発は`lib/`配下を使用
+- `main_loop.py`がv2互換のため`tick_backtest_fast.py`をインポートしている
+- サンプルデータでのバックテスト結果はランダムデータのため参考にならない。実ティックデータが必要
+- やがみPDF（`docs/`）が戦略のソースオブトゥルース
