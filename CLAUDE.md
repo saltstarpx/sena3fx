@@ -16,25 +16,37 @@ XAUUSD（金）のティックレベルバックテストとPDCA自動化シス�
 
 ```
 sena3fx/
-├── CLAUDE.md               # このファイル
+├── CLAUDE.md                # AI開発ガイド（このファイル）
+├── README.md
 ├── .gitignore
-├── lib/                    # コアライブラリ
+├── knowledge.json           # PDCA蓄積知見
+│
+├── lib/                     # コアエンジン
 │   ├── __init__.py
-│   ├── candle.py           # ローソク足パターン検出
-│   ├── patterns.py         # チャートパターン検出
-│   ├── levels.py           # レジサポ自動検出
-│   ├── timing.py           # 足更新タイミング・MTF・セッション
-│   ├── yagami.py           # やがみ5条件統合シグナルエンジン（コア）
-│   └── backtest.py         # バックテストエンジン v3.0
-├── scripts/
-│   ├── fetch_data.py       # Dukascopyティックデータ取得
-│   └── main_loop.py        # PDCA自動実行ループ
-├── tick_backtest.py        # v1.0エンジン（レガシー）
-├── tick_backtest_fast.py   # v2.0エンジン（レガシー、main_loopが参照）
-├── data/tick/              # ティックデータCSV（gitignore対象）
-├── results/                # バックテスト結果CSV
-├── reports/                # PDCAレポートMarkdown
-└── docs/                   # やがみPDF等
+│   ├── candle.py            #   ローソク足パターン検出
+│   ├── patterns.py          #   チャートパターン検出
+│   ├── levels.py            #   レジサポ自動検出
+│   ├── timing.py            #   足更新タイミング・MTF・セッション
+│   ├── yagami.py            #   やがみ5条件統合シグナル（コア）
+│   ├── backtest.py          #   バックテストエンジン v3.0
+│   └── indicators.py        #   インジケーター戦略（SMA/RSI/BB/MACD）
+│
+├── scripts/                 # 実行スクリプト
+│   ├── main_loop.py         #   PDCA自動実行ループ
+│   └── fetch_data.py        #   Dukascopyティックデータ取得
+│
+├── docs/                    # 参考資料
+│   ├── ローソク足の本｜やがみ.pdf
+│   ├── ローソク足の本2｜やがみ.pdf
+│   ├── ポジり方の本｜やがみ.pdf
+│   └── *.md                 #   要件定義・リサーチメモ
+│
+├── archive/                 # 旧バージョン（v1/v2コード・旧レポート）
+│
+├── data/tick/               # ティックデータCSV（gitignore対象）
+├── results/                 # バックテスト結果CSV
+├── reports/                 # PDCAレポート
+└── trade_logs/              # トレードログ
 ```
 
 ## やがみメソッド 5条件
@@ -58,9 +70,7 @@ sena3fx/
 - Doji4本以上連続 → トレンドレス → ノーポジ
 - 二番底/二番天井を待ってからエントリー
 
-## 開発ワークフロー
-
-### 実行コマンド
+## 実行コマンド
 
 ```bash
 # PDCAサイクル1回実行
@@ -73,15 +83,11 @@ python scripts/fetch_data.py
 python -c "from lib.candle import *; from lib.yagami import *; print('OK')"
 ```
 
-### 依存パッケージ
+## 依存パッケージ
 
-```
-numpy, pandas, lzma（標準ライブラリ）, struct（標準ライブラリ）
-```
+`pip install numpy pandas` で十分（lzma, structは標準ライブラリ）。
 
-`pip install numpy pandas` で十分。
-
-### バックテスト合格基準
+## バックテスト合格基準
 
 | 指標 | 基準 |
 |------|------|
@@ -90,15 +96,8 @@ numpy, pandas, lzma（標準ライブラリ）, struct（標準ライブラリ�
 | 勝率 | ≥ 50%（RR≥2.0なら35%可） |
 | トレード数 | ≥ 30 |
 
-### コミット
-
-- 明確な日本語/英語のコミットメッセージ
-- 1コミット = 1つの論理的変更
-- `__pycache__`やデータファイルはコミットしない
-
 ## 注意事項
 
-- `tick_backtest.py`と`tick_backtest_fast.py`はv1/v2レガシー。新規開発は`lib/`配下を使用
-- `main_loop.py`がv2互換のため`tick_backtest_fast.py`をインポートしている
+- `archive/`は旧v1/v2コード。新規開発は`lib/`配下を使用
 - サンプルデータでのバックテスト結果はランダムデータのため参考にならない。実ティックデータが必要
 - やがみPDF（`docs/`）が戦略のソースオブトゥルース

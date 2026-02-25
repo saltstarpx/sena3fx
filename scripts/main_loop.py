@@ -27,8 +27,8 @@ from lib.yagami import (
 from lib.candle import detect_single_candle, detect_price_action
 from lib.patterns import detect_chart_patterns
 
-# v2.0互換: 既存のインジケーター戦略も含める
-from tick_backtest_fast import (
+# インジケーター戦略
+from lib.indicators import (
     sig_sma, sig_rsi, sig_bb, sig_macd,
     sig_rsi_sma, sig_macd_rsi, sig_bb_rsi,
     Ind,
