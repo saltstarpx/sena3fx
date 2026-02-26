@@ -19,6 +19,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, BASE_DIR)
 
 from lib.backtest import BacktestEngine
+from lib.walk_forward import run_walk_forward
 from lib.yagami import (
     sig_yagami_A, sig_yagami_B,
     sig_yagami_reversal_only, sig_yagami_double_bottom,
@@ -183,6 +184,28 @@ def run_pdca_cycle():
             except Exception as e:
                 print(f"  {full_name}: エラー - {e}")
 
+    # ===== [DO-2] ウォークフォワードテスト =====
+    # データが十分にある場合のみ実行（1h: 650本以上）
+    wf_results_df = None
+    bars_1h = data.get('1h')
+    if bars_1h is not None and len(bars_1h) >= 650:
+        print("\n[DO-WF] ウォークフォワードテスト（1h）")
+        # やがみメソッド戦略のみ対象（計算コスト削減）
+        yagami_strategies = [s for s in strategies
+                             if s[0].startswith('Yagami') and '_4h' not in s[0]]
+        wf_results_df = run_walk_forward(
+            bars_1h, yagami_strategies,
+            freq='1h',
+            in_sample_bars=500,
+            out_of_sample_bars=150,
+            step_bars=100,
+        )
+        wf_passed = wf_results_df[wf_results_df['passed'] == True]
+        print(f"  WFテスト合格: {len(wf_passed)}/{len(wf_results_df)} 戦略")
+    else:
+        print("\n[DO-WF] データ不足のためウォークフォワードテストをスキップ "
+              f"(必要: 650本, 現在: {len(bars_1h) if bars_1h is not None else 0}本)")
+
     # ===== [CHECK] =====
     print("\n[CHECK] 結果分析")
 
@@ -228,6 +251,21 @@ def run_pdca_cycle():
 
     # 知見更新
     knowledge['cycle_count'] = cycle_num
+    if wf_results_df is not None and len(wf_results_df) > 0:
+        wf_passed = wf_results_df[wf_results_df['passed'] == True]
+        if len(wf_passed) > 0:
+            if 'wf_passed_strategies' not in knowledge:
+                knowledge['wf_passed_strategies'] = []
+            for _, r in wf_passed.iterrows():
+                knowledge['wf_passed_strategies'].append({
+                    'name': r['strategy'],
+                    'oos_pf': r['avg_oos_pf'],
+                    'pf_ratio': r['pf_ratio'],
+                    'oos_wr': r['avg_oos_wr'],
+                    'consistency': r['oos_consistency'],
+                    'cycle': cycle_num,
+                })
+
     if len(passed) > 0:
         for _, r in passed.iterrows():
             knowledge['best_strategies'].append({
@@ -257,7 +295,8 @@ def run_pdca_cycle():
     save_knowledge(knowledge)
 
     # レポート生成
-    report = generate_report(cycle_num, results_df, passed, knowledge)
+    report = generate_report(cycle_num, results_df, passed, knowledge,
+                             wf_results_df=wf_results_df)
     report_path = os.path.join(REPORTS_DIR, f'pdca_cycle_{cycle_num}_{ts}.md')
     with open(report_path, 'w') as f:
         f.write(report)
@@ -271,7 +310,8 @@ def run_pdca_cycle():
     return results_df
 
 
-def generate_report(cycle_num, results_df, passed, knowledge):
+def generate_report(cycle_num, results_df, passed, knowledge,
+                    wf_results_df=None):
     """Markdownレポート生成"""
     ts = datetime.now().strftime('%Y-%m-%d %H:%M')
 
@@ -307,7 +347,7 @@ def generate_report(cycle_num, results_df, passed, knowledge):
                           f"{r['total_return_pct']:+.1f}% |\n")
 
     if len(passed) > 0:
-        report += "\n## 合格戦略\n\n"
+        report += "\n## 合格戦略（バックテスト）\n\n"
         report += "| 戦略 | PF | 勝率 | DD | N | リターン |\n"
         report += "|------|-----|------|-----|---|--------|\n"
         for _, r in passed.iterrows():
@@ -315,6 +355,18 @@ def generate_report(cycle_num, results_df, passed, knowledge):
                       f"{r['win_rate_pct']:.0f}% | "
                       f"{r['max_drawdown_pct']:.1f}% | {r['total_trades']} | "
                       f"{r['total_return_pct']:+.1f}% |\n")
+
+    if wf_results_df is not None and len(wf_results_df) > 0:
+        report += "\n## ウォークフォワードテスト結果\n\n"
+        report += "| 戦略 | IS_PF | OOS_PF | PF比率 | OOS勝率 | 一貫性 | 判定 |\n"
+        report += "|------|-------|--------|--------|---------|--------|------|\n"
+        for _, r in wf_results_df.iterrows():
+            status = "PASS" if r['passed'] else "fail"
+            report += (f"| {r['strategy']} | {r['avg_is_pf']:.2f} | "
+                      f"{r['avg_oos_pf']:.2f} | {r['pf_ratio']:.2f} | "
+                      f"{r['avg_oos_wr']:.0f}% | {r['oos_consistency']:.0f}% | "
+                      f"{status} |\n")
+        report += "\n> PF比率 ≥ 0.6 かつ OOS PF ≥ 1.2 かつ 一貫性 ≥ 60% が合格\n"
 
     report += f"""
 ## 蓄積知見
