@@ -24,6 +24,10 @@ from lib.yagami import (
     sig_yagami_A, sig_yagami_B,
     sig_yagami_reversal_only, sig_yagami_double_bottom,
     sig_yagami_pattern_break, sig_yagami_london_ny,
+    # botter Advent Calendar 知見統合強化戦略
+    sig_yagami_vol_regime, sig_yagami_trend_regime,
+    sig_yagami_prime_time, sig_yagami_full_filter,
+    sig_yagami_A_full_filter,
 )
 from lib.candle import detect_single_candle, detect_price_action
 from lib.patterns import detect_chart_patterns
@@ -106,6 +110,16 @@ def build_strategies():
     strategies.append(('YagamiB_4h', sig_yagami_B('4h')))
     strategies.append(('Yagami_Reversal_4h', sig_yagami_reversal_only('4h')))
     strategies.append(('Yagami_LonNY_4h', sig_yagami_london_ny('4h')))
+
+    # === botter Advent Calendar 知見統合強化戦略 ===
+    strategies.append(('Yagami_VolRegime', sig_yagami_vol_regime()))
+    strategies.append(('Yagami_TrendRegime', sig_yagami_trend_regime()))
+    strategies.append(('Yagami_PrimeTime', sig_yagami_prime_time()))
+    strategies.append(('Yagami_FullFilter', sig_yagami_full_filter()))
+    strategies.append(('Yagami_A_FullFilter', sig_yagami_A_full_filter()))
+    # 4h版
+    strategies.append(('Yagami_FullFilter_4h', sig_yagami_full_filter('4h')))
+    strategies.append(('Yagami_TrendRegime_4h', sig_yagami_trend_regime('4h')))
 
     # === 従来のインジケーター戦略 ===
     for fast, slow in [(5,20), (10,50), (20,100)]:

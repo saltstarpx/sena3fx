@@ -323,3 +323,121 @@ def sig_yagami_london_ny(freq='1h'):
                 signals.iloc[i] = full_signals.iloc[i]
         return signals
     return _f
+
+
+# ==============================================================
+# botter Advent Calendar 知見統合強化戦略
+# ==============================================================
+
+def sig_yagami_filtered(freq='1h', min_grade='B',
+                        use_vol_regime=True,
+                        use_trend_regime=True,
+                        use_time_filter=True,
+                        use_momentum=True):
+    """
+    botter Advent Calendar 2024/2025 知見を統合した強化版シグナル。
+
+    追加フィルター:
+      1. ボラティリティレジーム (ATR比率 0.6~2.2)
+         - 「消えたエッジの話」(botter AC 2024 #22) より
+      2. トレンドレジーム (EMA200方向)
+         - ラリーウィリアムズ式 × botter コミュニティ
+      3. 時刻アノマリー (ロンドン/NYオープン限定)
+         - botter AC 2024 時刻アノマリー記事より
+      4. MTFモメンタム (4h/1d リターン方向一致)
+         - richmanbtc MLBot 特徴量設計思想より
+    """
+    from .filters import (volatility_regime, trend_regime_simple,
+                          time_anomaly_filter, mtf_momentum)
+
+    def _f(bars):
+        # やがみベースシグナル
+        base_signals = yagami_signal(bars, freq, min_grade=min_grade)
+
+        # フィルター計算
+        vol_ok = volatility_regime(bars) if use_vol_regime else pd.Series(True, index=bars.index)
+        t_regime = trend_regime_simple(bars) if use_trend_regime else pd.Series(0, index=bars.index)
+        time_ok = time_anomaly_filter(bars) if use_time_filter else pd.Series(True, index=bars.index)
+        mtf = mtf_momentum(bars) if use_momentum else None
+
+        signals = pd.Series(index=bars.index, dtype=object)
+
+        for i in range(len(bars)):
+            sig = base_signals.iloc[i]
+            if not sig:
+                continue
+
+            # ボラティリティフィルター
+            if use_vol_regime and not vol_ok.iloc[i]:
+                continue
+
+            # 時刻フィルター
+            if use_time_filter and not time_ok.iloc[i]:
+                continue
+
+            # トレンドレジームフィルター（逆張り禁止）
+            regime = t_regime.iloc[i]
+            if use_trend_regime:
+                if sig == 'long' and regime == -1:
+                    continue  # ダウントレンドでロング禁止
+                if sig == 'short' and regime == 1:
+                    continue  # アップトレンドでショート禁止
+
+            # MTFモメンタムフィルター
+            if use_momentum and mtf is not None:
+                mom_score = mtf['momentum_score'].iloc[i]
+                if sig == 'long' and mom_score < -0.3:
+                    continue  # モメンタムが逆
+                if sig == 'short' and mom_score > 0.3:
+                    continue
+
+            signals.iloc[i] = sig
+
+        return signals
+    return _f
+
+
+def sig_yagami_vol_regime(freq='1h'):
+    """ボラティリティ適正帯のみのやがみB評価"""
+    return sig_yagami_filtered(freq, min_grade='B',
+                               use_vol_regime=True,
+                               use_trend_regime=False,
+                               use_time_filter=False,
+                               use_momentum=False)
+
+
+def sig_yagami_trend_regime(freq='1h'):
+    """EMA200トレンド方向のみのやがみB評価"""
+    return sig_yagami_filtered(freq, min_grade='B',
+                               use_vol_regime=False,
+                               use_trend_regime=True,
+                               use_time_filter=False,
+                               use_momentum=False)
+
+
+def sig_yagami_prime_time(freq='1h'):
+    """ロンドン/NYオープン時刻アノマリーフィルター + やがみB"""
+    return sig_yagami_filtered(freq, min_grade='B',
+                               use_vol_regime=False,
+                               use_trend_regime=False,
+                               use_time_filter=True,
+                               use_momentum=False)
+
+
+def sig_yagami_full_filter(freq='1h'):
+    """全フィルター統合 (最厳選・高品質エントリー)"""
+    return sig_yagami_filtered(freq, min_grade='B',
+                               use_vol_regime=True,
+                               use_trend_regime=True,
+                               use_time_filter=True,
+                               use_momentum=True)
+
+
+def sig_yagami_A_full_filter(freq='1h'):
+    """A評価 + 全フィルター統合 (最高品質)"""
+    return sig_yagami_filtered(freq, min_grade='A',
+                               use_vol_regime=True,
+                               use_trend_regime=True,
+                               use_time_filter=True,
+                               use_momentum=True)
+
