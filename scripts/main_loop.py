@@ -1,11 +1,11 @@
 """
-完全自律型トレードPDCAエージェント v3.0 メインループ
+完全自律型トレードPDCAエージェント v4.0 メインループ
 =====================================================
 やがみメソッド準拠 + ティックレベルバックテスト統合
 
 [Plan] 戦略生成: やがみ5条件ベースの戦略バリエーション
-[Do]   バックテスト: 全戦略を複数時間足でテスト
-[Check] 分析: 結果をスコアリング、合格判定
+[Do]   バックテスト: 全戦略を複数時間足でテスト（ピラミッド/シーズナリティ含む）
+[Check] 分析: 結果をスコアリング、合格判定 + 画像レポート生成
 [Act]  改善: 知見を蓄積、レポート生成
 """
 import os
@@ -37,7 +37,15 @@ from lib.indicators import (
 
 RESULTS_DIR = os.path.join(BASE_DIR, 'results')
 REPORTS_DIR = os.path.join(BASE_DIR, 'reports')
+IMAGES_DIR = os.path.join(BASE_DIR, 'reports', 'images')
 KNOWLEDGE_FILE = os.path.join(BASE_DIR, 'knowledge.json')
+os.makedirs(IMAGES_DIR, exist_ok=True)
+
+# シーズナリティ設定
+# None = 全月トレード、リストで制限
+SEASON_WINTER  = [1, 2, 3]           # 1-3月
+SEASON_FALL    = [10, 11, 12]        # 10-12月
+SEASON_ACTIVE  = [1, 2, 3, 10, 11, 12]  # 両方（デフォルト推奨）
 os.makedirs(RESULTS_DIR, exist_ok=True)
 os.makedirs(REPORTS_DIR, exist_ok=True)
 
@@ -126,7 +134,7 @@ def run_pdca_cycle():
     print("=" * 75)
     print(f"PDCA サイクル #{cycle_num}")
     print(f"実行時刻: {datetime.now()}")
-    print(f"エンジン: やがみメソッド v3.0")
+    print(f"エンジン: やがみメソッド v4.0（ピラミッド+シーズナリティ）")
     print("=" * 75)
 
     # ===== [PLAN] =====
@@ -138,18 +146,23 @@ def run_pdca_cycle():
     print("\n[DO] バックテスト実行")
     data = load_data()
 
-    engine_dynamic = BacktestEngine(
-        init_cash=5_000_000, risk_pct=0.02,
-        default_sl_atr=2.0, default_tp_atr=4.0,
+    # 標準エンジン（5%リスク、動的SL）
+    engine_std = BacktestEngine(
+        init_cash=5_000_000, risk_pct=0.05,
         use_dynamic_sl=True,
+        pyramid_entries=0,  # ピラミッドなし
     )
-    engine_fixed = BacktestEngine(
-        init_cash=5_000_000, risk_pct=0.02,
-        default_sl_atr=2.0, default_tp_atr=4.0,
-        use_dynamic_sl=False,
+    # ピラミッドエンジン（5%リスク + ピラミッド2段）
+    engine_pyramid = BacktestEngine(
+        init_cash=5_000_000, risk_pct=0.05,
+        use_dynamic_sl=True,
+        pyramid_entries=2,
+        pyramid_atr=1.0,
     )
 
     all_results = []
+    # 画像生成用に完全結果（trades含む）を保存
+    best_full_results = {}
 
     for tf in ['1h', '4h']:
         bars = data.get(tf)
@@ -161,25 +174,45 @@ def run_pdca_cycle():
         for name, sfunc in strategies:
             full_name = f"{name}_{tf}"
             try:
-                # 動的SL版
-                r = engine_dynamic.run(bars, sfunc, freq=tf, name=f"{full_name}_dynSL")
+                # 標準版
+                r = engine_std.run(bars, sfunc, freq=tf, name=f"{full_name}",
+                                   allowed_months=None)
                 if r and r.get('total_trades', 0) > 0:
                     r_clean = {k: v for k, v in r.items() if k != 'trades'}
                     all_results.append(r_clean)
                     status = "PASS" if r['passed'] else "fail"
-                    print(f"  {full_name}_dynSL: "
+                    print(f"  {full_name}: "
                           f"Ret={r['total_return_pct']:+.1f}% "
                           f"WR={r['win_rate_pct']:.0f}% "
                           f"PF={r['profit_factor']:.2f} "
                           f"RR={r['rr_ratio']:.1f} "
                           f"DD={r['max_drawdown_pct']:.1f}% "
                           f"N={r['total_trades']} [{status}]")
+                    # 合格戦略の完全結果を保持（画像生成用）
+                    if r['passed']:
+                        best_full_results[f"{full_name}"] = r
 
-                # 固定SL版
-                r2 = engine_fixed.run(bars, sfunc, freq=tf, name=f"{full_name}_fixSL")
-                if r2 and r2.get('total_trades', 0) > 0:
-                    r2_clean = {k: v for k, v in r2.items() if k != 'trades'}
-                    all_results.append(r2_clean)
+                # ピラミッド版（やがみ戦略のみ対象）
+                if name.startswith('Yagami'):
+                    rp = engine_pyramid.run(bars, sfunc, freq=tf,
+                                            name=f"{full_name}_pyr",
+                                            allowed_months=None)
+                    if rp and rp.get('total_trades', 0) > 0:
+                        rp_clean = {k: v for k, v in rp.items() if k != 'trades'}
+                        all_results.append(rp_clean)
+                        if rp['passed']:
+                            best_full_results[f"{full_name}_pyr"] = rp
+
+                # シーズナリティ版（やがみA/Bのみ）
+                if name in ('YagamiA', 'YagamiB'):
+                    rs = engine_std.run(bars, sfunc, freq=tf,
+                                        name=f"{full_name}_season",
+                                        allowed_months=SEASON_ACTIVE)
+                    if rs and rs.get('total_trades', 0) > 0:
+                        rs_clean = {k: v for k, v in rs.items() if k != 'trades'}
+                        all_results.append(rs_clean)
+                        if rs['passed']:
+                            best_full_results[f"{full_name}_season"] = rs
 
             except Exception as e:
                 print(f"  {full_name}: エラー - {e}")
@@ -245,6 +278,47 @@ def run_pdca_cycle():
                   f"PF={r['profit_factor']:.2f} "
                   f"WR={r['win_rate_pct']:.0f}% "
                   f"Ret={r['total_return_pct']:+.1f}%")
+
+    # ===== [CHECK-2] 画像レポート生成 =====
+    print("\n[CHECK-2] 画像レポート生成")
+    generated_images = []
+    try:
+        from lib.visualize import plot_backtest_report, plot_season_analysis
+
+        # 合格戦略の中でベスト3を画像化
+        top_results = sorted(
+            best_full_results.values(),
+            key=lambda x: x.get('profit_factor', 0),
+            reverse=True,
+        )[:3]
+
+        for res in top_results:
+            img_name = res['strategy'].replace('/', '_').replace(' ', '_')
+            img_path = os.path.join(IMAGES_DIR, f'{img_name}_{ts}.png')
+            try:
+                plot_backtest_report(res, img_path)
+                generated_images.append(img_path)
+                print(f"  画像: {os.path.basename(img_path)}")
+            except Exception as e:
+                print(f"  画像生成失敗 {img_name}: {e}")
+
+        # シーズナリティ分析（全やがみトレードを統合）
+        all_yagami_trades = []
+        for key, res in best_full_results.items():
+            if 'Yagami' in key and res.get('trades'):
+                all_yagami_trades.extend(res['trades'])
+
+        if all_yagami_trades:
+            season_path = os.path.join(IMAGES_DIR, f'seasonality_{ts}.png')
+            try:
+                plot_season_analysis(all_yagami_trades, 5_000_000, season_path)
+                generated_images.append(season_path)
+                print(f"  シーズナリティ: {os.path.basename(season_path)}")
+            except Exception as e:
+                print(f"  シーズナリティ画像失敗: {e}")
+
+    except ImportError as e:
+        print(f"  matplotlib未インストール: {e}")
 
     # ===== [ACT] =====
     print("\n[ACT] 知見蓄積・レポート生成")

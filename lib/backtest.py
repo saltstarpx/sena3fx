@@ -1,12 +1,11 @@
 """
-改良版ティックレベルバックテストエンジン v3.0
+改良版ティックレベルバックテストエンジン v4.0
 =============================================
-v2.0からの改良点:
-  - やがみメソッドのSL/TP計算（最後の押し安値/戻り高値ベース）
-  - ポジり方の本準拠の建値ストップ判定
-  - ATRベースの動的SL/TP
-  - セッション別フィルター統合
-  - A/B/C評価別の統計
+v3.0からの追加:
+  - ピラミッティング（含み益時に追加エントリー）
+  - シーズナリティフィルター（allowed_months）
+  - 月次PnL統計
+  - 複利対応（資金比率リスク管理で自動スケール）
 """
 import numpy as np
 import pandas as pd
@@ -18,20 +17,30 @@ import os
 
 class BacktestEngine:
     """
-    ハイブリッド方式バックテスト:
+    ハイブリッド方式バックテスト v4.0:
     - シグナル生成: OHLCバーベース
-    - SL/TP判定: ティックベース（利用可能な場合）/ バーベース（フォールバック）
+    - SL/TP判定: バーベース
+    - ピラミッティング: 含み益 pyramid_atr ATR ごとに追加エントリー
+    - シーズナリティ: allowed_months で取引月を限定
 
     やがみメソッド準拠:
     - SLは最後の押し安値/戻り高値（ATRフォールバック）
-    - 建値ストップは「ネックラインを抜けた場合のみ」
-    - 1トレード最大リスク: 資金の2%
+    - ピラミッドごとにSLを前の建値に移動（建値ストップ）
+    - 1トレード最大リスク: 資金の risk_pct（デフォルト5%）
     """
 
-    def __init__(self, init_cash=5_000_000, risk_pct=0.02,
+    def __init__(self, init_cash=5_000_000, risk_pct=0.05,
                  default_sl_atr=2.0, default_tp_atr=4.0,
                  slippage_pips=0.3, pip=0.1,
-                 use_dynamic_sl=True):
+                 use_dynamic_sl=True,
+                 pyramid_entries=2,
+                 pyramid_atr=1.0):
+        """
+        Args:
+            risk_pct: 初期エントリーのリスク比率（デフォルト5%、複利で資産に追随）
+            pyramid_entries: ピラミッド追加回数（0=なし、2=2回追加）
+            pyramid_atr: 追加エントリーのトリガー（含み益が pyramid_atr * ATR に達したら）
+        """
         self.init_cash = init_cash
         self.risk_pct = risk_pct
         self.default_sl_atr = default_sl_atr
@@ -39,6 +48,8 @@ class BacktestEngine:
         self.slippage = slippage_pips * pip
         self.pip = pip
         self.use_dynamic_sl = use_dynamic_sl
+        self.pyramid_entries = pyramid_entries
+        self.pyramid_atr = pyramid_atr
 
     def _calc_atr(self, bars, period=14):
         h = bars['high'].values
@@ -69,12 +80,15 @@ class BacktestEngine:
         return bars
 
     def run(self, data, signal_func, freq='1h', name='Strategy',
-            use_ticks=False, ticks=None):
+            use_ticks=False, ticks=None,
+            allowed_months=None):
         """
         バックテスト実行。
 
         data: OHLCバーデータ（またはティックデータからバーを生成）
         signal_func: bars -> pd.Series of 'long'/'short'/None
+        allowed_months: 取引を許可する月のリスト（例: [1,2,3,10,11,12]）。
+                        None の場合は全月でトレード。
         """
         if use_ticks and ticks is not None:
             bars = self._make_bars(ticks, freq)
@@ -92,7 +106,7 @@ class BacktestEngine:
         peak = self.init_cash
         max_dd = 0.0
         in_pos = False
-        pos = {}
+        pos = {}  # {'dir', 'sl', 'tp', 'atr', 'layers': [{'entry','size','entry_time'}], 'pyramid_count'}
 
         for i in range(len(bars)):
             sig = signals.iloc[i] if i < len(signals) else None
@@ -100,10 +114,46 @@ class BacktestEngine:
                 sig = None
 
             bar = bars.iloc[i]
+            bar_time = bars.index[i]
             bar_atr = atr.iloc[i] if not np.isnan(atr.iloc[i]) else 2.0
 
             if in_pos:
-                # SL/TP判定（バーベース）
+                # ===== ピラミッティング判定 =====
+                if self.pyramid_entries > 0 and pos['pyramid_count'] < self.pyramid_entries:
+                    trigger_dist = pos['atr'] * self.pyramid_atr * (pos['pyramid_count'] + 1)
+                    first_entry = pos['layers'][0]['entry']
+
+                    pyramid_triggered = (
+                        (pos['dir'] == 'long' and bar['close'] >= first_entry + trigger_dist)
+                        or (pos['dir'] == 'short' and bar['close'] <= first_entry - trigger_dist)
+                    )
+
+                    if pyramid_triggered:
+                        # 追加エントリー（前の建値がSLになる → ブレークイーブン管理）
+                        prev_entry = pos['layers'][-1]['entry']
+                        if pos['dir'] == 'long':
+                            new_entry = bar['close'] + self.slippage
+                            # SLを前の建値に移動
+                            pos['sl'] = max(pos['sl'], prev_entry)
+                        else:
+                            new_entry = bar['close'] - self.slippage
+                            pos['sl'] = min(pos['sl'], prev_entry)
+
+                        # 追加サイズ = 初回の50%（スケールイン）
+                        base_size = pos['layers'][0]['size']
+                        add_size = max(0.01, round(base_size * 0.5, 2))
+
+                        pos['layers'].append({
+                            'entry': new_entry,
+                            'size': add_size,
+                            'entry_time': bar_time,
+                        })
+                        pos['pyramid_count'] += 1
+
+                # ===== SL/TP判定（共有ライン） =====
+                exit_price = None
+                exit_reason = None
+
                 if pos['dir'] == 'long':
                     if bar['low'] <= pos['sl']:
                         exit_price = pos['sl']
@@ -111,50 +161,55 @@ class BacktestEngine:
                     elif bar['high'] >= pos['tp']:
                         exit_price = pos['tp']
                         exit_reason = 'take_profit'
-                    elif sig == 'short' or sig == 'close':
+                    elif sig in ('short', 'close'):
                         exit_price = bar['close']
                         exit_reason = 'signal'
-                    else:
-                        continue
-                else:  # short
+                else:
                     if bar['high'] >= pos['sl']:
                         exit_price = pos['sl']
                         exit_reason = 'stop_loss'
                     elif bar['low'] <= pos['tp']:
                         exit_price = pos['tp']
                         exit_reason = 'take_profit'
-                    elif sig == 'long' or sig == 'close':
+                    elif sig in ('long', 'close'):
                         exit_price = bar['close']
                         exit_reason = 'signal'
+
+                if exit_price is None:
+                    continue
+
+                # ===== 全レイヤー決済 =====
+                total_pnl = 0.0
+                total_size = sum(l['size'] for l in pos['layers'])
+                weighted_entry = sum(l['entry'] * l['size'] for l in pos['layers']) / total_size
+
+                for layer in pos['layers']:
+                    if pos['dir'] == 'long':
+                        pnl_pips = (exit_price - layer['entry']) / self.pip
                     else:
-                        continue
+                        pnl_pips = (layer['entry'] - exit_price) / self.pip
+                    total_pnl += pnl_pips * layer['size']
 
-                # 決済
-                if pos['dir'] == 'long':
-                    pnl_pips = (exit_price - pos['entry']) / self.pip
-                else:
-                    pnl_pips = (pos['entry'] - exit_price) / self.pip
-
-                pnl = pnl_pips * pos['size']
-                duration = (bars.index[i] - pos['entry_time']).total_seconds()
+                duration = (bar_time - pos['layers'][0]['entry_time']).total_seconds()
 
                 trades.append({
-                    'entry_time': pos['entry_time'],
-                    'exit_time': bars.index[i],
+                    'entry_time': pos['layers'][0]['entry_time'],
+                    'exit_time': bar_time,
                     'direction': pos['dir'],
-                    'entry_price': pos['entry'],
+                    'entry_price': round(weighted_entry, 5),
                     'exit_price': exit_price,
                     'sl': pos['sl'],
                     'tp': pos['tp'],
-                    'size': pos['size'],
-                    'pnl': pnl,
-                    'pnl_pct': pnl / cash * 100,
+                    'size': total_size,
+                    'pyramid_layers': pos['pyramid_count'] + 1,
+                    'pnl': total_pnl,
+                    'pnl_pct': total_pnl / cash * 100,
                     'exit_reason': exit_reason,
                     'duration_sec': duration,
                     'atr_at_entry': pos['atr'],
                 })
 
-                cash += pnl
+                cash += total_pnl
                 if cash > peak:
                     peak = cash
                 dd = (peak - cash) / peak if peak > 0 else 0
@@ -162,80 +217,94 @@ class BacktestEngine:
                     max_dd = dd
                 in_pos = False
 
-            # 新規エントリー
-            if not in_pos and sig in ('long', 'short'):
-                spread = bar.get('spread', 0.5) if 'spread' in bar.index else 0.5
+            # ===== 新規エントリー =====
+            if in_pos:
+                continue
+            if sig not in ('long', 'short'):
+                continue
 
-                if self.use_dynamic_sl:
-                    if sig == 'long':
-                        sl_price = self._find_swing_low(bars, i) - self.slippage
-                        sl_dist = bar['close'] - sl_price
-                        if sl_dist < bar_atr * 0.5:
-                            sl_dist = bar_atr * self.default_sl_atr
-                            sl_price = bar['close'] - sl_dist
-                        tp_dist = sl_dist * 2.0  # RR 2:1
-                        tp_price = bar['close'] + tp_dist
-                    else:
-                        sl_price = self._find_swing_high(bars, i) + self.slippage
-                        sl_dist = sl_price - bar['close']
-                        if sl_dist < bar_atr * 0.5:
-                            sl_dist = bar_atr * self.default_sl_atr
-                            sl_price = bar['close'] + sl_dist
-                        tp_dist = sl_dist * 2.0
-                        tp_price = bar['close'] - tp_dist
-                else:
-                    sl_dist = bar_atr * self.default_sl_atr
-                    tp_dist = bar_atr * self.default_tp_atr
-                    if sig == 'long':
-                        sl_price = bar['close'] - sl_dist
-                        tp_price = bar['close'] + tp_dist
-                    else:
-                        sl_price = bar['close'] + sl_dist
-                        tp_price = bar['close'] - tp_dist
+            # シーズナリティフィルター
+            if allowed_months is not None and bar_time.month not in allowed_months:
+                continue
 
+            spread = bar.get('spread', 0.5) if 'spread' in bar.index else 0.5
+
+            if self.use_dynamic_sl:
                 if sig == 'long':
-                    entry_price = bar['close'] + spread/2 + self.slippage
+                    sl_price = self._find_swing_low(bars, i) - self.slippage
+                    sl_dist = bar['close'] - sl_price
+                    if sl_dist < bar_atr * 0.5:
+                        sl_dist = bar_atr * self.default_sl_atr
+                        sl_price = bar['close'] - sl_dist
+                    tp_dist = sl_dist * 2.0
+                    tp_price = bar['close'] + tp_dist
                 else:
-                    entry_price = bar['close'] - spread/2 - self.slippage
+                    sl_price = self._find_swing_high(bars, i) + self.slippage
+                    sl_dist = sl_price - bar['close']
+                    if sl_dist < bar_atr * 0.5:
+                        sl_dist = bar_atr * self.default_sl_atr
+                        sl_price = bar['close'] + sl_dist
+                    tp_dist = sl_dist * 2.0
+                    tp_price = bar['close'] - tp_dist
+            else:
+                sl_dist = bar_atr * self.default_sl_atr
+                tp_dist = bar_atr * self.default_tp_atr
+                if sig == 'long':
+                    sl_price = bar['close'] - sl_dist
+                    tp_price = bar['close'] + tp_dist
+                else:
+                    sl_price = bar['close'] + sl_dist
+                    tp_price = bar['close'] - tp_dist
 
-                # ロット計算（やがみ+requirements: 資金の2%リスク）
-                risk_amount = cash * self.risk_pct
-                sl_pips = sl_dist / self.pip
-                pos_size = max(0.01, round(risk_amount / sl_pips, 2)) if sl_pips > 0 else 0.01
+            if sig == 'long':
+                entry_price = bar['close'] + spread / 2 + self.slippage
+            else:
+                entry_price = bar['close'] - spread / 2 - self.slippage
 
-                pos = {
-                    'dir': sig,
-                    'entry': entry_price,
-                    'entry_time': bars.index[i],
-                    'sl': sl_price,
-                    'tp': tp_price,
-                    'size': pos_size,
-                    'atr': bar_atr,
-                }
-                in_pos = True
+            # 複利ロット計算（現在の資金 × risk_pct がリスク額）
+            risk_amount = cash * self.risk_pct
+            sl_pips = sl_dist / self.pip
+            pos_size = max(0.01, round(risk_amount / sl_pips, 2)) if sl_pips > 0 else 0.01
 
-        # 残ポジクローズ
+            pos = {
+                'dir': sig,
+                'sl': sl_price,
+                'tp': tp_price,
+                'atr': bar_atr,
+                'layers': [{'entry': entry_price, 'size': pos_size, 'entry_time': bar_time}],
+                'pyramid_count': 0,
+            }
+            in_pos = True
+
+        # 残ポジクローズ（全レイヤー）
         if in_pos and len(bars) > 0:
             last = bars.iloc[-1]
-            if pos['dir'] == 'long':
-                pnl_pips = (last['close'] - pos['entry']) / self.pip
-            else:
-                pnl_pips = (pos['entry'] - last['close']) / self.pip
-            pnl = pnl_pips * pos['size']
+            total_pnl = 0.0
+            total_size = sum(l['size'] for l in pos['layers'])
+            weighted_entry = sum(l['entry'] * l['size'] for l in pos['layers']) / total_size
+
+            for layer in pos['layers']:
+                if pos['dir'] == 'long':
+                    pnl_pips = (last['close'] - layer['entry']) / self.pip
+                else:
+                    pnl_pips = (layer['entry'] - last['close']) / self.pip
+                total_pnl += pnl_pips * layer['size']
+
             trades.append({
-                'entry_time': pos['entry_time'],
+                'entry_time': pos['layers'][0]['entry_time'],
                 'exit_time': bars.index[-1],
                 'direction': pos['dir'],
-                'entry_price': pos['entry'],
+                'entry_price': round(weighted_entry, 5),
                 'exit_price': last['close'],
                 'sl': pos['sl'], 'tp': pos['tp'],
-                'size': pos['size'],
-                'pnl': pnl, 'pnl_pct': pnl / cash * 100,
+                'size': total_size,
+                'pyramid_layers': pos['pyramid_count'] + 1,
+                'pnl': total_pnl, 'pnl_pct': total_pnl / cash * 100,
                 'exit_reason': 'end_of_data',
-                'duration_sec': (bars.index[-1] - pos['entry_time']).total_seconds(),
+                'duration_sec': (bars.index[-1] - pos['layers'][0]['entry_time']).total_seconds(),
                 'atr_at_entry': pos['atr'],
             })
-            cash += pnl
+            cash += total_pnl
 
         return self._report(name, trades, cash, max_dd, freq, len(bars))
 
@@ -258,18 +327,28 @@ class BacktestEngine:
         for t in trades:
             reasons[t['exit_reason']] = reasons.get(t['exit_reason'], 0) + 1
 
-        # やがみ基準: RR2.0以上なら勝率40%でも可
         avg_win_val = np.mean([t['pnl'] for t in wins]) if wins else 0
         avg_loss_val = abs(np.mean([t['pnl'] for t in losses])) if losses else 1
         rr_ratio = avg_win_val / avg_loss_val if avg_loss_val > 0 else 0
 
-        # 合格判定（requirements準拠 + RR考慮）
+        # 月次統計
+        monthly_pnl = {}
+        for t in trades:
+            et = t['exit_time']
+            key = f"{et.year}-{et.month:02d}" if hasattr(et, 'year') else str(et)[:7]
+            monthly_pnl[key] = monthly_pnl.get(key, 0) + t['pnl']
+
+        # ピラミッド統計
+        pyramid_trades = [t for t in trades if t.get('pyramid_layers', 1) > 1]
+        pyramid_rate = len(pyramid_trades) / n * 100 if n > 0 else 0
+
+        # 合格判定（やがみ基準 + RR考慮）
         passed = (pf >= 1.5 and max_dd <= 0.10 and n >= 30 and
                   (wr >= 0.50 or (rr_ratio >= 2.0 and wr >= 0.35)))
 
         return {
             'strategy': name,
-            'engine': 'yagami_v3',
+            'engine': 'yagami_v4',
             'timeframe': freq,
             'total_return_pct': round(ret, 2),
             'total_pnl': round(final_cash - self.init_cash, 2),
@@ -285,6 +364,8 @@ class BacktestEngine:
             'avg_loss': round(np.mean([t['pnl'] for t in losses]), 2) if losses else 0,
             'avg_duration_hours': round(avg_dur, 1),
             'exit_reasons': reasons,
+            'monthly_pnl': monthly_pnl,
+            'pyramid_trade_rate_pct': round(pyramid_rate, 1),
             'passed': passed,
             'trades': trades,
         }
