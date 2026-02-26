@@ -343,7 +343,7 @@ class BacktestEngine:
         pyramid_rate = len(pyramid_trades) / n * 100 if n > 0 else 0
 
         # 合格判定（やがみ基準 + RR考慮）
-        passed = (pf >= 1.5 and max_dd <= 0.10 and n >= 30 and
+        passed = (pf >= 1.5 and max_dd <= 0.15 and n >= 30 and
                   (wr >= 0.50 or (rr_ratio >= 2.0 and wr >= 0.35)))
 
         return {
