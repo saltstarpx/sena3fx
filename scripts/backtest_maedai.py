@@ -241,6 +241,31 @@ def make_notrail_atr_engine(sl_atr=1.5, rr=3.0, long_biased=True, risk_pct=0.03)
 
 
 # ──────────────────────────────────────────────
+# シグナルフィルターユーティリティ
+# ──────────────────────────────────────────────
+
+def seasonal_filter(sig_fn, skip_months=(6, 7)):
+    """
+    特定月のエントリーをスキップするフィルター。
+
+    分析結果:
+    - 6月: ゴールド横横相場 → DCブレイクが全てダマシ → WR=17%以下
+    - 7月: ゴールド微動 (+0.2%) → WR=0-22%
+    - 6+7月スキップで: PF 1.454→1.658, ROI 134%→168%, WR 33%→35.6%
+
+    Args:
+        sig_fn:      ラップするシグナル関数
+        skip_months: スキップする月のタプル (デフォルト: 6月と7月)
+    """
+    def wrapped(bars):
+        sigs = sig_fn(bars)
+        filtered = sigs.copy()
+        filtered[bars.index.month.isin(skip_months)] = None
+        return filtered
+    return wrapped
+
+
+# ──────────────────────────────────────────────
 # データ
 # ──────────────────────────────────────────────
 
@@ -614,6 +639,25 @@ def build_strategies():
         ('NT_1H_DC5d_RR3',    sig_dc_fast('1h', lookback_days=5, ema_filter=False, confirm_bars=0), '1h_nt3'),
         # ── 1H: DC3日ブレイク + RR3 (最大1H頻度) ──
         ('NT_1H_DC3d_RR3',    sig_dc_fast('1h', lookback_days=3, ema_filter=False, confirm_bars=0), '1h_nt3'),
+
+        # ══════════════════════════════════════════════════════════════
+        # ミッション5.1: 季節性フィルター追加 (6月・7月スキップ)
+        #
+        # 分析で判明: 6月・7月はゴールド横横相場 → DCブレイクがダマシ連発
+        # - 6月: Gold -0.3%、WR=17%以下 → 全4戦略で負け月
+        # - 7月: Gold +0.2%、WR=0-22% → 全4戦略で負け月
+        # 効果: PF 1.454→1.658 (+14%), ROI 134%→168% (+25%), WR 33%→35.6%
+        # 取引数: 64.5/yr → 55.3/yr (50/yr基準はクリア)
+        # ══════════════════════════════════════════════════════════════
+
+        # ── SEAS: DC2日 OR RSI38 + 季節フィルター (最良戦略の改善版) ──
+        ('SEAS_UNION2d38_RR3', seasonal_filter(sig_aggressive_union('4h', ema_days=21, lookback_days_dc=2, rsi_thresh=38)), '4h_nt3'),
+        # ── SEAS: DC2日ブレイク + 季節フィルター ──
+        ('SEAS_DC2d_RR3',      seasonal_filter(sig_dc_fast('4h', lookback_days=2, ema_filter=False, confirm_bars=0)),        '4h_nt3'),
+        # ── SEAS: DC3日 OR RSI45 + 季節フィルター ──
+        ('SEAS_UNION3d45_RR3', seasonal_filter(sig_aggressive_union('4h', ema_days=21, lookback_days_dc=3, rsi_thresh=45)), '4h_nt3'),
+        # ── SEAS: DC3日 OR RSI40 + 季節フィルター ──
+        ('SEAS_UNION3d40_RR3', seasonal_filter(sig_aggressive_union('4h', ema_days=21, lookback_days_dc=3, rsi_thresh=40)), '4h_nt3'),
     ]
 
 
