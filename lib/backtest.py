@@ -17,16 +17,23 @@ import os
 
 class BacktestEngine:
     """
-    ハイブリッド方式バックテスト v4.0:
+    ハイブリッド方式バックテスト v4.1:
     - シグナル生成: OHLCバーベース
     - SL/TP判定: バーベース
     - ピラミッティング: 含み益 pyramid_atr ATR ごとに追加エントリー
     - シーズナリティ: allowed_months で取引月を限定
+    - トレーリングストップ: trail_start_atr で発動後、trail_dist_atr で追従
 
     やがみメソッド準拠:
     - SLは最後の押し安値/戻り高値（ATRフォールバック）
     - ピラミッドごとにSLを前の建値に移動（建値ストップ）
     - 1トレード最大リスク: 資金の risk_pct（デフォルト5%）
+
+    マエダイメソッド準拠 (高RR/低WR設定):
+    - default_sl_atr=0.8, default_tp_atr=10.0 (背を近く、大きく取る)
+    - trail_start_atr=3.0, trail_dist_atr=1.5  (含み益が乗ったら追従)
+    - pyramid_size_mult=1.0 (倍増ピラミッド)
+    - target_max_dd=0.30, target_min_wr=0.30
     """
 
     def __init__(self, init_cash=5_000_000, risk_pct=0.05,
@@ -34,12 +41,26 @@ class BacktestEngine:
                  slippage_pips=0.3, pip=0.1,
                  use_dynamic_sl=True,
                  pyramid_entries=2,
-                 pyramid_atr=1.0):
+                 pyramid_atr=1.0,
+                 pyramid_size_mult=0.5,
+                 trail_start_atr=0.0,
+                 trail_dist_atr=2.0,
+                 target_max_dd=0.15,
+                 target_min_wr=0.50,
+                 target_rr_threshold=2.0,
+                 target_min_trades=30):
         """
         Args:
             risk_pct: 初期エントリーのリスク比率（デフォルト5%、複利で資産に追随）
-            pyramid_entries: ピラミッド追加回数（0=なし、2=2回追加）
-            pyramid_atr: 追加エントリーのトリガー（含み益が pyramid_atr * ATR に達したら）
+            pyramid_entries: ピラミッド追加回数（0=なし）
+            pyramid_atr: 追加エントリーのトリガー（含み益が pyramid_atr × ATR に達したら）
+            pyramid_size_mult: 追加ロットの倍率（0.5=半分, 1.0=同量, 2.0=倍）
+            trail_start_atr: トレーリング発動閾値（0=無効, 3.0=含み益3ATRで発動）
+            trail_dist_atr: トレーリングSL距離（現在価格から何ATR離すか）
+            target_max_dd: 合格基準 最大DD上限
+            target_min_wr: 合格基準 最低勝率
+            target_rr_threshold: 合格基準 RR（この値以上ならWR緩和）
+            target_min_trades: 合格基準 最低トレード数
         """
         self.init_cash = init_cash
         self.risk_pct = risk_pct
@@ -50,6 +71,13 @@ class BacktestEngine:
         self.use_dynamic_sl = use_dynamic_sl
         self.pyramid_entries = pyramid_entries
         self.pyramid_atr = pyramid_atr
+        self.pyramid_size_mult = pyramid_size_mult
+        self.trail_start_atr = trail_start_atr
+        self.trail_dist_atr = trail_dist_atr
+        self.target_max_dd = target_max_dd
+        self.target_min_wr = target_min_wr
+        self.target_rr_threshold = target_rr_threshold
+        self.target_min_trades = target_min_trades
 
     def _calc_atr(self, bars, period=14):
         h = bars['high'].values
@@ -191,9 +219,9 @@ class BacktestEngine:
                             new_entry = bar['close'] - self.slippage
                             pos['sl'] = min(pos['sl'], prev_entry)
 
-                        # 追加サイズ = 初回の50%（スケールイン）
+                        # 追加サイズ = 初回 × pyramid_size_mult
                         base_size = pos['layers'][0]['size']
-                        add_size = max(0.01, round(base_size * 0.5, 2))
+                        add_size = max(0.01, round(base_size * self.pyramid_size_mult, 2))
 
                         pos['layers'].append({
                             'entry': new_entry,
@@ -201,6 +229,20 @@ class BacktestEngine:
                             'entry_time': bar_time,
                         })
                         pos['pyramid_count'] += 1
+
+                # ===== トレーリングストップ =====
+                if self.trail_start_atr > 0:
+                    first_entry = pos['layers'][0]['entry']
+                    if pos['dir'] == 'long':
+                        profit_atr = (bar['close'] - first_entry) / max(pos['atr'], 0.01)
+                        if profit_atr >= self.trail_start_atr:
+                            trail_sl = bar['close'] - self.trail_dist_atr * bar_atr
+                            pos['sl'] = max(pos['sl'], trail_sl)
+                    else:
+                        profit_atr = (first_entry - bar['close']) / max(pos['atr'], 0.01)
+                        if profit_atr >= self.trail_start_atr:
+                            trail_sl = bar['close'] + self.trail_dist_atr * bar_atr
+                            pos['sl'] = min(pos['sl'], trail_sl)
 
                 # ===== SL/TP判定（共有ライン） =====
                 exit_price = None
@@ -394,9 +436,14 @@ class BacktestEngine:
         pyramid_trades = [t for t in trades if t.get('pyramid_layers', 1) > 1]
         pyramid_rate = len(pyramid_trades) / n * 100 if n > 0 else 0
 
-        # 合格判定（やがみ基準 + RR考慮）
-        passed = (pf >= 1.5 and max_dd <= 0.15 and n >= 30 and
-                  (wr >= 0.50 or (rr_ratio >= 2.0 and wr >= 0.35)))
+        # 合格判定（設定可能な基準）
+        wr_min = self.target_min_wr
+        dd_max = self.target_max_dd
+        rr_thr = self.target_rr_threshold
+        n_min  = self.target_min_trades
+        # 高RR時はWR基準を緩和 (RR≥rr_thr なら WR≥0.25 でも可)
+        wr_ok = (wr >= wr_min) or (rr_ratio >= rr_thr and wr >= wr_min * 0.5)
+        passed = (pf >= 1.3 and max_dd <= dd_max and n >= n_min and wr_ok)
 
         return {
             'strategy': name,

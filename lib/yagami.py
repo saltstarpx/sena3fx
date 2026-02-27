@@ -772,3 +772,152 @@ def sig_yagami_breakout_filtered(freq: str = '1h'):
         return signals
 
     return _f
+
+
+# ==============================================================
+# マエダイメソッド: 背を近くして大きな値動きを捕まえる
+# ==============================================================
+
+def sig_maedai_breakout(freq: str = '1h',
+                        lookback: int = 20,
+                        atr_confirm: float = 0.0,
+                        session_filter_on: bool = True):
+    """
+    マエダイ式ドンチャン・ブレイクアウト。
+
+    「大きな時間軸のブレイクを背を近くして何度も挑戦して
+     大きい値動きを取っていく」
+
+    仕組み:
+      - 直近 lookback 本の高値/安値 (Donchian Channel) を使用
+      - 終値が上限を超えた → ロング
+      - 終値が下限を割った → ショート
+      - SL は ATR×0.8 (tight) — エンジン側 default_sl_atr=0.8 で設定
+      - TP は ATR×10 以上の大きな利益を狙う — エンジン側 default_tp_atr=10.0
+
+    Args:
+        lookback: ドンチャン期間 (デフォルト20本)
+        atr_confirm: ブレイク確認ATR倍数 (0=なし, 0.3=ATR×0.3以上のブレイク)
+        session_filter_on: Trueの場合アジア時間を除外
+    """
+    from .timing import session_filter as _session_filter
+
+    def _f(bars):
+        n = len(bars)
+        signals = pd.Series(index=bars.index, dtype=object)
+        if n < lookback + 5:
+            return signals
+
+        h = bars['high'].values
+        l = bars['low'].values
+        c = bars['close'].values
+
+        tr = np.maximum(h - l, np.maximum(
+            np.abs(h - np.roll(c, 1)), np.abs(l - np.roll(c, 1))))
+        tr[0] = h[0] - l[0]
+        atr = pd.Series(tr, index=bars.index).rolling(14).mean()
+
+        if session_filter_on:
+            sess = _session_filter(bars)
+
+        # 前バーまでの N 本高値/安値 (shift(1) で現在バーを含まない)
+        rolling_high = bars['high'].rolling(lookback).max().shift(1)
+        rolling_low  = bars['low'].rolling(lookback).min().shift(1)
+
+        for i in range(lookback + 1, n):
+            if np.isnan(rolling_high.iloc[i]) or np.isnan(rolling_low.iloc[i]):
+                continue
+
+            a = atr.iloc[i]
+            if np.isnan(a) or a == 0:
+                continue
+
+            close_i = c[i]
+            ch_high = rolling_high.iloc[i]
+            ch_low  = rolling_low.iloc[i]
+
+            if session_filter_on and sess.iloc[i] == 'asia':
+                continue
+
+            if atr_confirm > 0:
+                if close_i > ch_high and (close_i - ch_high) >= atr_confirm * a:
+                    signals.iloc[i] = 'long'
+                elif close_i < ch_low and (ch_low - close_i) >= atr_confirm * a:
+                    signals.iloc[i] = 'short'
+            else:
+                if close_i > ch_high:
+                    signals.iloc[i] = 'long'
+                elif close_i < ch_low:
+                    signals.iloc[i] = 'short'
+
+        return signals
+
+    return _f
+
+
+def sig_maedai_htf_breakout(lookback_htf: int = 10,
+                             lookback_ltf: int = 5,
+                             session_filter_on: bool = True):
+    """
+    マエダイ式 MTF ブレイクアウト。
+
+    「1H/4Hをみて大きなブレイクを確認 → 同方向でタイトなエントリー」
+
+    仕組み:
+      - 4H足 (1Hから近似): lookback_htf 本ドンチャンでトレンド方向決定
+      - 1H足: その方向に lookback_ltf 本のブレイクで精密エントリー
+    """
+    from .timing import session_filter as _sf
+
+    def _f(base_bars):
+        n = len(base_bars)
+        signals = pd.Series(index=base_bars.index, dtype=object)
+        if n < (lookback_htf * 4) + lookback_ltf + 10:
+            return signals
+
+        # 4H bars from 1H
+        bars_4h = base_bars.resample('4h').agg(
+            {'open': 'first', 'high': 'max', 'low': 'min', 'close': 'last'}
+        ).dropna()
+
+        if len(bars_4h) < lookback_htf + 3:
+            return signals
+
+        dc_high_4h = bars_4h['high'].rolling(lookback_htf).max().shift(1)
+        dc_low_4h  = bars_4h['low'].rolling(lookback_htf).min().shift(1)
+
+        htf_dir = pd.Series(0, index=bars_4h.index, dtype=int)
+        for j in range(lookback_htf + 1, len(bars_4h)):
+            if pd.isna(dc_high_4h.iloc[j]):
+                continue
+            c4 = bars_4h['close'].iloc[j]
+            if c4 > dc_high_4h.iloc[j]:
+                htf_dir.iloc[j] = 1
+            elif c4 < dc_low_4h.iloc[j]:
+                htf_dir.iloc[j] = -1
+
+        htf_dir_1h = htf_dir.reindex(base_bars.index, method='ffill').fillna(0).astype(int)
+
+        # 1H timing breakout
+        dc_high_1h = base_bars['high'].rolling(lookback_ltf).max().shift(1)
+        dc_low_1h  = base_bars['low'].rolling(lookback_ltf).min().shift(1)
+
+        sess = _sf(base_bars)
+
+        for i in range(lookback_htf * 4 + lookback_ltf + 1, n):
+            if pd.isna(dc_high_1h.iloc[i]):
+                continue
+            if session_filter_on and sess.iloc[i] == 'asia':
+                continue
+
+            htf_b = htf_dir_1h.iloc[i]
+            close_i = base_bars['close'].iloc[i]
+
+            if htf_b == 1 and close_i > dc_high_1h.iloc[i]:
+                signals.iloc[i] = 'long'
+            elif htf_b == -1 and close_i < dc_low_1h.iloc[i]:
+                signals.iloc[i] = 'short'
+
+        return signals
+
+    return _f
