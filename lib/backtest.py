@@ -45,6 +45,7 @@ class BacktestEngine:
                  pyramid_size_mult=0.5,
                  trail_start_atr=0.0,
                  trail_dist_atr=2.0,
+                 exit_on_signal=True,
                  target_max_dd=0.15,
                  target_min_wr=0.50,
                  target_rr_threshold=2.0,
@@ -74,6 +75,7 @@ class BacktestEngine:
         self.pyramid_size_mult = pyramid_size_mult
         self.trail_start_atr = trail_start_atr
         self.trail_dist_atr = trail_dist_atr
+        self.exit_on_signal = exit_on_signal
         self.target_max_dd = target_max_dd
         self.target_min_wr = target_min_wr
         self.target_rr_threshold = target_rr_threshold
@@ -255,7 +257,7 @@ class BacktestEngine:
                     elif bar['high'] >= pos['tp']:
                         exit_price = pos['tp']
                         exit_reason = 'take_profit'
-                    elif sig in ('short', 'close'):
+                    elif self.exit_on_signal and sig in ('short', 'close'):
                         exit_price = bar['close']
                         exit_reason = 'signal'
                 else:
@@ -265,7 +267,7 @@ class BacktestEngine:
                     elif bar['low'] <= pos['tp']:
                         exit_price = pos['tp']
                         exit_reason = 'take_profit'
-                    elif sig in ('long', 'close'):
+                    elif self.exit_on_signal and sig in ('long', 'close'):
                         exit_price = bar['close']
                         exit_reason = 'signal'
 

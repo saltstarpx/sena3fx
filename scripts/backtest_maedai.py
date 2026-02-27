@@ -44,7 +44,7 @@ os.makedirs(IMAGES_DIR,  exist_ok=True)
 
 def make_maedai_engine(risk_pct=0.02):
     """
-    マエダイ式エンジン:
+    マエダイ式エンジン (1H/4H用):
     - tight SL (ATR×0.8)
     - large TP (ATR×10)
     - trailing stop: 含み益 3ATR で発動、SLを 1.5ATR 追従
@@ -54,21 +54,54 @@ def make_maedai_engine(risk_pct=0.02):
     from lib.backtest import BacktestEngine
     return BacktestEngine(
         init_cash       = 5_000_000,
-        risk_pct        = risk_pct,      # 1トレード最大 risk_pct % リスク
-        default_sl_atr  = 0.8,           # タイトSL (背を近く)
-        default_tp_atr  = 10.0,          # 大きなTP
+        risk_pct        = risk_pct,
+        default_sl_atr  = 0.8,
+        default_tp_atr  = 10.0,
         slippage_pips   = 0.3,
         pip             = 0.1,
         use_dynamic_sl  = True,
-        pyramid_entries = 3,             # 最大3回追加
-        pyramid_atr     = 2.0,           # 2ATR ごとに追加
-        pyramid_size_mult = 1.0,         # 同量追加 (マエダイ: 含み益が乗ったら積み増す)
-        trail_start_atr = 3.0,           # 含み益 3ATR で追従開始
-        trail_dist_atr  = 1.5,           # SLを価格から 1.5ATR で追従
-        target_max_dd   = 0.30,          # DD 30% 許容
-        target_min_wr   = 0.30,          # WR 30% でも可
-        target_rr_threshold = 5.0,       # RR5 以上なら WR 15% でも合格
-        target_min_trades = 20,          # 最低20トレード
+        pyramid_entries = 3,
+        pyramid_atr     = 2.0,
+        pyramid_size_mult = 1.0,
+        trail_start_atr = 3.0,
+        trail_dist_atr  = 1.5,
+        exit_on_signal  = False,
+        target_max_dd   = 0.30,
+        target_min_wr   = 0.30,
+        target_rr_threshold = 5.0,
+        target_min_trades = 20,
+    )
+
+
+def make_maedai_d1_engine(risk_pct=0.02):
+    """
+    マエダイ式D1エンジン (日足専用・最適化済み):
+    - D1 ATR ≈ 19 USD (XAUUSD)
+    - SL = ATR×0.8 ≈ 15 USD (タイトだが日足レベルでは妥当)
+    - TP = ATR×10 ≈ 190 USD (長期トレンド狙い)
+    - Trail@4d3: 4ATR利益で発動、3ATR距離で追従 (最適化結果)
+    - exit_on_signal=False: SL/TPのみ決済
+    - DD 30% 許容 / WR 30% 以上 / n≥15
+    """
+    from lib.backtest import BacktestEngine
+    return BacktestEngine(
+        init_cash       = 5_000_000,
+        risk_pct        = risk_pct,
+        default_sl_atr  = 0.8,
+        default_tp_atr  = 10.0,
+        slippage_pips   = 0.3,
+        pip             = 0.1,
+        use_dynamic_sl  = True,
+        pyramid_entries = 3,
+        pyramid_atr     = 2.0,
+        pyramid_size_mult = 1.0,
+        trail_start_atr = 4.0,           # D1最適化: 4ATR発動
+        trail_dist_atr  = 3.0,           # D1最適化: 3ATR追従
+        exit_on_signal  = False,         # SL/TPのみ決済
+        target_max_dd   = 0.30,
+        target_min_wr   = 0.30,
+        target_rr_threshold = 5.0,
+        target_min_trades = 15,
     )
 
 
@@ -76,8 +109,37 @@ def make_maedai_engine(risk_pct=0.02):
 # データ
 # ──────────────────────────────────────────────
 
-def load_data(use_dukascopy=False, start_warmup='2020-01-01'):
-    """データ取得 (Dukascopy → サンプル)"""
+def load_data(use_dukascopy=False, start_warmup='2014-01-01'):
+    """データ取得 (Dukascopy OHLC CSV → ティックCSV → サンプル)"""
+    # 1. 保存済み Dukascopy OHLC CSV を優先読み込み
+    path_1h = os.path.join(BASE_DIR, 'data', 'XAUUSD_1h_dukascopy.csv')
+    path_4h = os.path.join(BASE_DIR, 'data', 'XAUUSD_4h_dukascopy.csv')
+    if os.path.exists(path_1h):
+        try:
+            bars_1h = pd.read_csv(path_1h, index_col=0, parse_dates=True)
+            bars_4h = pd.read_csv(path_4h, index_col=0, parse_dates=True) \
+                if os.path.exists(path_4h) else \
+                bars_1h.resample('4h').agg(
+                    open='first', high='max', low='min', close='last'
+                ).dropna(subset=['open'])
+
+            ts_start = pd.Timestamp(start_warmup)
+            bars_1h = bars_1h[bars_1h.index >= ts_start]
+            bars_4h = bars_4h[bars_4h.index >= ts_start]
+
+            # D1 集計
+            bars_d1 = bars_1h.resample('1D').agg(
+                {'open': 'first', 'high': 'max', 'low': 'min', 'close': 'last'}
+            ).dropna(subset=['open'])
+            bars_d1 = bars_d1[(bars_d1['high'] - bars_d1['low']) > 0]
+
+            print(f"[Data] Dukascopy OHLC: 1h={len(bars_1h)}, 4h={len(bars_4h)}, d1={len(bars_d1)} bars "
+                  f"({bars_1h.index.min().date()} ~ {bars_1h.index.max().date()})")
+            return {'source': 'dukascopy', '1h': bars_1h, '4h': bars_4h, '1d': bars_d1}
+        except Exception as e:
+            print(f"[Data] OHLC CSV読み込み失敗: {e}")
+
+    # 2. ティックデータから変換
     try:
         from scripts.fetch_data import load_ticks, ticks_to_ohlc
         ticks = load_ticks()
@@ -87,10 +149,10 @@ def load_data(use_dukascopy=False, start_warmup='2020-01-01'):
             if len(ticks) > 1000:
                 bars_1h = ticks_to_ohlc(ticks, '1h')
                 bars_4h = ticks_to_ohlc(ticks, '4h')
-                print(f"[Data] Dukascopy: 1h={len(bars_1h)}, 4h={len(bars_4h)} bars")
+                print(f"[Data] Dukascopy ticks→OHLC: 1h={len(bars_1h)}, 4h={len(bars_4h)} bars")
                 return {'source': 'dukascopy', '1h': bars_1h, '4h': bars_4h}
     except Exception as e:
-        print(f"[Data] Dukascopy失敗: {e}")
+        print(f"[Data] ティックデータ失敗: {e}")
 
     print("[Data] サンプルデータ生成 (XAU ~2880 USD, 2020〜2026)")
     return _generate_sample()
@@ -139,6 +201,8 @@ def build_strategies():
         sig_maedai_breakout_v2,
         sig_maedai_best,
         sig_maedai_htf_pullback,
+        sig_maedai_d1_dc30,
+        sig_maedai_d1_dc_multi,
     )
 
     return [
@@ -195,6 +259,12 @@ def build_strategies():
         ('HTF_Pullback_20x5', sig_maedai_htf_pullback(lookback_htf=20, pullback_bars=5), '1h'),
         ('HTF_Pullback_10x3', sig_maedai_htf_pullback(lookback_htf=10, pullback_bars=3), '1h'),
         ('HTF_Pullback_20x8', sig_maedai_htf_pullback(lookback_htf=20, pullback_bars=8), '1h'),
+
+        # ── D1: 日足 ドンチャン30 + EMA200 (リアルデータ実証済み) ──
+        ('D1_DC30_EMA200',       sig_maedai_d1_dc30(lookback=30, ema_period=200),  '1d'),
+        ('D1_DC20_EMA200',       sig_maedai_d1_dc30(lookback=20, ema_period=200),  '1d'),
+        ('D1_DC50_EMA200',       sig_maedai_d1_dc30(lookback=50, ema_period=200),  '1d'),
+        ('D1_DC30_EMA200_Confirm', sig_maedai_d1_dc_multi(lookback=30, ema_period=200, confirm_close=True), '1d'),
     ]
 
 
@@ -203,16 +273,18 @@ def build_strategies():
 # ──────────────────────────────────────────────
 
 def run_backtest(data, strategies, risk_pct=0.02):
-    engine = make_maedai_engine(risk_pct=risk_pct)
+    engine_1h = make_maedai_engine(risk_pct=risk_pct)
+    engine_d1 = make_maedai_d1_engine(risk_pct=risk_pct)
     bars_4h = data.get('4h')
     results = []
     trade_map = {}
 
     for name, sig_fn, freq in strategies:
         bars = data.get(freq)
-        if bars is None or len(bars) < 100:
+        if bars is None or len(bars) < 30:
             continue
 
+        engine = engine_d1 if freq == '1d' else engine_1h
         htf = bars_4h if freq == '1h' else None
         try:
             result = engine.run(bars, sig_fn, freq=freq, name=name, htf_bars=htf)

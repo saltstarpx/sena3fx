@@ -1396,3 +1396,90 @@ def sig_maedai_htf_pullback(lookback_htf: int = 10,
         return signals
 
     return _f
+
+
+# ──────────────────────────────────────────────────────
+# マエダイ D1 戦略: ドンチャン30 + EMA200 トレンドフィルター
+# ──────────────────────────────────────────────────────
+
+def sig_maedai_d1_dc30(lookback=30, ema_period=200, session_filter_on=False):
+    """
+    D1足 ドンチャンチャンネルブレイク + EMA200トレンドフィルター。
+
+    マエダイメソッドを日足レベルで実装:
+    - 大きな足でのみトレード (D1 = 真のトレンド判定)
+    - EMA200 で長期方向を確認 (上抜け→ロング方向のみ、下抜け→ショート方向のみ)
+    - 30日高値/安値ブレイクでエントリー
+
+    推奨エンジン設定:
+    - exit_on_signal=False (SL/TPのみ決済)
+    - trail_start_atr=4, trail_dist_atr=3
+    - SL=ATR×0.8以上, TP=ATR×6以上
+
+    Args:
+        lookback: ドンチャンチャンネル期間 (デフォルト30日)
+        ema_period: トレンドフィルターEMA期間 (デフォルト200日)
+        session_filter_on: セッションフィルター (D1は無効化を推奨)
+    """
+    def _f(bars):
+        c = bars['close']
+        h = bars['high']
+        l = bars['low']
+
+        # ドンチャンチャンネル (前日までの高値/安値)
+        dc_hi = h.shift(1).rolling(lookback).max()
+        dc_lo = l.shift(1).rolling(lookback).min()
+
+        # EMA200 トレンドフィルター
+        ema = c.ewm(span=ema_period, adjust=False).mean()
+
+        signals = pd.Series('flat', index=bars.index)
+
+        # ロング: 高値ブレイク + EMA200上抜け
+        long_mask  = (c > dc_hi) & (c > ema)
+        # ショート: 安値ブレイク + EMA200下抜け
+        short_mask = (c < dc_lo) & (c < ema)
+
+        signals[long_mask]  = 'long'
+        signals[short_mask] = 'short'
+
+        return signals
+
+    return _f
+
+
+def sig_maedai_d1_dc_multi(lookback=30, ema_period=200,
+                            confirm_close=True):
+    """
+    D1足 ドンチャン + EMA200 + クローズ確認。
+
+    confirm_close=True: ブレイクの翌日にも同方向クローズで確認
+    (ダマシブレイク削減)
+    """
+    def _f(bars):
+        c = bars['close']
+        h = bars['high']
+        l = bars['low']
+
+        dc_hi = h.shift(1).rolling(lookback).max()
+        dc_lo = l.shift(1).rolling(lookback).min()
+        ema   = c.ewm(span=ema_period, adjust=False).mean()
+
+        raw_long  = (c > dc_hi) & (c > ema)
+        raw_short = (c < dc_lo) & (c < ema)
+
+        signals = pd.Series('flat', index=bars.index)
+
+        if confirm_close:
+            # 翌日もブレイク方向維持で確認 (1バーラグ)
+            confirm_long  = raw_long  & raw_long.shift(1).fillna(False)
+            confirm_short = raw_short & raw_short.shift(1).fillna(False)
+            signals[confirm_long]  = 'long'
+            signals[confirm_short] = 'short'
+        else:
+            signals[raw_long]  = 'long'
+            signals[raw_short] = 'short'
+
+        return signals
+
+    return _f
