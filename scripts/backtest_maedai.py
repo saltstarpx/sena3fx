@@ -314,6 +314,8 @@ def build_strategies():
         sig_rsi_pullback_filtered,
         sig_rsi_short_tf,
         sig_dc_filtered,
+        # 改善指令 v2.0 Mission1: 弱気ダイバージェンスショート
+        sig_bearish_divergence_short,
     )
 
     return [
@@ -439,6 +441,13 @@ def build_strategies():
         ('SHORT_8H_RSI55',  sig_rsi_short_tf('8h',  rsi_overbought=55, ny_session_only=False, block_noon_jst=True, block_saturday=True), '8h'),
         ('SHORT_12H_RSI55', sig_rsi_short_tf('12h', rsi_overbought=55, ny_session_only=False, block_noon_jst=True, block_saturday=True), '12h'),
 
+        # ── 改善指令 v2.0 Mission1: 弱気ダイバージェンス ショート ──
+        # 弱気ダイバージェンス + 主要レジスタンス + MTFフィルター
+        # 強気相場では故意にシグナルを絞り込む (「日足上昇中はショート見送り」)
+        ('BearDiv_Short_4H',  sig_bearish_divergence_short('4h',  div_lookback=20, div_pivot_bars=3, res_lookback=80,  res_atr_mult=1.5), '4h'),
+        ('BearDiv_Short_8H',  sig_bearish_divergence_short('8h',  div_lookback=25, div_pivot_bars=3, res_lookback=100, res_atr_mult=1.5), '8h'),
+        ('BearDiv_Short_12H', sig_bearish_divergence_short('12h', div_lookback=20, div_pivot_bars=3, res_lookback=80,  res_atr_mult=1.5), '12h'),
+
         # ── 指令2・3・7: ユーザー最適化エンジン (8-24h保有 + 分割決済 + 最低1h保有) ──
         # dynamic_rr=2.0 + partial_tp_rr=1.0 + min_hold_hours=1.0
         # → 8-24h黄金ゾーン + 分割決済 + ポジポジ病防止
@@ -536,7 +545,7 @@ def run_backtest(data, strategies, risk_pct=0.03, trade_start='2020-01-01'):
 
         # エンジン選択ロジック
         is_union = name.startswith(('4H_OR_', '8H_OR_', '12H_OR_'))
-        is_short = name.startswith('SHORT_')
+        is_short = name.startswith('SHORT_') or name.startswith('BearDiv_Short')
         is_opt   = freq.endswith('_opt')
 
         if is_union and actual_freq in scaleout_map:

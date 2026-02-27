@@ -1933,3 +1933,170 @@ def sig_dc_filtered(freq='4h', lookback_days=15, ema_days=200,
                                    block_noon_jst=block_noon_jst,
                                    block_saturday=block_saturday)
     return _f
+
+
+# ==============================================================
+# 改善指令 v2.0 Mission1: 弱気ダイバージェンス + 主要レジスタンス ショート戦略
+# ==============================================================
+
+def sig_bearish_divergence_short(freq='8h',
+                                  div_lookback=25,
+                                  div_pivot_bars=3,
+                                  res_lookback=100,
+                                  res_atr_mult=1.5,
+                                  rsi_period=14,
+                                  ema_days=200,
+                                  block_noon_jst=True,
+                                  block_saturday=True):
+    """
+    弱気ダイバージェンス + 主要レジスタンス + MTFフィルター ショート戦略
+    (改善指令 v2.0 Mission1)
+
+    従来の単純RSI逆張りショートの問題点:
+      - 金相場の長期上昇トレンドでは EMA200 下に価格が来ることが少ない
+      - 単純な RSI 閾値超えはダマシが多く、長期バックテストで機能しない
+
+    本戦略の3つの改善 (ヒント1〜3 対応):
+    1. 弱気ダイバージェンス [ヒント1]:
+       価格は高値を更新しているが RSI は切り下げている → 真の反転シグナル
+       検出: 直近 div_lookback 本の中に2つのローカルハイを探し、
+             h[new] >= h[old]*0.998 かつ rsi[new] < rsi[old] - 2.0 で確認
+
+    2. 主要レジスタンス付近 [ヒント2]:
+       過去 res_lookback 本の高値上位18%水準付近でのみショートエントリー
+       → 「週足・日足の重要レジスタンスライン付近での反発」を模倣
+
+    3. MTFフィルター [ヒント3]:
+       同足 EMA200 の傾きが急上昇 (> ATR*0.12/bar) なら見送り
+       → 「日足が強い上昇トレンドなら4時間足ショートは見送る」
+
+    + 弱気ローソク足 or RSI高水準ダイバージェンスでエントリータイミング確認
+
+    Args:
+        freq: 時間軸 ('4h' | '8h' | '12h' 推奨)
+        div_lookback: ダイバージェンス検索範囲 (バー数)
+        div_pivot_bars: ローカルハイの前後確認本数
+        res_lookback: 主要レジスタンス計算の参照期間 (バー数)
+        res_atr_mult: レジスタンス付近判定のATR倍率
+        rsi_period: RSI 算出期間
+        ema_days: EMA 長期期間 (日数)
+        block_noon_jst: JST 12時台ブロック
+        block_saturday: 土曜ブロック
+    """
+    BARS_PER_DAY = {'1h': 24, '2h': 12, '4h': 6, '6h': 4,
+                    '8h': 3, '12h': 2, '1d': 1}
+
+    def _is_local_high(arr, i, half_win):
+        """arr[i] が前後 half_win 本の中の最大値か（ゆるい判定）"""
+        lo = max(0, i - half_win)
+        hi = min(len(arr), i + half_win + 1)
+        return arr[i] >= np.max(arr[lo:hi]) * 0.9995
+
+    def _f(bars):
+        n = len(bars)
+        signals = pd.Series('flat', index=bars.index)
+        min_start = max(div_lookback + div_pivot_bars * 2 + 5, res_lookback + 20, 30)
+        if n < min_start + 10:
+            return signals
+
+        h = bars['high'].values
+        l = bars['low'].values
+        c = bars['close'].values
+
+        # ATR (14期間)
+        tr = np.maximum(h - l, np.maximum(
+            np.abs(h - np.roll(c, 1)), np.abs(l - np.roll(c, 1))))
+        tr[0] = h[0] - l[0]
+        atr = pd.Series(tr, index=bars.index).rolling(14).mean().values
+
+        # EMA200 (MTFフィルター)
+        bpd = BARS_PER_DAY.get(freq, 1)
+        ema_n = max(20, ema_days * bpd)
+        close_s = bars['close']
+        ema = close_s.ewm(span=ema_n, adjust=False).mean().values
+
+        # RSI (Wilder平滑化)
+        delta    = close_s.diff()
+        avg_gain = delta.clip(lower=0).ewm(com=rsi_period - 1, adjust=False).mean().values
+        avg_loss = (-delta.clip(upper=0)).ewm(com=rsi_period - 1, adjust=False).mean().values
+        rs  = avg_gain / np.where(avg_loss == 0, 1e-10, avg_loss)
+        rsi = 100 - (100 / (1 + rs))
+
+        # 弱気ローソク足の確認
+        from .candle import detect_single_candle
+        df_c = detect_single_candle(bars)
+        candle_types = df_c['candle_type'].values
+        BEAR_TYPES = frozenset(('big_bear', 'engulf_bear', 'inv_hammer',
+                                'pinbar_bear', 'pullback_bear'))
+
+        for i in range(min_start, n):
+            a = atr[i]
+            if np.isnan(a) or a == 0:
+                continue
+
+            # ── フィルター1: MTF — 「日足が強い上昇トレンドなら4時間足ショートは見送る」 ──
+            # EMA200 が上向き (直近10本) かつ価格が EMA を明確に上回る場合はスキップ
+            if i >= 10:
+                ema_slope = (ema[i] - ema[i - 10]) / 10.0
+                price_above_ema = c[i] > ema[i]
+                # 強い上昇: 価格が EMA 上 + EMA が上向き + 傾きが急
+                if price_above_ema and ema_slope > a * 0.08:
+                    continue  # 強い上昇トレンド中はショート見送り
+
+            # ── フィルター2: 主要レジスタンス付近か ──
+            look_start = max(0, i - res_lookback)
+            recent_highs = h[look_start:i]
+            if len(recent_highs) < 15:
+                continue
+            # 上位15%の高値水準 = 主要レジスタンスゾーン
+            resistance_lvl = np.percentile(recent_highs, 85)
+            near_res = (c[i] >= resistance_lvl - a * res_atr_mult * 0.8) and \
+                       (c[i] <= resistance_lvl + a * res_atr_mult)
+            if not near_res:
+                continue
+
+            # ── フィルター3: RSI が過熱圏 (ショートの前提条件) ──
+            if rsi[i] < 60:
+                continue
+
+            # ── 条件4: 弱気ダイバージェンス検出 ──
+            if not _is_local_high(h, i, div_pivot_bars):
+                continue
+
+            div_found = False
+            prev_j    = -1
+            for j in range(i - div_pivot_bars * 2,
+                           max(div_pivot_bars, i - div_lookback - 1), -1):
+                if j < 0 or j == i:
+                    continue
+                if not _is_local_high(h, j, div_pivot_bars):
+                    continue
+                # 弱気ダイバージェンス (強化):
+                #   価格: h[i] >= h[j]*0.998 (高値が同水準以上)
+                #   RSI : rsi[i] < rsi[j] - 4.0 (RSI が明確に切り下げ)
+                #   前回: rsi[j] > 55 (前回も過熱圏)
+                if (h[i] >= h[j] * 0.998
+                        and rsi[i] < rsi[j] - 4.0
+                        and rsi[j] > 55):
+                    div_found = True
+                    prev_j    = j
+                    break
+
+            if not div_found:
+                continue
+
+            # ── 条件5: 弱気確認ローソク足 または 強いダイバージェンス ──
+            bear_candle = candle_types[i] in BEAR_TYPES
+            rsi_gap     = rsi[prev_j] - rsi[i] if prev_j >= 0 else 0
+            strong_div  = (rsi[i] > 65) and (rsi_gap >= 8.0)
+            if not (bear_candle or strong_div):
+                continue
+
+            signals.iloc[i] = 'short'
+
+        return _apply_time_filters(signals, bars,
+                                   ny_session_only=False,
+                                   block_noon_jst=block_noon_jst,
+                                   block_saturday=block_saturday)
+
+    return _f

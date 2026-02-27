@@ -1,0 +1,5 @@
+strategy,freq,trades,wins,win_rate_pct,profit_factor,total_pnl,roi_pct,max_dd_pct
+NY_8H_RSI_PB_45,8h,17,7,41.2,3.149,3613202.0,108.4,10.66
+BearDiv_Short_8H,8h,1,0,0.0,0.0,0.0,0.0,0.0
+12H_DC30d_Confirm2,12h,5,2,40.0,7.445,1420467.0,42.61,3.04
+★ PORTFOLIO_TOTAL,mixed,23,9,39.1,3.647,5033669.0,50.34,6.0
