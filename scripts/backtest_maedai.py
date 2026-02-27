@@ -136,10 +136,13 @@ def build_strategies():
     from lib.yagami import (
         sig_maedai_breakout,
         sig_maedai_htf_breakout,
+        sig_maedai_breakout_v2,
+        sig_maedai_best,
+        sig_maedai_htf_pullback,
     )
 
     return [
-        # ── マエダイ式 Donchian ──
+        # ── v1: Donchian (ベースライン) ──
         ('Maedai_DC20_1h',    sig_maedai_breakout('1h', lookback=20),              '1h'),
         ('Maedai_DC10_1h',    sig_maedai_breakout('1h', lookback=10),              '1h'),
         ('Maedai_DC30_1h',    sig_maedai_breakout('1h', lookback=30),              '1h'),
@@ -155,6 +158,43 @@ def build_strategies():
         ('Maedai_HTF_10x5',   sig_maedai_htf_breakout(lookback_htf=10, lookback_ltf=5), '1h'),
         ('Maedai_HTF_20x3',   sig_maedai_htf_breakout(lookback_htf=20, lookback_ltf=3), '1h'),
         ('Maedai_HTF_5x3',    sig_maedai_htf_breakout(lookback_htf=5,  lookback_ltf=3), '1h'),
+
+        # ── v2: レンジ品質 + エントリーモード最適化 ──
+        # immediate (v1と同等、レンジ品質フィルタ追加)
+        ('v2_Imm_DC20',       sig_maedai_breakout_v2('1h', lookback=20,
+                                entry_mode='immediate', require_compression=True), '1h'),
+        # next_bar (次バー確認でダマシ削減)
+        ('v2_NextBar_DC20',   sig_maedai_breakout_v2('1h', lookback=20,
+                                entry_mode='next_bar', require_compression=True), '1h'),
+        # retest (後ノリ: リテストで最タイトSL)
+        ('v2_Retest_DC20',    sig_maedai_breakout_v2('1h', lookback=20,
+                                entry_mode='retest', require_compression=True,
+                                retest_tolerance=0.5, retest_window=10), '1h'),
+        ('v2_Retest_DC10',    sig_maedai_breakout_v2('1h', lookback=10,
+                                entry_mode='retest', require_compression=True,
+                                retest_tolerance=0.4, retest_window=8), '1h'),
+        ('v2_Retest_DC30',    sig_maedai_breakout_v2('1h', lookback=30,
+                                entry_mode='retest', require_compression=True,
+                                retest_tolerance=0.6, retest_window=12), '1h'),
+        # pullback (後ノリ: 押し目/戻りで追従エントリー)
+        ('v2_Pullback_DC20',  sig_maedai_breakout_v2('1h', lookback=20,
+                                entry_mode='pullback', require_compression=True,
+                                pullback_window=6), '1h'),
+        ('v2_Pullback_DC15',  sig_maedai_breakout_v2('1h', lookback=15,
+                                entry_mode='pullback', require_compression=False,
+                                pullback_window=5), '1h'),
+        # 4H版 retest
+        ('v2_Retest_4h',      sig_maedai_breakout_v2('4h', lookback=15,
+                                entry_mode='retest', require_compression=True,
+                                retest_tolerance=0.5, retest_window=8), '4h'),
+        # 推奨設定 (retest + 4H方向 + ATR圧縮 + パターン)
+        ('Maedai_Best_1h',    sig_maedai_best('1h'),  '1h'),
+
+        # ── HTF方向 × 後ノリ押し目 (最強コンボ) ──
+        ('HTF_Pullback_10x5', sig_maedai_htf_pullback(lookback_htf=10, pullback_bars=5), '1h'),
+        ('HTF_Pullback_20x5', sig_maedai_htf_pullback(lookback_htf=20, pullback_bars=5), '1h'),
+        ('HTF_Pullback_10x3', sig_maedai_htf_pullback(lookback_htf=10, pullback_bars=3), '1h'),
+        ('HTF_Pullback_20x8', sig_maedai_htf_pullback(lookback_htf=20, pullback_bars=8), '1h'),
     ]
 
 

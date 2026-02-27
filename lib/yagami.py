@@ -921,3 +921,478 @@ def sig_maedai_htf_breakout(lookback_htf: int = 10,
         return signals
 
     return _f
+
+
+# ==============================================================
+# マエダイメソッド v2: レンジ品質 + 後ノリ + パターン類似
+# ==============================================================
+
+def _calc_range_quality(bars, idx, lookback=20):
+    """
+    ブレイク前のレンジ品質スコア (0.0 〜 1.0)。
+
+    スコア構成:
+      - ATR圧縮率 (short_atr / long_atr が低い = コイリング)
+      - レンジ継続期間 (長いほど蓄積エネルギー大)
+      - レンジの狭さ (高値-安値 / ATR が小さい)
+
+    高スコア = 強いブレイク候補。
+    """
+    start = max(0, idx - lookback)
+    sub = bars.iloc[start:idx + 1]
+    if len(sub) < 10:
+        return 0.5  # デフォルト
+
+    h = sub['high'].values
+    l = sub['low'].values
+    c = sub['close'].values
+
+    tr = np.maximum(h - l, np.maximum(
+        np.abs(h - np.roll(c, 1)), np.abs(l - np.roll(c, 1))))
+    tr[0] = h[0] - l[0]
+    atr_s = float(pd.Series(tr).rolling(5).mean().iloc[-1])   # 短期ATR
+    atr_l = float(pd.Series(tr).rolling(14).mean().iloc[-1])  # 長期ATR
+    if atr_l == 0:
+        return 0.5
+
+    # ATR圧縮スコア: 短期が長期より小さいほど高評価
+    compression_score = max(0.0, 1.0 - atr_s / atr_l)
+
+    # レンジ幅スコア: 高値-安値 / (ATR × sqrt(lookback)) で正規化
+    # sqrt(lookback) でlookback長さに関わらず公平なスコアに
+    range_width = max(h) - min(l)
+    expected_range = atr_l * (lookback ** 0.5) * 0.8  # 期待レンジ幅
+    range_score = max(0.0, 1.0 - (range_width / max(expected_range, atr_l)))
+
+    # レンジ継続スコア: もし均衡状態が長く続いているほど高評価
+    # 終値がレンジの中央±20%に収まっているバー数をカウント
+    mid = (max(h) + min(l)) / 2
+    half = (max(h) - min(l)) * 0.3
+    in_range = np.sum(np.abs(c - mid) < half)
+    duration_score = min(1.0, in_range / max(lookback * 0.5, 1))
+
+    score = (compression_score * 0.4 + range_score * 0.3 + duration_score * 0.3)
+    return float(np.clip(score, 0.0, 1.0))
+
+
+def sig_maedai_breakout_v2(freq: str = '1h',
+                            lookback: int = 20,
+                            entry_mode: str = 'retest',
+                            require_compression: bool = True,
+                            compression_ratio: float = 0.92,
+                            min_range_score: float = 0.20,
+                            use_patterns: bool = True,
+                            retest_tolerance: float = 0.4,
+                            retest_window: int = 10,
+                            pullback_window: int = 6,
+                            session_filter_on: bool = True):
+    """
+    マエダイ式 最適化ブレイクアウト v2。
+
+    「後ノリでも行ける」「背が近い」「過去のパターンに似ている」
+
+    改善点:
+      1. レンジ品質スコア: ATR圧縮率 + 継続期間でブレイクエネルギーを評価
+      2. エントリーモード:
+           'immediate' — ブレイクバー即エントリー
+           'next_bar'  — 次バー同方向確認後エントリー (ダマシ削減)
+           'retest'    — ブレイク後リテスト待ちエントリー (タイトSL)
+           'pullback'  — 後ノリ: ブレイク後の押し/戻りで追従エントリー
+      3. チャートパターン確認: flag/wedge/triangle/ascending_tri で信頼度加算
+
+    Args:
+        entry_mode: 'immediate' | 'next_bar' | 'retest' | 'pullback'
+        require_compression: ブレイク前ATR圧縮を必須とするか
+        compression_ratio: short_atr/long_atr の閾値 (デフォルト0.85)
+        min_range_score: 必要な最低レンジ品質スコア (0.0〜1.0)
+        use_patterns: チャートパターンによるスコア加算
+        retest_tolerance: リテスト許容距離 (ATR倍数)
+        retest_window: retest/pullbackモードの待機バー数
+        pullback_window: pullbackモードの押し目待ち期間
+    """
+    from .candle import detect_single_candle, detect_price_action
+    from .patterns import detect_chart_patterns
+    from .timing import session_filter as _sf
+
+    BULL_PATTERNS = ('flag_bull', 'wedge_bull', 'triangle_break_bull',
+                     'ascending_tri', 'inv_hs_long')
+    BEAR_PATTERNS = ('flag_bear', 'wedge_bear', 'triangle_break_bear',
+                     'descending_tri', 'hs_short')
+
+    def _f(bars):
+        n = len(bars)
+        signals = pd.Series(index=bars.index, dtype=object)
+        if n < lookback + 20:
+            return signals
+
+        # === 事前計算 ===
+        h = bars['high'].values
+        l = bars['low'].values
+        c = bars['close'].values
+
+        tr = np.maximum(h - l, np.maximum(
+            np.abs(h - np.roll(c, 1)), np.abs(l - np.roll(c, 1))))
+        tr[0] = h[0] - l[0]
+        atr_s = pd.Series(tr, index=bars.index).rolling(5).mean()
+        atr_l = pd.Series(tr, index=bars.index).rolling(20).mean()
+        atr14 = pd.Series(tr, index=bars.index).rolling(14).mean()
+
+        # チャートパターン (use_patterns=True の場合)
+        if use_patterns:
+            df_pat = detect_chart_patterns(bars)
+            patterns = df_pat['chart_pattern'].values
+        else:
+            patterns = np.array([None] * n)
+
+        # ローソク足品質
+        df_c = detect_single_candle(bars)
+        df_c = detect_price_action(df_c)
+
+        if session_filter_on:
+            sess = _sf(bars)
+
+        # Donchian (前バーまで)
+        rolling_high = bars['high'].rolling(lookback).max().shift(1)
+        rolling_low  = bars['low'].rolling(lookback).min().shift(1)
+
+        # ATR圧縮判定
+        # NOTE: ブレイクバー自身ではなく 1〜3 本前で判定
+        # (ブレイクバーは急騰/急落でATR(5)が跳ね上がるため)
+        def is_compressed(i):
+            if not require_compression:
+                return True
+            # ブレイク前 (i-2 ≈ レンジ最後のバー) で圧縮状態を確認
+            check_i = max(0, i - 2)
+            a_s = atr_s.iloc[check_i]
+            a_l = atr_l.iloc[check_i]
+            if np.isnan(a_s) or np.isnan(a_l) or a_l == 0:
+                return False
+            return (a_s / a_l) <= compression_ratio
+
+        # パターンスコア加算
+        def pattern_confirms(i, direction):
+            if not use_patterns:
+                return True, 0.0
+            pat = patterns[i] if i < len(patterns) else None
+            if direction == 'long' and pat in BULL_PATTERNS:
+                return True, 1.0
+            if direction == 'short' and pat in BEAR_PATTERNS:
+                return True, 1.0
+            # パターンなしでも通過 (スコア0)
+            return True, 0.0
+
+        # アクティブブレイク追跡
+        # {key: {dir, level, break_idx, break_atr, bar_break_high, bar_break_low}}
+        active_breaks = {}
+
+        for i in range(lookback + 1, n):
+            a = atr14.iloc[i]
+            if np.isnan(a) or a == 0:
+                continue
+            if np.isnan(rolling_high.iloc[i]):
+                continue
+            if session_filter_on and sess.iloc[i] == 'asia':
+                continue
+
+            close_i = c[i]
+            ch_high = rolling_high.iloc[i]
+            ch_low  = rolling_low.iloc[i]
+
+            # === ブレイクアウト検出 ===
+            new_break = None
+            if close_i > ch_high:
+                rq = _calc_range_quality(bars, i - 1, lookback)
+                if rq >= min_range_score and is_compressed(i):
+                    new_break = ('bull', ch_high, i, a,
+                                 bars['high'].iloc[i], bars['low'].iloc[i])
+            elif close_i < ch_low:
+                rq = _calc_range_quality(bars, i - 1, lookback)
+                if rq >= min_range_score and is_compressed(i):
+                    new_break = ('bear', ch_low, i, a,
+                                 bars['high'].iloc[i], bars['low'].iloc[i])
+
+            # immediate: ブレイクバーで即エントリー
+            if new_break and entry_mode == 'immediate':
+                direction = 'long' if new_break[0] == 'bull' else 'short'
+                _, pat_score = pattern_confirms(i, direction)
+                signals.iloc[i] = direction
+
+            # next_bar: 追跡リストに追加して次バーで確認
+            elif new_break and entry_mode in ('next_bar', 'retest', 'pullback'):
+                brk_dir, brk_level, brk_idx, brk_atr, brk_bar_high, brk_bar_low = new_break
+                key = (round(brk_level, 1), brk_idx)
+                active_breaks[key] = {
+                    'dir': brk_dir,
+                    'level': brk_level,
+                    'break_idx': brk_idx,
+                    'break_atr': brk_atr,
+                    'bar_high': brk_bar_high,
+                    'bar_low': brk_bar_low,
+                }
+
+            # === アクティブブレイクの後処理 ===
+            expired = []
+            for key, brk in active_breaks.items():
+                bars_since = i - brk['break_idx']
+                if bars_since == 0:
+                    continue
+
+                win = retest_window if entry_mode in ('retest',) else pullback_window
+                if bars_since > win:
+                    expired.append(key)
+                    continue
+
+                brk_dir  = brk['dir']
+                brk_lv   = brk['level']
+                brk_atr  = brk['break_atr']
+                direction = 'long' if brk_dir == 'bull' else 'short'
+                ctype = df_c['candle_type'].iloc[i]
+                pa    = df_c['pa_signal'].iloc[i]
+
+                if entry_mode == 'next_bar':
+                    # 次バーが同方向に動いていれば即エントリー
+                    if bars_since == 1:
+                        if brk_dir == 'bull' and close_i > brk['bar_high'] * 0.999:
+                            signals.iloc[i] = 'long'
+                            expired.append(key)
+                        elif brk_dir == 'bear' and close_i < brk['bar_low'] * 1.001:
+                            signals.iloc[i] = 'short'
+                            expired.append(key)
+
+                elif entry_mode == 'retest':
+                    # レベルにリテストが来た時に確認ローソク足でエントリー
+                    dist = abs(close_i - brk_lv)
+                    if dist <= brk_atr * retest_tolerance:
+                        # 価格がブレイクの反対側に逝かないこと
+                        if brk_dir == 'bull' and close_i < brk_lv - brk_atr * 0.2:
+                            expired.append(key)
+                            continue
+                        if brk_dir == 'bear' and close_i > brk_lv + brk_atr * 0.2:
+                            expired.append(key)
+                            continue
+
+                        bull_ok = ctype in ('big_bull', 'engulf_bull', 'hammer',
+                                            'pinbar_bull', 'pullback_bull') or \
+                                  pa in ('reversal_low', 'wick_fill_bull', 'double_bottom')
+                        bear_ok = ctype in ('big_bear', 'engulf_bear', 'inv_hammer',
+                                            'pinbar_bear', 'pullback_bear') or \
+                                  pa in ('reversal_high', 'wick_fill_bear', 'double_top')
+                        if brk_dir == 'bull' and bull_ok:
+                            signals.iloc[i] = 'long'
+                            expired.append(key)
+                        elif brk_dir == 'bear' and bear_ok:
+                            signals.iloc[i] = 'short'
+                            expired.append(key)
+
+                elif entry_mode == 'pullback':
+                    # 後ノリ: ブレイク後に一度押し/戻りが入ったら追従エントリー
+                    # 押し目の最安値 (ブレイク後の最安/最高) を取ってから
+                    # 再び方向に動き出したらエントリー
+                    recent_slice = bars.iloc[brk['break_idx']:i + 1]
+                    if len(recent_slice) < 3:
+                        continue
+
+                    if brk_dir == 'bull':
+                        # ブレイク後に一度安値をつけてから上昇再開
+                        recent_low = recent_slice['low'].min()
+                        # 押しが入っている (最安値がブレイクバーのcloseより低い)
+                        had_pullback = recent_low < bars['close'].iloc[brk['break_idx']]
+                        # 現在は再上昇 (直近2本が上昇)
+                        rising = close_i > bars['close'].iloc[i - 1]
+                        if had_pullback and rising:
+                            # SLを押し目安値近くに置けるので背が近い
+                            bull_ok = ctype in ('big_bull', 'engulf_bull', 'hammer',
+                                                'pinbar_bull') or \
+                                      pa in ('reversal_low', 'wick_fill_bull')
+                            if bull_ok or bars_since >= 2:
+                                signals.iloc[i] = 'long'
+                                expired.append(key)
+                    else:
+                        # ブレイク後に一度高値をつけてから下降再開
+                        recent_high = recent_slice['high'].max()
+                        had_pullback = recent_high > bars['close'].iloc[brk['break_idx']]
+                        falling = close_i < bars['close'].iloc[i - 1]
+                        if had_pullback and falling:
+                            bear_ok = ctype in ('big_bear', 'engulf_bear', 'inv_hammer',
+                                                'pinbar_bear') or \
+                                      pa in ('reversal_high', 'wick_fill_bear')
+                            if bear_ok or bars_since >= 2:
+                                signals.iloc[i] = 'short'
+                                expired.append(key)
+
+            for key in expired:
+                active_breaks.pop(key, None)
+
+        return signals
+
+    return _f
+
+
+def sig_maedai_best(freq: str = '1h'):
+    """
+    マエダイ方式 推奨設定:
+    - retest モード (後ノリ + タイトSL)
+    - ATR圧縮フィルター ON
+    - チャートパターン確認 ON
+    - 4H方向フィルター込み
+    """
+    from .filters import time_anomaly_filter
+
+    breakout_fn = sig_maedai_breakout_v2(
+        freq=freq,
+        lookback=20,
+        entry_mode='retest',
+        require_compression=True,
+        compression_ratio=0.85,
+        min_range_score=0.3,
+        use_patterns=True,
+        retest_tolerance=0.5,
+        retest_window=10,
+        session_filter_on=True,
+    )
+
+    # 4H方向フィルター
+    def _f(base_bars):
+        base_sigs = breakout_fn(base_bars)
+        time_ok = time_anomaly_filter(base_bars)
+
+        # 4H approx
+        bars_4h = base_bars.resample('4h').agg(
+            {'open': 'first', 'high': 'max', 'low': 'min', 'close': 'last'}
+        ).dropna()
+        if len(bars_4h) >= 50:
+            ema200 = bars_4h['close'].ewm(span=200, adjust=False).mean()
+            slope  = ema200.diff(5)
+            dir_4h = pd.Series(0, index=bars_4h.index, dtype=int)
+            dir_4h.loc[(bars_4h['close'] > ema200) & (slope > 0)] = 1
+            dir_4h.loc[(bars_4h['close'] < ema200) & (slope < 0)] = -1
+            regime = dir_4h.reindex(base_bars.index, method='ffill').fillna(0).astype(int)
+        else:
+            regime = pd.Series(0, index=base_bars.index, dtype=int)
+
+        signals = pd.Series(index=base_bars.index, dtype=object)
+        for i in range(len(base_bars)):
+            sig = base_sigs.iloc[i]
+            if sig not in ('long', 'short'):
+                continue
+            if not time_ok.iloc[i]:
+                continue
+            b = regime.iloc[i]
+            if b == 1 and sig == 'short':
+                continue
+            if b == -1 and sig == 'long':
+                continue
+            signals.iloc[i] = sig
+
+        return signals
+
+    return _f
+
+
+def sig_maedai_htf_pullback(lookback_htf: int = 10,
+                              pullback_bars: int = 5,
+                              session_filter_on: bool = True):
+    """
+    マエダイ式 HTF方向 × 後ノリ (最強の組み合わせ)。
+
+    仕組み:
+      1. 4H Donchian ブレイクで方向確定 (大きな足のブレイク)
+      2. 1Hで押し目/戻りが入るのを待つ (後ノリ・タイトSL)
+      3. 押し目から再び方向に動いた瞬間でエントリー
+         → SL = 押し目の安値/高値 (非常に背が近い)
+
+    やがみ: 「二番底/二番天井を待ってからエントリー」に近い思想
+    マエダイ: 「後ノリでも行ける場合がある」
+    """
+    from .candle import detect_single_candle, detect_price_action
+    from .timing import session_filter as _sf
+
+    def _f(base_bars):
+        n = len(base_bars)
+        signals = pd.Series(index=base_bars.index, dtype=object)
+        if n < lookback_htf * 4 + pullback_bars + 10:
+            return signals
+
+        # 4H から Donchian 方向
+        bars_4h = base_bars.resample('4h').agg(
+            {'open': 'first', 'high': 'max', 'low': 'min', 'close': 'last'}
+        ).dropna()
+        if len(bars_4h) < lookback_htf + 3:
+            return signals
+
+        dc_high_4h = bars_4h['high'].rolling(lookback_htf).max().shift(1)
+        dc_low_4h  = bars_4h['low'].rolling(lookback_htf).min().shift(1)
+
+        htf_dir = pd.Series(0, index=bars_4h.index, dtype=int)
+        for j in range(lookback_htf + 1, len(bars_4h)):
+            if pd.isna(dc_high_4h.iloc[j]):
+                continue
+            c4 = bars_4h['close'].iloc[j]
+            if c4 > dc_high_4h.iloc[j]:
+                htf_dir.iloc[j] = 1
+            elif c4 < dc_low_4h.iloc[j]:
+                htf_dir.iloc[j] = -1
+        htf_dir_1h = htf_dir.reindex(base_bars.index, method='ffill').fillna(0).astype(int)
+
+        # 1H ローソク足品質
+        df_c = detect_single_candle(base_bars)
+        df_c = detect_price_action(df_c)
+
+        # ATR
+        hv = base_bars['high'].values
+        lv = base_bars['low'].values
+        cv = base_bars['close'].values
+        tr = np.maximum(hv - lv, np.maximum(
+            np.abs(hv - np.roll(cv, 1)), np.abs(lv - np.roll(cv, 1))))
+        tr[0] = hv[0] - lv[0]
+        atr14 = pd.Series(tr, index=base_bars.index).rolling(14).mean()
+
+        sess = _sf(base_bars)
+
+        for i in range(lookback_htf * 4 + pullback_bars + 1, n):
+            if session_filter_on and sess.iloc[i] == 'asia':
+                continue
+
+            htf_b = htf_dir_1h.iloc[i]
+            if htf_b == 0:
+                continue
+
+            a = atr14.iloc[i]
+            if np.isnan(a) or a == 0:
+                continue
+
+            close_i = base_bars['close'].iloc[i]
+            ctype = df_c['candle_type'].iloc[i]
+            pa    = df_c['pa_signal'].iloc[i]
+
+            # 直近 pullback_bars のローを取得 (押し目確認)
+            recent = base_bars.iloc[i - pullback_bars:i + 1]
+            recent_lows  = recent['low'].values
+            recent_highs = recent['high'].values
+
+            if htf_b == 1:  # 4H 上昇方向 → 押し目ロング
+                # 押し目: 直近にいくつか安値更新があった
+                had_pullback = recent_lows.min() < base_bars['close'].iloc[i - pullback_bars]
+                # 押し目から回復: 現在が直近 N 本の高値を上抜け
+                pullback_low = recent_lows.min()
+                recovering = close_i > np.percentile(recent['close'].values, 60)
+                bull_candle = ctype in ('big_bull', 'engulf_bull', 'hammer',
+                                        'pinbar_bull', 'pullback_bull') or \
+                              pa in ('reversal_low', 'double_bottom', 'wick_fill_bull')
+
+                if had_pullback and recovering and bull_candle:
+                    signals.iloc[i] = 'long'
+
+            else:  # htf_b == -1: 4H 下降方向 → 戻り売り
+                had_pullback = recent_highs.max() > base_bars['close'].iloc[i - pullback_bars]
+                recovering = close_i < np.percentile(recent['close'].values, 40)
+                bear_candle = ctype in ('big_bear', 'engulf_bear', 'inv_hammer',
+                                        'pinbar_bear', 'pullback_bear') or \
+                              pa in ('reversal_high', 'double_top', 'wick_fill_bear')
+
+                if had_pullback and recovering and bear_candle:
+                    signals.iloc[i] = 'short'
+
+        return signals
+
+    return _f
