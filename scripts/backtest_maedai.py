@@ -77,7 +77,7 @@ def make_maedai_engine(risk_pct=0.03):
 def make_maedai_htf_engine(risk_pct=0.03, sl_n_confirm=2, sl_min_atr=0.8,
                             dynamic_rr=5.0, trail_start=4.0, trail_dist=3.0,
                             min_trades=5, long_biased=True,
-                            min_short_drop_atr=3.0):
+                            min_short_drop_atr=3.0, breakeven_rr=2.0):
     """
     マエダイ式 汎用HTFエンジン (4H/8H/12H/D1 共通):
 
@@ -109,6 +109,7 @@ def make_maedai_htf_engine(risk_pct=0.03, sl_n_confirm=2, sl_min_atr=0.8,
         exit_on_signal      = False,
         long_biased         = long_biased,
         min_short_drop_atr  = min_short_drop_atr,
+        breakeven_rr        = breakeven_rr,
         target_max_dd       = 0.30,
         target_min_wr       = 0.30,
         target_rr_threshold = 5.0,
@@ -234,6 +235,8 @@ def build_strategies():
         sig_maedai_d1_dc30,
         sig_maedai_d1_dc_multi,
         sig_maedai_dc_ema_tf,
+        sig_rsi_pullback_tf,
+        sig_dc_adx_rsi_tf,
     )
 
     return [
@@ -313,6 +316,26 @@ def build_strategies():
         ('12H_DC30d_Confirm1',    sig_maedai_dc_ema_tf('12h', lookback_days=30, confirm_bars=1), '12h'),
         ('12H_DC20d_Confirm1',    sig_maedai_dc_ema_tf('12h', lookback_days=20, confirm_bars=1), '12h'),
         ('12H_DC30d_Confirm2',    sig_maedai_dc_ema_tf('12h', lookback_days=30, confirm_bars=2), '12h'),
+
+        # ── RSI押し目エントリー (ユーザー取引履歴から逆算: 上昇トレンド中の押し買い) ──
+        # RSI(14)が閾値以下から上抜け + EMA200上 → ロング
+        # 4H: 3種類の閾値で感度テスト
+        ('4H_RSI_PB_45',  sig_rsi_pullback_tf('4h',  rsi_oversold=45, rsi_overbought=55), '4h'),
+        ('4H_RSI_PB_40',  sig_rsi_pullback_tf('4h',  rsi_oversold=40, rsi_overbought=60), '4h'),
+        ('4H_RSI_PB_50',  sig_rsi_pullback_tf('4h',  rsi_oversold=50, rsi_overbought=50), '4h'),
+        # 8H/12H: 大きな足でも同様に試験
+        ('8H_RSI_PB_45',  sig_rsi_pullback_tf('8h',  rsi_oversold=45, rsi_overbought=55), '8h'),
+        ('12H_RSI_PB_45', sig_rsi_pullback_tf('12h', rsi_oversold=45, rsi_overbought=55), '12h'),
+
+        # ── DC + ADX + RSI 複合フィルター (ダマシブレイク削減) ──
+        # ADX>20 でトレンド相場のみ + RSI過買い禁止
+        ('4H_DC15d_ADX20',   sig_dc_adx_rsi_tf('4h',  lookback_days=15, adx_min=20, confirm_bars=1), '4h'),
+        ('4H_DC15d_ADX20_C2',sig_dc_adx_rsi_tf('4h',  lookback_days=15, adx_min=20, confirm_bars=2), '4h'),
+        ('4H_DC20d_ADX20',   sig_dc_adx_rsi_tf('4h',  lookback_days=20, adx_min=20, confirm_bars=1), '4h'),
+        ('4H_DC10d_ADX20',   sig_dc_adx_rsi_tf('4h',  lookback_days=10, adx_min=20, confirm_bars=1), '4h'),
+        ('4H_DC15d_ADX25',   sig_dc_adx_rsi_tf('4h',  lookback_days=15, adx_min=25, confirm_bars=1), '4h'),
+        ('8H_DC20d_ADX20',   sig_dc_adx_rsi_tf('8h',  lookback_days=20, adx_min=20, confirm_bars=1), '8h'),
+        ('12H_DC30d_ADX20',  sig_dc_adx_rsi_tf('12h', lookback_days=30, adx_min=20, confirm_bars=1), '12h'),
     ]
 
 

@@ -51,6 +51,7 @@ class BacktestEngine:
                  exit_on_signal=True,
                  long_biased=False,
                  min_short_drop_atr=3.0,
+                 breakeven_rr=0.0,
                  target_max_dd=0.15,
                  target_min_wr=0.50,
                  target_rr_threshold=2.0,
@@ -86,6 +87,7 @@ class BacktestEngine:
         self.exit_on_signal = exit_on_signal
         self.long_biased = long_biased
         self.min_short_drop_atr = min_short_drop_atr
+        self.breakeven_rr = breakeven_rr
         self.target_max_dd = target_max_dd
         self.target_min_wr = target_min_wr
         self.target_rr_threshold = target_rr_threshold
@@ -261,6 +263,21 @@ class BacktestEngine:
                             trail_sl = bar['close'] + self.trail_dist_atr * bar_atr
                             pos['sl'] = min(pos['sl'], trail_sl)
 
+                # ===== ブレイクイーブン (breakeven_rr > 0 の場合) =====
+                # 含み益が initial_sl_dist × breakeven_rr に達したら SL を建値に移動
+                if self.breakeven_rr > 0:
+                    first_entry = pos['layers'][0]['entry']
+                    init_sl_dist = pos.get('initial_sl_dist', 0)
+                    if init_sl_dist > 0:
+                        if pos['dir'] == 'long':
+                            profit = bar['close'] - first_entry
+                            if profit >= self.breakeven_rr * init_sl_dist:
+                                pos['sl'] = max(pos['sl'], first_entry)
+                        else:
+                            profit = first_entry - bar['close']
+                            if profit >= self.breakeven_rr * init_sl_dist:
+                                pos['sl'] = min(pos['sl'], first_entry)
+
                 # ===== SL/TP判定（共有ライン） =====
                 exit_price = None
                 exit_reason = None
@@ -398,6 +415,7 @@ class BacktestEngine:
                 'sl': sl_price,
                 'tp': tp_price,
                 'atr': bar_atr,
+                'initial_sl_dist': sl_dist,
                 'layers': [{'entry': entry_price, 'size': pos_size, 'entry_time': bar_time}],
                 'pyramid_count': 0,
             }

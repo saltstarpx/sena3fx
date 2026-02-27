@@ -1551,3 +1551,170 @@ def sig_maedai_dc_ema_tf(freq='4h', lookback_days=30, ema_days=200,
         return signals
 
     return _f
+
+
+# ──────────────────────────────────────────────────────
+# RSI 押し目エントリー (ユーザー取引履歴から逆算)
+# ──────────────────────────────────────────────────────
+
+def sig_rsi_pullback_tf(freq='4h', ema_days=200, rsi_period=14,
+                         rsi_oversold=45, rsi_overbought=55):
+    """
+    EMA200 上昇トレンド中の RSI 押し目エントリー。
+
+    ユーザー取引履歴分析から逆算した戦略:
+    - 金相場の上昇トレンド中、押し目 (RSI 40-50 圏) を買う
+    - ブレイクアウトだけでなく「押し目での拾い」も行う
+    - EMA200 上抜けを維持している間のみロング方向
+
+    Long条件:
+      - close > EMA200 (上昇トレンド維持)
+      - RSI が rsi_oversold 以下から上抜け (押し目から回復)
+
+    Short条件:
+      - close < EMA200 (下降トレンド)
+      - RSI が rsi_overbought 以上から下抜け (戻りから売り)
+      ※ long_biased=True のエンジンではショートは大幅下落時のみ許可
+
+    Args:
+        freq: 時間軸 ('4h' | '8h' | '12h' | '1d' 等)
+        ema_days: EMAの日数指定 (デフォルト200日)
+        rsi_period: RSI算出期間 (デフォルト14)
+        rsi_oversold: この値以下から上抜けでロングシグナル (デフォルト45)
+        rsi_overbought: この値以上から下抜けでショートシグナル (デフォルト55)
+    """
+    BARS_PER_DAY = {'1h': 24, '2h': 12, '4h': 6, '6h': 4,
+                    '8h': 3, '12h': 2, '1d': 1}
+
+    def _f(bars):
+        bpd = BARS_PER_DAY.get(freq, 1)
+        ema_n = max(20, ema_days * bpd)
+
+        c = bars['close']
+
+        # EMA200 トレンドフィルター
+        ema = c.ewm(span=ema_n, adjust=False).mean()
+
+        # RSI (Wilder平滑化)
+        delta    = c.diff()
+        avg_gain = delta.clip(lower=0).ewm(com=rsi_period - 1, adjust=False).mean()
+        avg_loss = (-delta.clip(upper=0)).ewm(com=rsi_period - 1, adjust=False).mean()
+        rs  = avg_gain / avg_loss.replace(0, 1e-10)
+        rsi = 100 - (100 / (1 + rs))
+
+        # RSIクロス検出 (前バー≤閾値 & 現バー>閾値)
+        rsi_cross_up   = (rsi.shift(1) <= rsi_oversold)  & (rsi > rsi_oversold)
+        rsi_cross_down = (rsi.shift(1) >= rsi_overbought) & (rsi < rsi_overbought)
+
+        long_mask  = (c > ema) & rsi_cross_up
+        short_mask = (c < ema) & rsi_cross_down
+
+        signals = pd.Series('flat', index=bars.index)
+        signals[long_mask]  = 'long'
+        signals[short_mask] = 'short'
+
+        return signals
+
+    return _f
+
+
+# ──────────────────────────────────────────────────────
+# DC + ADX + RSI 複合フィルター戦略
+# ──────────────────────────────────────────────────────
+
+def sig_dc_adx_rsi_tf(freq='4h', lookback_days=15, ema_days=200,
+                       adx_period=14, adx_min=20,
+                       rsi_max_long=70, rsi_min_short=30,
+                       confirm_bars=1):
+    """
+    ドンチャンブレイク + ADXトレンド強度フィルター + RSI 過買い/過売りフィルター。
+
+    ユーザー実績: "もっと使えるインジがあればそれを使ってもいいです"
+
+    既存の DC+EMA 戦略に2つのフィルターを追加:
+    1. ADX(14) > adx_min: トレンド相場でのみブレイクアウトに乗る
+       → ADX低い = レンジ相場 → ダマシブレイクが多い → スキップ
+    2. RSI フィルター:
+       - ロング: RSI > rsi_max_long (過買い) なら見送り
+       - ショート: RSI < rsi_min_short (過売り) なら見送り
+       → 既に動きすぎた後のブレイクは危険
+
+    Args:
+        freq: 時間軸
+        lookback_days: ドンチャンの参照期間(日数)
+        ema_days: EMAの期間(日数)
+        adx_period: ADXの算出期間
+        adx_min: この値以上のADXでのみエントリー (デフォルト20)
+        rsi_max_long: ロング時RSI上限 (デフォルト70)
+        rsi_min_short: ショート時RSI下限 (デフォルト30)
+        confirm_bars: ブレイク確認バー数
+    """
+    BARS_PER_DAY = {'1h': 24, '2h': 12, '4h': 6, '6h': 4,
+                    '8h': 3, '12h': 2, '1d': 1}
+
+    def _calc_adx_series(bars, period):
+        h = bars['high'].values
+        l = bars['low'].values
+        c = bars['close'].values
+
+        tr = np.maximum(h - l, np.maximum(
+            np.abs(h - np.roll(c, 1)), np.abs(l - np.roll(c, 1))))
+        tr[0] = h[0] - l[0]
+
+        up   = np.diff(h, prepend=h[0])
+        down = -np.diff(l, prepend=l[0])
+        dm_plus  = np.where((up > down) & (up > 0), up, 0.0)
+        dm_minus = np.where((down > up) & (down > 0), down, 0.0)
+
+        atr_s  = pd.Series(tr).ewm(com=period - 1, adjust=False).mean()
+        dmp_s  = pd.Series(dm_plus).ewm(com=period - 1, adjust=False).mean()
+        dmm_s  = pd.Series(dm_minus).ewm(com=period - 1, adjust=False).mean()
+
+        di_plus  = 100 * dmp_s / atr_s.replace(0, 1e-10)
+        di_minus = 100 * dmm_s / atr_s.replace(0, 1e-10)
+        dx  = 100 * (di_plus - di_minus).abs() / (di_plus + di_minus).replace(0, 1e-10)
+        adx = dx.ewm(com=period - 1, adjust=False).mean()
+
+        return pd.Series(adx.values, index=bars.index)
+
+    def _f(bars):
+        bpd   = BARS_PER_DAY.get(freq, 1)
+        lb    = max(5, lookback_days * bpd)
+        ema_n = max(20, ema_days * bpd)
+
+        c = bars['close']
+        h = bars['high']
+        l = bars['low']
+
+        dc_hi = h.shift(1).rolling(lb).max()
+        dc_lo = l.shift(1).rolling(lb).min()
+
+        ema = c.ewm(span=ema_n, adjust=False).mean()
+        adx = _calc_adx_series(bars, adx_period)
+
+        delta    = c.diff()
+        avg_gain = delta.clip(lower=0).ewm(com=13, adjust=False).mean()
+        avg_loss = (-delta.clip(upper=0)).ewm(com=13, adjust=False).mean()
+        rs  = avg_gain / avg_loss.replace(0, 1e-10)
+        rsi = 100 - (100 / (1 + rs))
+
+        raw_long  = (c > dc_hi) & (c > ema) & (adx >= adx_min) & (rsi <= rsi_max_long)
+        raw_short = (c < dc_lo) & (c < ema) & (adx >= adx_min) & (rsi >= rsi_min_short)
+
+        signals = pd.Series('flat', index=bars.index)
+
+        if confirm_bars >= 1:
+            mask_long  = raw_long.copy()
+            mask_short = raw_short.copy()
+            for lag in range(1, confirm_bars + 1):
+                mask_long  = mask_long  & raw_long.shift(lag).fillna(False)
+                mask_short = mask_short & raw_short.shift(lag).fillna(False)
+            signals[mask_long]  = 'long'
+            signals[mask_short] = 'short'
+        else:
+            signals[raw_long]  = 'long'
+            signals[raw_short] = 'short'
+
+        return signals
+
+    return _f
