@@ -60,15 +60,64 @@ class BacktestEngine:
         tr[0] = h[0] - l[0]
         return pd.Series(tr, index=bars.index).rolling(period).mean()
 
-    def _find_swing_low(self, bars, idx, lookback=10):
-        """やがみ: 最後の押し安値を見つける"""
-        start = max(0, idx - lookback)
-        return bars['low'].iloc[start:idx].min()
+    def _find_swing_low(self, bars, idx, htf_bars=None, n_confirm=2):
+        """
+        真のスウィングロー: 両側 n_confirm 本より安値が高い局所最小値。
+        やがみ: 「SLは1H/4Hの直近安値に置く」
 
-    def _find_swing_high(self, bars, idx, lookback=10):
-        """やがみ: 最後の戻り高値を見つける"""
-        start = max(0, idx - lookback)
-        return bars['high'].iloc[start:idx].max()
+        htf_bars: 1H/4H上位足バー（指定があれば優先使用）
+        n_confirm: 左右の確認本数（デフォルト2）
+        """
+        search_bars = htf_bars if htf_bars is not None else bars
+        current_time = bars.index[idx]
+
+        # current_time 以前のバーのみ対象
+        mask = search_bars.index <= current_time
+        past = search_bars.loc[mask]
+
+        if len(past) < n_confirm * 2 + 3:
+            # データ不足: 直近20本の最安値にフォールバック
+            start = max(0, idx - 20)
+            return bars['low'].iloc[start:idx + 1].min()
+
+        lows = past['low'].values
+        n = len(lows)
+
+        # 最も直近のスウィングローを後ろから探索
+        for i in range(n - n_confirm - 1, n_confirm - 1, -1):
+            lo = lows[i]
+            if (all(lows[i - j] > lo for j in range(1, n_confirm + 1)) and
+                    all(lows[i + j] > lo for j in range(1, n_confirm + 1))):
+                return lo
+
+        # ピボットが見つからない場合: 直近20本の最安値
+        return past['low'].iloc[-20:].min()
+
+    def _find_swing_high(self, bars, idx, htf_bars=None, n_confirm=2):
+        """
+        真のスウィングハイ: 両側 n_confirm 本より高値が低い局所最大値。
+        やがみ: 「SLは1H/4Hの直近高値に置く」
+        """
+        search_bars = htf_bars if htf_bars is not None else bars
+        current_time = bars.index[idx]
+
+        mask = search_bars.index <= current_time
+        past = search_bars.loc[mask]
+
+        if len(past) < n_confirm * 2 + 3:
+            start = max(0, idx - 20)
+            return bars['high'].iloc[start:idx + 1].max()
+
+        highs = past['high'].values
+        n = len(highs)
+
+        for i in range(n - n_confirm - 1, n_confirm - 1, -1):
+            hi = highs[i]
+            if (all(highs[i - j] < hi for j in range(1, n_confirm + 1)) and
+                    all(highs[i + j] < hi for j in range(1, n_confirm + 1))):
+                return hi
+
+        return past['high'].iloc[-20:].max()
 
     def _make_bars(self, ticks, freq):
         bid = ticks['bidPrice']
@@ -81,7 +130,8 @@ class BacktestEngine:
 
     def run(self, data, signal_func, freq='1h', name='Strategy',
             use_ticks=False, ticks=None,
-            allowed_months=None):
+            allowed_months=None,
+            htf_bars=None):
         """
         バックテスト実行。
 
@@ -89,6 +139,8 @@ class BacktestEngine:
         signal_func: bars -> pd.Series of 'long'/'short'/None
         allowed_months: 取引を許可する月のリスト（例: [1,2,3,10,11,12]）。
                         None の場合は全月でトレード。
+        htf_bars: 1H/4H 上位足バー。SLのスウィングピボット検出に使用。
+                  指定なしの場合は同一時間足のバーで検出。
         """
         if use_ticks and ticks is not None:
             bars = self._make_bars(ticks, freq)
@@ -231,7 +283,7 @@ class BacktestEngine:
 
             if self.use_dynamic_sl:
                 if sig == 'long':
-                    sl_price = self._find_swing_low(bars, i) - self.slippage
+                    sl_price = self._find_swing_low(bars, i, htf_bars) - self.slippage
                     sl_dist = bar['close'] - sl_price
                     if sl_dist < bar_atr * 0.5:
                         sl_dist = bar_atr * self.default_sl_atr
@@ -239,7 +291,7 @@ class BacktestEngine:
                     tp_dist = sl_dist * 2.0
                     tp_price = bar['close'] + tp_dist
                 else:
-                    sl_price = self._find_swing_high(bars, i) + self.slippage
+                    sl_price = self._find_swing_high(bars, i, htf_bars) + self.slippage
                     sl_dist = sl_price - bar['close']
                     if sl_dist < bar_atr * 0.5:
                         sl_dist = bar_atr * self.default_sl_atr

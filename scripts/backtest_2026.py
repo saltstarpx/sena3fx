@@ -189,7 +189,12 @@ def _generate_2026_sample(n_bars, freq, seed=2026):
 # 2. 戦略一覧
 # ──────────────────────────────────────────────
 
-def build_strategies():
+def build_strategies(data=None):
+    """
+    戦略リストを構築。
+    data: load_data_hybrid() の返り値 (dict)。
+          MTFカスケード戦略の構築に使用。None の場合はスタンドアロン版を使用。
+    """
     from lib.yagami import (
         sig_yagami_A, sig_yagami_B,
         sig_yagami_reversal_only, sig_yagami_double_bottom,
@@ -197,6 +202,8 @@ def build_strategies():
         sig_yagami_vol_regime, sig_yagami_trend_regime,
         sig_yagami_prime_time, sig_yagami_full_filter,
         sig_yagami_A_full_filter,
+        sig_yagami_mtf_cascade, sig_yagami_mtf_4h_1h,
+        sig_yagami_breakout, sig_yagami_breakout_filtered,
     )
     from lib.indicators import sig_sma, sig_rsi, sig_macd, sig_rsi_sma, sig_macd_rsi, sig_bb_rsi
 
@@ -221,6 +228,12 @@ def build_strategies():
         ('Yagami_A_FullFilter',sig_yagami_A_full_filter(),'1h'),
         ('Yagami_FullFilter_4h', sig_yagami_full_filter('4h'), '4h'),
         ('Yagami_TrendRegime_4h', sig_yagami_trend_regime('4h'), '4h'),
+        # MTFカスケード (4H方向 → 1H確認 → タイミング)
+        ('MTF_4H1H',           sig_yagami_mtf_4h_1h('1h'), '1h'),
+        # ブレイクアウト + レジサポ転換
+        ('Breakout_1h',        sig_yagami_breakout('1h'), '1h'),
+        ('Breakout_4h',        sig_yagami_breakout('4h'), '4h'),
+        ('Breakout_Filtered',  sig_yagami_breakout_filtered('1h'), '1h'),
         # インジケーター
         ('SMA(5/20)',   sig_sma(5, 20),       '1h'),
         ('SMA(10/50)',  sig_sma(10, 50),      '1h'),
@@ -230,6 +243,23 @@ def build_strategies():
         ('MACD+RSI50',  sig_macd_rsi(12,26,9,14,50), '1h'),
         ('BB20+RSI',    sig_bb_rsi(20, 2.0, 14, 30, 70), '1h'),
     ]
+
+    # MTFカスケード（外部4Hデータ版）: bars_4h があれば追加
+    if data is not None:
+        bars_4h = data.get('4h')
+        bars_1h = data.get('1h')
+        if bars_4h is not None and len(bars_4h) >= 50:
+            strats.append((
+                'MTF_Cascade_4H',
+                sig_yagami_mtf_cascade({'4h': bars_4h}, min_grade='B'),
+                '1h',
+            ))
+            strats.append((
+                'MTF_Cascade_A',
+                sig_yagami_mtf_cascade({'4h': bars_4h}, min_grade='A'),
+                '1h',
+            ))
+
     return strats
 
 
@@ -255,12 +285,16 @@ def run_backtest_2026(data, strategies, min_trades=5):
     results = []
     trade_map = {}   # name -> trades list
 
+    bars_4h = data.get('4h')  # SLのスウィングピボット検出に使用
+
     for name, sig_fn, freq in strategies:
         bars = data.get(freq)
         if bars is None or len(bars) < 50:
             continue
 
-        result = engine.run(bars, sig_fn, freq=freq, name=name)
+        # htf_bars: 1H戦略は4Hバーで、4H戦略はそのまま（4Hバー自身）
+        htf = bars_4h if freq == '1h' else None
+        result = engine.run(bars, sig_fn, freq=freq, name=name, htf_bars=htf)
         if result is None:
             continue
 
@@ -497,7 +531,7 @@ def main():
 
     # ── 戦略ロード ──
     print("\n戦略ロード中...")
-    strategies = build_strategies()
+    strategies = build_strategies(data)  # MTFカスケード戦略のためdataを渡す
     print(f"  {len(strategies)} 戦略")
 
     # ── バックテスト ──

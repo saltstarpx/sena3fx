@@ -441,3 +441,334 @@ def sig_yagami_A_full_filter(freq='1h'):
                                use_time_filter=True,
                                use_momentum=True)
 
+
+# ==============================================================
+# MTFカスケード戦略 (4H方向 → 1H確認 → 15min タイミング)
+# ==============================================================
+
+def sig_yagami_mtf_cascade(bars_dict: dict, min_grade: str = 'B'):
+    """
+    MTFカスケードシグナル。
+    やがみ: 「1H/4Hをみて15分でエントリーポイントを模索、1分足でエントリー」
+
+    仕組み:
+      Step 1 (4H): EMA200 + 傾きでトレンド方向バイアスを決定
+      Step 2 (1H): やがみ5条件シグナルで方向確認
+      Step 3 (base): 反転ローソク足 / プライスアクションでタイミング確認
+
+    Args:
+        bars_dict: {'4h': df_4h, '1h': df_1h (任意)}
+                   上位足OHLCデータ。
+        min_grade: 1H やがみシグナルの最低グレード ('A'/'B')
+
+    Returns:
+        signal_func(base_bars) -> pd.Series
+        backtest例: engine.run(bars_1h, sig_yagami_mtf_cascade({'4h': bars_4h}))
+                    engine.run(bars_1h, sig_yagami_mtf_cascade({'4h': bars_4h}),
+                               htf_bars=bars_4h)  # SLも4H基準に
+    """
+    from .filters import time_anomaly_filter
+    from .candle import detect_single_candle, detect_price_action
+
+    bars_4h = bars_dict.get('4h')
+    bars_1h_ext = bars_dict.get('1h')  # 外部1Hデータ（任意）
+
+    def _f(base_bars):
+        n = len(base_bars)
+        signals = pd.Series(index=base_bars.index, dtype=object)
+        if n < 30:
+            return signals
+
+        # --- Step 1: 4H EMA200 トレンド方向の事前計算 ---
+        htf_regime = pd.Series(0, index=base_bars.index, dtype=int)
+        if bars_4h is not None and len(bars_4h) >= 50:
+            ema200 = bars_4h['close'].ewm(span=200, adjust=False).mean()
+            slope5 = ema200.diff(5)
+            dir_4h = pd.Series(0, index=bars_4h.index, dtype=int)
+            dir_4h.loc[(bars_4h['close'] > ema200) & (slope5 > 0)] = 1
+            dir_4h.loc[(bars_4h['close'] < ema200) & (slope5 < 0)] = -1
+            htf_regime = dir_4h.reindex(
+                base_bars.index, method='ffill').fillna(0).astype(int)
+
+        # --- Step 2: 1H やがみシグナルの事前計算 ---
+        # 外部1Hデータがあればそちらを使用、なければ base_bars を 1H として扱う
+        bars_1h_use = bars_1h_ext if bars_1h_ext is not None else base_bars
+        sigs_1h = yagami_signal(bars_1h_use, freq='1h', min_grade=min_grade)
+        # base_bars インデックスに ffill（最新の1Hシグナルを維持）
+        aligned_1h = sigs_1h.reindex(base_bars.index, method='ffill')
+
+        # --- Step 3: 時刻フィルター ---
+        time_ok = time_anomaly_filter(base_bars)
+
+        # --- Step 4: base_bars のローソク足品質（15min/1H タイミング確認） ---
+        df = detect_single_candle(base_bars)
+        df = detect_price_action(df)
+
+        for i in range(20, n):
+            sig_1h = aligned_1h.iloc[i]
+            if sig_1h not in ('long', 'short'):
+                continue
+
+            if not time_ok.iloc[i]:
+                continue
+
+            # 4H バイアスフィルター（逆張り禁止）
+            bias = htf_regime.iloc[i]
+            if bias == 1 and sig_1h == 'short':
+                continue
+            if bias == -1 and sig_1h == 'long':
+                continue
+
+            # 15min タイミング確認: 反転ローソク足 or プライスアクション
+            ctype = df['candle_type'].iloc[i]
+            pa = df['pa_signal'].iloc[i]
+
+            bull_confirm = ctype in ('big_bull', 'engulf_bull', 'hammer', 'pinbar_bull')
+            bear_confirm = ctype in ('big_bear', 'engulf_bear', 'inv_hammer', 'pinbar_bear')
+            pa_bull = pa in ('reversal_low', 'double_bottom',
+                             'wick_fill_bull', 'body_align_support')
+            pa_bear = pa in ('reversal_high', 'double_top',
+                             'wick_fill_bear', 'body_align_resist')
+
+            if sig_1h == 'long' and (bull_confirm or pa_bull):
+                signals.iloc[i] = 'long'
+            elif sig_1h == 'short' and (bear_confirm or pa_bear):
+                signals.iloc[i] = 'short'
+
+        return signals
+
+    return _f
+
+
+def sig_yagami_mtf_4h_1h(freq='1h'):
+    """
+    シンプルMTF: base_bars自体を1Hとして使い、
+    同データから4H相当のEMA方向を計算してフィルタリング。
+    bars_dict不要のスタンドアロン版。
+    """
+    from .filters import trend_regime_simple, time_anomaly_filter
+    from .candle import detect_single_candle, detect_price_action
+
+    def _f(base_bars):
+        n = len(base_bars)
+        signals = pd.Series(index=base_bars.index, dtype=object)
+        if n < 50:
+            return signals
+
+        # 1H やがみシグナル
+        base_sigs = yagami_signal(base_bars, freq=freq, min_grade='B')
+
+        # 4H相当のEMA200方向（1Hデータを4H resampleして近似）
+        bars_4h_approx = base_bars.resample('4h').agg(
+            {'open': 'first', 'high': 'max', 'low': 'min', 'close': 'last'}
+        ).dropna()
+        if len(bars_4h_approx) >= 50:
+            ema200 = bars_4h_approx['close'].ewm(span=200, adjust=False).mean()
+            slope = ema200.diff(5)
+            dir_4h = pd.Series(0, index=bars_4h_approx.index, dtype=int)
+            dir_4h.loc[(bars_4h_approx['close'] > ema200) & (slope > 0)] = 1
+            dir_4h.loc[(bars_4h_approx['close'] < ema200) & (slope < 0)] = -1
+            regime_4h = dir_4h.reindex(
+                base_bars.index, method='ffill').fillna(0).astype(int)
+        else:
+            regime_4h = pd.Series(0, index=base_bars.index, dtype=int)
+
+        time_ok = time_anomaly_filter(base_bars)
+
+        for i in range(n):
+            sig = base_sigs.iloc[i]
+            if sig not in ('long', 'short'):
+                continue
+            if not time_ok.iloc[i]:
+                continue
+            bias = regime_4h.iloc[i]
+            if bias == 1 and sig == 'short':
+                continue
+            if bias == -1 and sig == 'long':
+                continue
+            signals.iloc[i] = sig
+
+        return signals
+
+    return _f
+
+
+# ==============================================================
+# ブレイクアウト戦略 (レジサポ転換確認エントリー)
+# ==============================================================
+
+def sig_yagami_breakout(freq: str = '1h',
+                        retest_window: int = 20,
+                        retest_atr_mult: float = 0.4,
+                        min_level_touches: int = 3,
+                        confirm_candle: bool = True):
+    """
+    ブレイクアウト + レジサポ転換エントリー。
+    やがみ: 「ブレイクアウトも必ず取ってください」
+    「アジア時間のブレイクアウトは見送り」
+
+    手順:
+      1. S/Rレベルブレイク検出（終値が level ± ATR*0.2 を超える）
+      2. ブレイク後 retest_window 本以内に価格が戻る（レジサポ転換）
+      3. 確認ローソク足（反転系）でエントリー
+
+    Args:
+        retest_window: リテスト待機バー数（デフォルト20本）
+        retest_atr_mult: リテスト許容距離 ATR倍数（デフォルト0.4）
+        min_level_touches: 有効レベル最低タッチ数（デフォルト3）
+        confirm_candle: 確認ローソク足を要求するか（Falseにすると即エントリー）
+    """
+    from .candle import detect_single_candle, detect_price_action
+    from .timing import session_filter
+
+    def _f(bars):
+        n = len(bars)
+        signals = pd.Series(index=bars.index, dtype=object)
+        if n < 50:
+            return signals
+
+        # ATR
+        h = bars['high'].values
+        l = bars['low'].values
+        c = bars['close'].values
+        tr = np.maximum(h - l, np.maximum(
+            np.abs(h - np.roll(c, 1)), np.abs(l - np.roll(c, 1))))
+        tr[0] = h[0] - l[0]
+        atr = pd.Series(tr, index=bars.index).rolling(14).mean()
+
+        df = detect_single_candle(bars)
+        df = detect_price_action(df)
+        session = session_filter(bars)
+
+        levels_cache = []
+        levels_update_idx = -100
+        # アクティブブレイク追跡: {key: {dir, level, break_idx}}
+        active_breaks = {}
+
+        for i in range(30, n):
+            a = atr.iloc[i]
+            if np.isnan(a) or a == 0:
+                continue
+            close_i = c[i]
+            in_asia = session.iloc[i] == 'asia'
+
+            # レジサポレベル更新（20本ごと）
+            if i - levels_update_idx >= 20:
+                levels_cache = extract_levels(
+                    bars.iloc[max(0, i - 120):i + 1],
+                    min_touches=min_level_touches
+                )
+                levels_update_idx = i
+
+            # === ブレイクアウト検出（アジア時間除外） ===
+            if not in_asia and levels_cache:
+                for lv in levels_cache:
+                    lvl = lv['level']
+                    key = round(lvl, 2)
+                    if key in active_breaks:
+                        continue
+
+                    # ブルブレイク: レジスタンスを終値上抜け
+                    if lv['type'] == 'resistance' and close_i > lvl + a * 0.2:
+                        active_breaks[key] = {
+                            'dir': 'bull', 'level': lvl, 'break_idx': i
+                        }
+                    # ベアブレイク: サポートを終値下抜け
+                    elif lv['type'] == 'support' and close_i < lvl - a * 0.2:
+                        active_breaks[key] = {
+                            'dir': 'bear', 'level': lvl, 'break_idx': i
+                        }
+
+            # === レジサポ転換リテスト判定 ===
+            expired = []
+            for key, brk in active_breaks.items():
+                bars_since = i - brk['break_idx']
+
+                # 待機ウィンドウ超過 → 無効化
+                if bars_since > retest_window:
+                    expired.append(key)
+                    continue
+
+                # ブレイク直後1本はスキップ
+                if bars_since < 2:
+                    continue
+
+                lvl = brk['level']
+
+                # リテスト: 価格がブレイクレベルに接近
+                if abs(close_i - lvl) > a * retest_atr_mult:
+                    continue
+
+                ctype = df['candle_type'].iloc[i]
+                pa = df['pa_signal'].iloc[i]
+
+                if brk['dir'] == 'bull':
+                    # 旧レジスタンス → 新サポート: ロング
+                    # 価格がレベルの上側にあること
+                    if close_i < lvl - a * 0.15:
+                        continue
+                    bull_ok = (not confirm_candle or
+                               ctype in ('big_bull', 'engulf_bull', 'hammer',
+                                         'pinbar_bull', 'pullback_bull') or
+                               pa in ('reversal_low', 'wick_fill_bull', 'double_bottom'))
+                    if bull_ok:
+                        signals.iloc[i] = 'long'
+                        expired.append(key)
+
+                elif brk['dir'] == 'bear':
+                    # 旧サポート → 新レジスタンス: ショート
+                    if close_i > lvl + a * 0.15:
+                        continue
+                    bear_ok = (not confirm_candle or
+                               ctype in ('big_bear', 'engulf_bear', 'inv_hammer',
+                                         'pinbar_bear', 'pullback_bear') or
+                               pa in ('reversal_high', 'wick_fill_bear', 'double_top'))
+                    if bear_ok:
+                        signals.iloc[i] = 'short'
+                        expired.append(key)
+
+            for key in expired:
+                active_breaks.pop(key, None)
+
+        return signals
+
+    return _f
+
+
+def sig_yagami_breakout_filtered(freq: str = '1h'):
+    """
+    ブレイクアウト + 全フィルター統合版。
+    ボラティリティ・時刻・トレンドレジームの3フィルターを追加。
+    """
+    from .filters import volatility_regime, trend_regime_simple, time_anomaly_filter
+
+    breakout_base = sig_yagami_breakout(freq, retest_window=20,
+                                         retest_atr_mult=0.4,
+                                         min_level_touches=3)
+
+    def _f(bars):
+        base_sigs = breakout_base(bars)
+
+        vol_ok = volatility_regime(bars)
+        t_regime = trend_regime_simple(bars)
+        time_ok = time_anomaly_filter(bars)
+
+        signals = pd.Series(index=bars.index, dtype=object)
+        for i in range(len(bars)):
+            sig = base_sigs.iloc[i]
+            if sig not in ('long', 'short'):
+                continue
+            if not vol_ok.iloc[i]:
+                continue
+            if not time_ok.iloc[i]:
+                continue
+            regime = t_regime.iloc[i]
+            if sig == 'long' and regime == -1:
+                continue
+            if sig == 'short' and regime == 1:
+                continue
+            signals.iloc[i] = sig
+
+        return signals
+
+    return _f
