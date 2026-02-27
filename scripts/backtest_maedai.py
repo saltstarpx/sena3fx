@@ -73,35 +73,49 @@ def make_maedai_engine(risk_pct=0.02):
     )
 
 
-def make_maedai_d1_engine(risk_pct=0.02):
+def make_maedai_htf_engine(risk_pct=0.02, sl_n_confirm=2, sl_min_atr=0.8,
+                            dynamic_rr=2.5, trail_start=4.0, trail_dist=3.0,
+                            min_trades=20):
     """
-    マエダイ式D1エンジン (日足専用・最適化済み):
-    - D1 ATR ≈ 19 USD (XAUUSD)
-    - SL = ATR×0.8 ≈ 15 USD (タイトだが日足レベルでは妥当)
-    - TP = ATR×10 ≈ 190 USD (長期トレンド狙い)
-    - Trail@4d3: 4ATR利益で発動、3ATR距離で追従 (最適化結果)
-    - exit_on_signal=False: SL/TPのみ決済
-    - DD 30% 許容 / WR 30% 以上 / n≥15
+    マエダイ式 汎用HTFエンジン (4H/8H/12H/D1 共通):
+
+    use_dynamic_sl=True: スウィングピボット SL (より安定した背)
+    sl_n_confirm: SL用ピボット確認本数 (大きいほど安定、2=4H/D1, 3=8H/12H)
+    sl_min_atr: SLが近すぎる場合のATR最小距離倍率
+    dynamic_rr: TP = SL距離 × dynamic_rr (スウィングSL基準でRRを確保)
+    trail_start/trail_dist: トレーリングストップ (SL追従)
+    exit_on_signal=False: 逆シグナルではクローズしない
     """
     from lib.backtest import BacktestEngine
     return BacktestEngine(
-        init_cash       = 5_000_000,
-        risk_pct        = risk_pct,
-        default_sl_atr  = 0.8,
-        default_tp_atr  = 10.0,
-        slippage_pips   = 0.3,
-        pip             = 0.1,
-        use_dynamic_sl  = True,
-        pyramid_entries = 3,
-        pyramid_atr     = 2.0,
+        init_cash         = 5_000_000,
+        risk_pct          = risk_pct,
+        default_sl_atr    = 1.0,          # フォールバックSL (スウィングが近すぎる時)
+        default_tp_atr    = 10.0,
+        slippage_pips     = 0.3,
+        pip               = 0.1,
+        use_dynamic_sl    = True,
+        sl_n_confirm      = sl_n_confirm, # ピボット確認本数
+        sl_min_atr        = sl_min_atr,   # SL最小距離
+        dynamic_rr        = dynamic_rr,   # TP = SL距離 × rr
+        pyramid_entries   = 3,
+        pyramid_atr       = 2.0,
         pyramid_size_mult = 1.0,
-        trail_start_atr = 4.0,           # D1最適化: 4ATR発動
-        trail_dist_atr  = 3.0,           # D1最適化: 3ATR追従
-        exit_on_signal  = False,         # SL/TPのみ決済
-        target_max_dd   = 0.30,
-        target_min_wr   = 0.30,
-        target_rr_threshold = 5.0,
-        target_min_trades = 15,
+        trail_start_atr   = trail_start,
+        trail_dist_atr    = trail_dist,
+        exit_on_signal    = False,
+        target_max_dd     = 0.30,
+        target_min_wr     = 0.30,
+        target_rr_threshold = 4.0,
+        target_min_trades = min_trades,
+    )
+
+
+def make_maedai_d1_engine(risk_pct=0.02):
+    """D1専用エンジン: グリッドサーチで dynamic_rr=2.0 が最適と判明"""
+    return make_maedai_htf_engine(
+        risk_pct=risk_pct, sl_n_confirm=2, sl_min_atr=0.8,
+        dynamic_rr=2.0, trail_start=4.0, trail_dist=3.0, min_trades=15
     )
 
 
@@ -127,15 +141,25 @@ def load_data(use_dukascopy=False, start_warmup='2014-01-01'):
             bars_1h = bars_1h[bars_1h.index >= ts_start]
             bars_4h = bars_4h[bars_4h.index >= ts_start]
 
-            # D1 集計
-            bars_d1 = bars_1h.resample('1D').agg(
-                {'open': 'first', 'high': 'max', 'low': 'min', 'close': 'last'}
-            ).dropna(subset=['open'])
-            bars_d1 = bars_d1[(bars_d1['high'] - bars_d1['low']) > 0]
+            def _resample(src, rule):
+                b = src.resample(rule).agg(
+                    {'open': 'first', 'high': 'max', 'low': 'min', 'close': 'last'}
+                ).dropna(subset=['open'])
+                return b[(b['high'] - b['low']) > 0]
 
-            print(f"[Data] Dukascopy OHLC: 1h={len(bars_1h)}, 4h={len(bars_4h)}, d1={len(bars_d1)} bars "
+            bars_4h_r = _resample(bars_1h, '4h')   # 4H (1H集計版)
+            bars_8h   = _resample(bars_1h, '8h')
+            bars_12h  = _resample(bars_1h, '12h')
+            bars_d1   = _resample(bars_1h, '1D')
+
+            print(f"[Data] Dukascopy: 1h={len(bars_1h)}, 4h={len(bars_4h_r)}, "
+                  f"8h={len(bars_8h)}, 12h={len(bars_12h)}, d1={len(bars_d1)} bars "
                   f"({bars_1h.index.min().date()} ~ {bars_1h.index.max().date()})")
-            return {'source': 'dukascopy', '1h': bars_1h, '4h': bars_4h, '1d': bars_d1}
+            return {
+                'source': 'dukascopy',
+                '1h': bars_1h, '4h': bars_4h_r,
+                '8h': bars_8h, '12h': bars_12h, '1d': bars_d1,
+            }
         except Exception as e:
             print(f"[Data] OHLC CSV読み込み失敗: {e}")
 
@@ -203,6 +227,7 @@ def build_strategies():
         sig_maedai_htf_pullback,
         sig_maedai_d1_dc30,
         sig_maedai_d1_dc_multi,
+        sig_maedai_dc_ema_tf,
     )
 
     return [
@@ -261,10 +286,24 @@ def build_strategies():
         ('HTF_Pullback_20x8', sig_maedai_htf_pullback(lookback_htf=20, pullback_bars=8), '1h'),
 
         # ── D1: 日足 ドンチャン30 + EMA200 (リアルデータ実証済み) ──
-        ('D1_DC30_EMA200',       sig_maedai_d1_dc30(lookback=30, ema_period=200),  '1d'),
-        ('D1_DC20_EMA200',       sig_maedai_d1_dc30(lookback=20, ema_period=200),  '1d'),
-        ('D1_DC50_EMA200',       sig_maedai_d1_dc30(lookback=50, ema_period=200),  '1d'),
-        ('D1_DC30_EMA200_Confirm', sig_maedai_d1_dc_multi(lookback=30, ema_period=200, confirm_close=True), '1d'),
+        ('D1_DC30_EMA200',        sig_maedai_d1_dc30(lookback=30, ema_period=200),  '1d'),
+        ('D1_DC30_EMA200_Confirm',sig_maedai_d1_dc_multi(lookback=30, ema_period=200, confirm_close=True), '1d'),
+
+        # ── 汎用TF: DC(日数指定) + EMA200 (4H/8H/12H) ──
+        # 4H: 30日=180bar相当。confirm_bars=1で翌4H足でも同方向確認
+        ('4H_DC30d_Confirm1',     sig_maedai_dc_ema_tf('4h', lookback_days=30, confirm_bars=1), '4h'),
+        ('4H_DC30d_Confirm2',     sig_maedai_dc_ema_tf('4h', lookback_days=30, confirm_bars=2), '4h'),
+        ('4H_DC20d_Confirm1',     sig_maedai_dc_ema_tf('4h', lookback_days=20, confirm_bars=1), '4h'),
+        ('4H_DC20d_Confirm2',     sig_maedai_dc_ema_tf('4h', lookback_days=20, confirm_bars=2), '4h'),
+        ('4H_DC15d_Confirm1',     sig_maedai_dc_ema_tf('4h', lookback_days=15, confirm_bars=1), '4h'),
+        ('4H_DC15d_Confirm2',     sig_maedai_dc_ema_tf('4h', lookback_days=15, confirm_bars=2), '4h'),
+        # 8H: 30日=90bar相当
+        ('8H_DC30d_Confirm1',     sig_maedai_dc_ema_tf('8h', lookback_days=30, confirm_bars=1), '8h'),
+        ('8H_DC20d_Confirm1',     sig_maedai_dc_ema_tf('8h', lookback_days=20, confirm_bars=1), '8h'),
+        # 12H: 30日=60bar相当
+        ('12H_DC30d_Confirm1',    sig_maedai_dc_ema_tf('12h', lookback_days=30, confirm_bars=1), '12h'),
+        ('12H_DC20d_Confirm1',    sig_maedai_dc_ema_tf('12h', lookback_days=20, confirm_bars=1), '12h'),
+        ('12H_DC30d_Confirm2',    sig_maedai_dc_ema_tf('12h', lookback_days=30, confirm_bars=2), '12h'),
     ]
 
 
@@ -273,9 +312,24 @@ def build_strategies():
 # ──────────────────────────────────────────────
 
 def run_backtest(data, strategies, risk_pct=0.02):
-    engine_1h = make_maedai_engine(risk_pct=risk_pct)
-    engine_d1 = make_maedai_d1_engine(risk_pct=risk_pct)
+    engine_1h  = make_maedai_engine(risk_pct=risk_pct)
+    engine_4h  = make_maedai_htf_engine(risk_pct=risk_pct, sl_n_confirm=3,
+                                         sl_min_atr=0.8, dynamic_rr=3.0,
+                                         trail_start=4.0, trail_dist=3.0, min_trades=20)
+    engine_8h  = make_maedai_htf_engine(risk_pct=risk_pct, sl_n_confirm=3,
+                                         sl_min_atr=0.8, dynamic_rr=3.0,
+                                         trail_start=4.0, trail_dist=3.0, min_trades=15)
+    engine_12h = make_maedai_htf_engine(risk_pct=risk_pct, sl_n_confirm=2,
+                                         sl_min_atr=0.8, dynamic_rr=3.0,
+                                         trail_start=4.0, trail_dist=3.0, min_trades=12)
+    engine_d1  = make_maedai_d1_engine(risk_pct=risk_pct)
+
+    engine_map = {
+        '1h': engine_1h, '4h': engine_4h,
+        '8h': engine_8h, '12h': engine_12h, '1d': engine_d1,
+    }
     bars_4h = data.get('4h')
+    bars_d1 = data.get('1d')
     results = []
     trade_map = {}
 
@@ -284,8 +338,15 @@ def run_backtest(data, strategies, risk_pct=0.02):
         if bars is None or len(bars) < 30:
             continue
 
-        engine = engine_d1 if freq == '1d' else engine_1h
-        htf = bars_4h if freq == '1h' else None
+        engine = engine_map.get(freq, engine_1h)
+        # 4H/8H/12H は D1スウィングSL を使用 (グリッドサーチで最適と判明)
+        # 1H は 4Hスウィングを使用
+        if freq in ('4h', '8h', '12h'):
+            htf = bars_d1
+        elif freq == '1h':
+            htf = bars_4h
+        else:
+            htf = None
         try:
             result = engine.run(bars, sig_fn, freq=freq, name=name, htf_bars=htf)
         except Exception as e:

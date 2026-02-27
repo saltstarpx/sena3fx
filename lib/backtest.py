@@ -40,6 +40,9 @@ class BacktestEngine:
                  default_sl_atr=2.0, default_tp_atr=4.0,
                  slippage_pips=0.3, pip=0.1,
                  use_dynamic_sl=True,
+                 sl_n_confirm=2,
+                 sl_min_atr=0.5,
+                 dynamic_rr=2.0,
                  pyramid_entries=2,
                  pyramid_atr=1.0,
                  pyramid_size_mult=0.5,
@@ -73,6 +76,9 @@ class BacktestEngine:
         self.pyramid_entries = pyramid_entries
         self.pyramid_atr = pyramid_atr
         self.pyramid_size_mult = pyramid_size_mult
+        self.sl_n_confirm = sl_n_confirm
+        self.sl_min_atr = sl_min_atr
+        self.dynamic_rr = dynamic_rr
         self.trail_start_atr = trail_start_atr
         self.trail_dist_atr = trail_dist_atr
         self.exit_on_signal = exit_on_signal
@@ -327,20 +333,24 @@ class BacktestEngine:
 
             if self.use_dynamic_sl:
                 if sig == 'long':
-                    sl_price = self._find_swing_low(bars, i, htf_bars) - self.slippage
+                    sl_price = self._find_swing_low(
+                        bars, i, htf_bars, n_confirm=self.sl_n_confirm
+                    ) - self.slippage
                     sl_dist = bar['close'] - sl_price
-                    if sl_dist < bar_atr * 0.5:
+                    if sl_dist < bar_atr * self.sl_min_atr:
                         sl_dist = bar_atr * self.default_sl_atr
                         sl_price = bar['close'] - sl_dist
-                    tp_dist = sl_dist * 2.0
+                    tp_dist = sl_dist * self.dynamic_rr
                     tp_price = bar['close'] + tp_dist
                 else:
-                    sl_price = self._find_swing_high(bars, i, htf_bars) + self.slippage
+                    sl_price = self._find_swing_high(
+                        bars, i, htf_bars, n_confirm=self.sl_n_confirm
+                    ) + self.slippage
                     sl_dist = sl_price - bar['close']
-                    if sl_dist < bar_atr * 0.5:
+                    if sl_dist < bar_atr * self.sl_min_atr:
                         sl_dist = bar_atr * self.default_sl_atr
                         sl_price = bar['close'] + sl_dist
-                    tp_dist = sl_dist * 2.0
+                    tp_dist = sl_dist * self.dynamic_rr
                     tp_price = bar['close'] - tp_dist
             else:
                 sl_dist = bar_atr * self.default_sl_atr

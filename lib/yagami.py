@@ -1483,3 +1483,71 @@ def sig_maedai_d1_dc_multi(lookback=30, ema_period=200,
         return signals
 
     return _f
+
+
+# ──────────────────────────────────────────────────────
+# 汎用マルチTF: ドンチャン(日数指定) + D1 EMA200 トレンドフィルター
+# ──────────────────────────────────────────────────────
+
+def sig_maedai_dc_ema_tf(freq='4h', lookback_days=30, ema_days=200,
+                          confirm_bars=1, atr_confirm=False):
+    """
+    任意時間軸 × ドンチャン(日数指定) + D1 EMA200 トレンドフィルター。
+
+    lookback_days で「何日間の高値/安値を抜けたらエントリー」を指定し、
+    内部でbars数に変換。D1 EMA200 は常に日足基準で計算。
+
+    Args:
+        freq: '4h' | '8h' | '12h' | '1d' など
+        lookback_days: 高値/安値ブレイクの参照期間(日数)
+        ema_days: トレンドフィルターEMAの期間(日数)
+        confirm_bars: ブレイク確認バー数 (1=翌バーも同方向で確認)
+        atr_confirm: Trueでブレイクバーが平均より大きいATRか確認
+    """
+    BARS_PER_DAY = {'1h': 24, '2h': 12, '4h': 6, '6h': 4,
+                    '8h': 3, '12h': 2, '1d': 1}
+
+    def _f(bars):
+        bpd = BARS_PER_DAY.get(freq, 1)
+        lb  = max(5, lookback_days * bpd)      # ドンチャン期間 (bars)
+        ema_n = max(20, ema_days * bpd)         # EMA期間 (bars)
+
+        c = bars['close']
+        h = bars['high']
+        l = bars['low']
+
+        # ドンチャン (前バー高値/安値 = 当日ブレイクをリアルタイム検出)
+        dc_hi = h.shift(1).rolling(lb).max()
+        dc_lo = l.shift(1).rolling(lb).min()
+
+        # EMA (同足で計算; D1相当の長期バイアス)
+        ema = c.ewm(span=ema_n, adjust=False).mean()
+
+        raw_long  = (c > dc_hi) & (c > ema)
+        raw_short = (c < dc_lo) & (c < ema)
+
+        # ATR確認 (ブレイクバーが直近ATRより大きい動き)
+        if atr_confirm:
+            atr_ser = (h - l).rolling(14).mean()
+            bar_range = h - l
+            raw_long  = raw_long  & (bar_range > atr_ser * 0.8)
+            raw_short = raw_short & (bar_range > atr_ser * 0.8)
+
+        signals = pd.Series('flat', index=bars.index)
+
+        if confirm_bars >= 1:
+            # confirm_bars 本連続でブレイク方向を確認
+            mask_long  = raw_long.copy()
+            mask_short = raw_short.copy()
+            for lag in range(1, confirm_bars + 1):
+                mask_long  = mask_long  & raw_long.shift(lag).fillna(False)
+                mask_short = mask_short & raw_short.shift(lag).fillna(False)
+            signals[mask_long]  = 'long'
+            signals[mask_short] = 'short'
+        else:
+            signals[raw_long]  = 'long'
+            signals[raw_short] = 'short'
+
+        return signals
+
+    return _f
