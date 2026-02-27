@@ -1,0 +1,64 @@
+# ============================================================
+#  sena3fx Live Trading Bot - 設定ファイルテンプレート
+#  使い方: このファイルを config.yaml にコピーして編集する
+#  ※ config.yaml は .gitignore に登録済み (APIキー保護)
+# ============================================================
+
+# ---- OANDA口座設定 ------------------------------------------
+oanda:
+  # 口座ID: OANDAダッシュボード → 「マイアカウント」で確認
+  # 例: "001-009-12345678-001"
+  account_id: "ENTER_YOUR_ACCOUNT_ID"
+
+  # APIキー: OANDAダッシュボード → 「APIアクセス管理」で生成
+  # 例: "abc123def456-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+  api_key: "ENTER_YOUR_API_KEY"
+
+  # 環境: "practice" (デモ口座) または "live" (本番口座)
+  # ★ 最初は必ず "practice" でテストしてください！
+  environment: "practice"
+
+# ---- 通貨ペア設定 -------------------------------------------
+instruments:
+
+  # --- Gold (XAU_USD) -----------------------------------------
+  XAU_USD:
+    enabled: true               # true=有効, false=無効
+
+    strategy: "SEAS_DC2d"       # 推奨戦略 (Gold用)
+                                # SEAS_DC2d = 2日ドンチャン + 6/7月スキップ
+
+    risk_pct: 0.05              # 1トレードあたりのリスク率 (5%)
+                                # 証拠金1000万円なら1トレード最大50万円損失
+
+    sl_atr: 1.5                 # ストップロス = 1.5 × ATR(14)
+    tp_atr: 4.5                 # テイクプロフィット = 4.5 × ATR(14)
+                                # RR比 = 3.0
+
+    max_units: 500              # 1回の最大発注ユニット数 (安全キャップ)
+                                # XAU_USD: 1 unit = 1 troy ounce
+
+  # --- Silver (XAG_USD) ----------------------------------------
+  XAG_USD:
+    enabled: false              # ★ 最初はfalseにしてGoldのみで動作確認
+
+    strategy: "UNION3d50_SEAS"  # 推奨戦略 (Silver用)
+                                # UNION3d50_SEAS = RSI50クロス or 3日DC + 6/7月スキップ
+
+    risk_pct: 0.05              # リスク率 (Silver用)
+    sl_atr: 2.0                 # SL = 2.0 × ATR (Silverは値動きが激しいため)
+    tp_atr: 6.0                 # TP = 6.0 × ATR (RR比 = 3.0)
+
+    max_units: 5000             # XAG_USD: 1 unit = 1 troy ounce
+
+# ---- ボット動作設定 -----------------------------------------
+bot:
+  check_interval_seconds: 60   # シグナル確認の間隔 (秒)
+                                # 4H足クローズを見逃さないよう60秒推奨
+
+  max_drawdown_pct: 0.15       # 最大許容ドローダウン率 (15%)
+                                # これを超えるとボットが自動停止する
+                                # 例: 1000万円 → 850万円になったら停止
+
+  log_dir: "logs"              # ログ保存ディレクトリ
+  log_level: "INFO"            # ログレベル: DEBUG / INFO / WARNING / ERROR

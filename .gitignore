@@ -9,3 +9,8 @@ data/tick/*.csv
 data/tick/*.bi5
 *.log
 .DS_Store
+
+# ライブトレーディング設定 (APIキー保護)
+config.yaml
+bot.pid
+logs/
