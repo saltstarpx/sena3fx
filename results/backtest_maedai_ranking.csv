@@ -1,4 +1,5 @@
 ﻿strategy,timeframe,trades,win_rate_pct,profit_factor,rr_ratio,max_dd_pct,total_return_pct,total_pnl,pyramid_rate_pct,passed
+BearDiv_Short_8H,8h,1,0.0,999.0,0.0,0.0,1.5,150000.3,0.0,False
 4H_DC15d_Confirm2,4h,7,57.14,15.8734,11.91,0.98,18.51,1851048.35,85.7,True
 FLT_4H_DC15_C2,4h,7,57.14,15.8734,11.91,0.98,18.51,1851048.35,85.7,True
 4H_DC30d_Confirm2,4h,7,42.86,9.2006,12.27,1.7,17.23,1723230.23,85.7,True
@@ -68,3 +69,5 @@ SHORT_4H_RSI55,4h,18,5.56,0.0049,0.08,31.79,-31.67,-3167477.38,22.2,False
 8H_DC20d_ADX20,,0,,,,,,,,False
 12H_DC30d_ADX20,,0,,,,,,,,False
 SHORT_12H_RSI55,12h,11,0.0,0.0,0.0,22.79,-22.79,-2279099.56,9.1,False
+BearDiv_Short_4H,4h,4,0.0,0.0,0.0,3.1,-1.74,-173535.25,25.0,False
+BearDiv_Short_12H,,0,,,,,,,,False
