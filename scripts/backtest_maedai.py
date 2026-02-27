@@ -316,6 +316,11 @@ def build_strategies():
         sig_dc_filtered,
         # 改善指令 v2.0 Mission1: 弱気ダイバージェンスショート
         sig_bearish_divergence_short,
+        # 積極的エントリー群 ― 年間100回以上目標
+        sig_rsi_momentum,
+        sig_ema_bounce,
+        sig_dc_fast,
+        sig_aggressive_union,
     )
 
     return [
@@ -455,6 +460,39 @@ def build_strategies():
         ('OPT_8H_RSI_PB',   sig_rsi_pullback_tf('8h',  rsi_oversold=45), '8h_opt'),
         ('OPT_4H_DC15',     sig_maedai_dc_ema_tf('4h', lookback_days=15, confirm_bars=2), '4h_opt'),
         ('OPT_8H_DC20',     sig_maedai_dc_ema_tf('8h', lookback_days=20, confirm_bars=2), '8h_opt'),
+
+        # ══════════════════════════════════════════════════════
+        # 積極的エントリー群: 年間100回以上目標
+        # 哲学: エントリーしないことが最大の失敗
+        # ══════════════════════════════════════════════════════
+
+        # ── RSIモメンタム押し目 (EMA21, 年100〜150回想定) ──
+        # EMA21より上かつRSI40回復でロング。EMA200より緩い条件で機会を増やす。
+        ('AGG_4H_RSI40_EMA21',   sig_rsi_momentum('4h',  ema_days=21, rsi_long_thresh=40, ema_filter=True),  '4h_opt'),
+        ('AGG_8H_RSI40_EMA21',   sig_rsi_momentum('8h',  ema_days=21, rsi_long_thresh=40, ema_filter=True),  '8h_opt'),
+        ('AGG_4H_RSI45_EMA50',   sig_rsi_momentum('4h',  ema_days=50, rsi_long_thresh=45, ema_filter=True),  '4h_opt'),
+        ('AGG_8H_RSI45_EMA50',   sig_rsi_momentum('8h',  ema_days=50, rsi_long_thresh=45, ema_filter=True),  '8h_opt'),
+        # トレンドフィルターなし (全方向 全条件): 最大頻度
+        ('AGG_4H_RSI40_NOEMA',   sig_rsi_momentum('4h',  ema_days=21, rsi_long_thresh=40, ema_filter=False), '4h_opt'),
+        ('AGG_1H_RSI42_EMA21',   sig_rsi_momentum('1h',  ema_days=21, rsi_long_thresh=42, ema_filter=True),  '1h'),
+
+        # ── EMAバウンス (EMA21タッチ反発, 年20〜50回想定) ──
+        ('AGG_4H_EMAB21',        sig_ema_bounce('4h', ema_days=21),  '4h_opt'),
+        ('AGG_8H_EMAB21',        sig_ema_bounce('8h', ema_days=21),  '8h_opt'),
+        ('AGG_4H_EMAB50',        sig_ema_bounce('4h', ema_days=50),  '4h_opt'),
+
+        # ── 超短期DCブレイク (5日, EMAなし, 年60〜100回想定) ──
+        ('AGG_4H_DC5d',          sig_dc_fast('4h', lookback_days=5,  ema_filter=False, confirm_bars=0), '4h_opt'),
+        ('AGG_4H_DC7d',          sig_dc_fast('4h', lookback_days=7,  ema_filter=False, confirm_bars=0), '4h_opt'),
+        ('AGG_8H_DC7d',          sig_dc_fast('8h', lookback_days=7,  ema_filter=False, confirm_bars=0), '8h_opt'),
+        ('AGG_4H_DC7d_EMA50',    sig_dc_fast('4h', lookback_days=7,  ema_filter=True,  ema_days=50, confirm_bars=0), '4h_opt'),
+        ('AGG_4H_DC10d_Imm',     sig_dc_fast('4h', lookback_days=10, ema_filter=False, confirm_bars=0), '4h_opt'),
+
+        # ── 積極的複合シグナル (RSI OR DC, 年120〜180回: 最大頻度) ──
+        ('AGG_4H_UNION_5d40',    sig_aggressive_union('4h', ema_days=21, lookback_days_dc=5,  rsi_thresh=40), '4h_opt'),
+        ('AGG_4H_UNION_7d42',    sig_aggressive_union('4h', ema_days=21, lookback_days_dc=7,  rsi_thresh=42), '4h_opt'),
+        ('AGG_8H_UNION_7d42',    sig_aggressive_union('8h', ema_days=21, lookback_days_dc=7,  rsi_thresh=42), '8h_opt'),
+        ('AGG_4H_UNION_10d45',   sig_aggressive_union('4h', ema_days=50, lookback_days_dc=10, rsi_thresh=45), '4h_opt'),
     ]
 
 
@@ -535,8 +573,9 @@ def run_backtest(data, strategies, risk_pct=0.03, trade_start='2020-01-01'):
     bars_d1 = data.get('1d')
     results = []
     trade_map = {}
+    n_total = len(strategies)
 
-    for name, sig_fn, freq in strategies:
+    for i, (name, sig_fn, freq) in enumerate(strategies):
         # _opt サフィックスは実データ時間足を '4h' / '8h' に変換
         actual_freq = freq.replace('_opt', '')
         bars = data.get(actual_freq)
@@ -565,6 +604,8 @@ def run_backtest(data, strategies, risk_pct=0.03, trade_start='2020-01-01'):
             htf = bars_4h
         else:
             htf = None
+        if (i + 1) % 10 == 0 or i == 0:
+            print(f"  [{i+1}/{n_total}] {name} ({actual_freq})...", flush=True)
         try:
             result = engine.run(bars, sig_fn, freq=actual_freq, name=name, htf_bars=htf,
                                 trade_start=trade_start)
@@ -823,6 +864,8 @@ def main():
     parser.add_argument('--top-n', type=int, default=3,
                         help='トレード履歴を表示する上位N戦略 (デフォルト: 3)')
     parser.add_argument('--no-image', action='store_true', help='画像生成スキップ')
+    parser.add_argument('--no-1h', action='store_true',
+                        help='1H足戦略をスキップ (速度優先モード, デフォルト: False)')
     args = parser.parse_args()
 
     print('=' * 70)
@@ -840,9 +883,13 @@ def main():
 
     # 戦略
     strategies = build_strategies()
-    print(f"戦略数: {len(strategies)}")
+    if args.no_1h:
+        strategies = [(n, s, f) for n, s, f in strategies if not f.startswith('1h')]
+        print(f"戦略数: {len(strategies)} (1H足スキップ)")
+    else:
+        print(f"戦略数: {len(strategies)}")
 
-    # バックテスト
+    # バックテスト (進捗付き)
     print("バックテスト実行中...")
     results, trade_map = run_backtest(data, strategies, risk_pct=args.risk_pct,
                                       trade_start='2020-01-01')

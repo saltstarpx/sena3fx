@@ -2100,3 +2100,195 @@ def sig_bearish_divergence_short(freq='8h',
                                    block_saturday=block_saturday)
 
     return _f
+
+
+# ══════════════════════════════════════════════════════════════════════
+# 積極的エントリー戦略群 ― 年間100回以上エントリー目標
+# 哲学: エントリーしないことが最大の失敗。
+#        負けトレードはデータ。エントリーしない機会損失は取り返せない。
+# ══════════════════════════════════════════════════════════════════════
+
+def sig_rsi_momentum(freq='4h', ema_days=21, rsi_period=14,
+                     rsi_long_thresh=40, rsi_short_thresh=60,
+                     ema_filter=True):
+    """
+    RSIモメンタム押し目エントリー (積極版)。
+    年間100回以上エントリーを目指す。
+
+    設計思想:
+    - EMA200(旧)→EMA21(新): より短期のトレンド追従で機会を増やす
+    - RSI40以下からの反転でロング (RSI45→RSI40→RSI45 でも取る)
+    - 連続シグナルも許可 (持ち続けること自体をポジションの正当化に)
+    - セッションフィルターなし (アジア時間の押し目も逃さない)
+
+    Args:
+        freq: '4h' | '8h' 推奨
+        ema_days: トレンド確認EMA日数 (21日=短期, 50日=中期)
+        rsi_long_thresh: この値以下から上抜けでロング (40)
+        rsi_short_thresh: この値以上から下抜けでショート (60)
+        ema_filter: Falseでトレンドフィルターなし (全方向対応)
+    """
+    BARS_PER_DAY = {'1h': 24, '4h': 6, '8h': 3, '12h': 2, '1d': 1}
+
+    def _f(bars):
+        bpd   = BARS_PER_DAY.get(freq, 6)
+        ema_n = max(5, ema_days * bpd)
+
+        c     = bars['close']
+        ema   = c.ewm(span=ema_n, adjust=False).mean()
+
+        delta    = c.diff()
+        avg_gain = delta.clip(lower=0).ewm(com=rsi_period - 1, adjust=False).mean()
+        avg_loss = (-delta.clip(upper=0)).ewm(com=rsi_period - 1, adjust=False).mean()
+        rsi = 100 - (100 / (1 + avg_gain / avg_loss.replace(0, 1e-10)))
+
+        rsi_cross_up   = (rsi.shift(1) <= rsi_long_thresh)  & (rsi > rsi_long_thresh)
+        rsi_cross_down = (rsi.shift(1) >= rsi_short_thresh) & (rsi < rsi_short_thresh)
+
+        if ema_filter:
+            long_mask  = rsi_cross_up   & (c > ema)
+            short_mask = rsi_cross_down & (c < ema)
+        else:
+            long_mask  = rsi_cross_up
+            short_mask = rsi_cross_down
+
+        signals = pd.Series('flat', index=bars.index)
+        signals[long_mask]  = 'long'
+        signals[short_mask] = 'short'
+        return signals
+
+    return _f
+
+
+def sig_ema_bounce(freq='4h', ema_days=21, atr_touch_mult=0.5):
+    """
+    EMA21/50 実体タッチ → 翌足確認でロング。
+    上昇トレンド中にEMAへの実際の押し目（lowがEMAを下回る）を捕捉。
+    年間20〜50回エントリー想定。
+
+    条件:
+    1. EMAが上向き（5本前より上）
+    2. 当バーのlowがEMAを下回る (実際の押し目タッチ)
+    3. 当バーのcloseがEMAを上回る (即回復 = ピンバー的反発)
+    4. 次バーも陽線 (close > open) で確認
+    """
+    BARS_PER_DAY = {'1h': 24, '4h': 6, '8h': 3, '12h': 2, '1d': 1}
+
+    def _f(bars):
+        bpd   = BARS_PER_DAY.get(freq, 6)
+        ema_n = max(5, ema_days * bpd)
+
+        c   = bars['close']
+        h   = bars['high']
+        l   = bars['low']
+        o   = bars['open']
+        ema = c.ewm(span=ema_n, adjust=False).mean()
+
+        # ATR14
+        tr  = pd.concat([h - l,
+                         (h - c.shift(1)).abs(),
+                         (l - c.shift(1)).abs()], axis=1).max(axis=1)
+        atr = tr.rolling(14).mean()
+
+        ema_rising  = ema > ema.shift(5)
+        ema_falling = ema < ema.shift(5)
+
+        # ロング: lowがEMAを刺してcloseがEMA上で回復 (前バーの押し目)
+        prev_touched_ema = (l.shift(1) <= ema.shift(1)) & (c.shift(1) >= ema.shift(1))
+        bull_confirm     = c > o
+        signals_long     = prev_touched_ema & bull_confirm & ema_rising & (c > ema)
+
+        # ショート: highがEMAを刺してcloseがEMA下で回復
+        prev_touched_ema_s = (h.shift(1) >= ema.shift(1)) & (c.shift(1) <= ema.shift(1))
+        bear_confirm       = c < o
+        signals_short      = prev_touched_ema_s & bear_confirm & ema_falling & (c < ema)
+
+        signals = pd.Series('flat', index=bars.index)
+        signals[signals_long]  = 'long'
+        signals[signals_short] = 'short'
+        return signals
+
+    return _f
+
+
+def sig_dc_fast(freq='4h', lookback_days=5, ema_filter=False,
+                ema_days=50, confirm_bars=0):
+    """
+    超短期ドンチャンブレイク (5〜10日)。
+    EMAフィルターなし・即エントリーで最大頻度を確保。
+    年間60〜100回エントリー想定。
+
+    Args:
+        lookback_days: 5 or 7 推奨 (短いほど頻繁)
+        ema_filter: Falseでトレンドフィルターなし
+        confirm_bars: 0=即エントリー
+    """
+    BARS_PER_DAY = {'1h': 24, '4h': 6, '8h': 3, '12h': 2, '1d': 1}
+
+    def _f(bars):
+        bpd = BARS_PER_DAY.get(freq, 6)
+        lb  = max(3, lookback_days * bpd)
+
+        c = bars['close']
+        h = bars['high']
+        l = bars['low']
+
+        dc_hi = h.shift(1).rolling(lb).max()
+        dc_lo = l.shift(1).rolling(lb).min()
+
+        raw_long  = c > dc_hi
+        raw_short = c < dc_lo
+
+        if ema_filter:
+            ema_n = max(5, ema_days * bpd)
+            ema   = c.ewm(span=ema_n, adjust=False).mean()
+            raw_long  = raw_long  & (c > ema)
+            raw_short = raw_short & (c < ema)
+
+        signals = pd.Series('flat', index=bars.index)
+
+        if confirm_bars >= 1:
+            ml, ms = raw_long.copy(), raw_short.copy()
+            for lag in range(1, confirm_bars + 1):
+                ml = ml & raw_long.shift(lag).fillna(False)
+                ms = ms & raw_short.shift(lag).fillna(False)
+            signals[ml] = 'long'
+            signals[ms] = 'short'
+        else:
+            signals[raw_long]  = 'long'
+            signals[raw_short] = 'short'
+
+        return signals
+
+    return _f
+
+
+def sig_aggressive_union(freq='4h', ema_days=21, lookback_days_dc=7,
+                          rsi_thresh=42):
+    """
+    積極的複合シグナル (RSI押し目 OR 短期DCブレイク)。
+    どちらか一方が点灯すればエントリー。
+    年間120〜180回エントリー想定 (最も積極的なモード)。
+
+    やがみメソッドの哲学:
+    「エントリーしないことが最大の失敗」
+    「失敗とは裁量でエントリーをやめること」
+    → できる限りシグナルを拾いにいく。
+    """
+    rsi_fn = sig_rsi_momentum(freq=freq, ema_days=ema_days,
+                               rsi_long_thresh=rsi_thresh, ema_filter=True)
+    dc_fn  = sig_dc_fast(freq=freq, lookback_days=lookback_days_dc,
+                          ema_filter=False, confirm_bars=0)
+
+    def _f(bars):
+        s_rsi = rsi_fn(bars)
+        s_dc  = dc_fn(bars)
+
+        # OR統合: どちらかが long/short ならそれを採用 (rsi優先)
+        combined = s_rsi.copy()
+        # DC シグナルがある && RSI がフラットな箇所を補完
+        combined[(s_dc == 'long')  & (combined == 'flat')] = 'long'
+        combined[(s_dc == 'short') & (combined == 'flat')] = 'short'
+        return combined
+
+    return _f
