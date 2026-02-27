@@ -52,6 +52,8 @@ class BacktestEngine:
                  long_biased=False,
                  min_short_drop_atr=3.0,
                  breakeven_rr=0.0,
+                 partial_tp_rr=0.0,
+                 partial_tp_pct=0.5,
                  target_max_dd=0.15,
                  target_min_wr=0.50,
                  target_rr_threshold=2.0,
@@ -88,6 +90,8 @@ class BacktestEngine:
         self.long_biased = long_biased
         self.min_short_drop_atr = min_short_drop_atr
         self.breakeven_rr = breakeven_rr
+        self.partial_tp_rr  = partial_tp_rr   # 0=無効, 2.0=RR2達成で部分利確
+        self.partial_tp_pct = partial_tp_pct  # 部分利確サイズ比率 (デフォルト50%)
         self.target_max_dd = target_max_dd
         self.target_min_wr = target_min_wr
         self.target_rr_threshold = target_rr_threshold
@@ -277,6 +281,40 @@ class BacktestEngine:
                             profit = first_entry - bar['close']
                             if profit >= self.breakeven_rr * init_sl_dist:
                                 pos['sl'] = min(pos['sl'], first_entry)
+
+                # ===== 部分利確 (partial_tp_rr > 0 の場合) =====
+                # ユーザーのスケールアウト戦略を再現:
+                # RR partial_tp_rr 達成時にポジの partial_tp_pct を利確 → SL建値移動
+                if self.partial_tp_rr > 0 and not pos.get('partial_done', False):
+                    first_entry  = pos['layers'][0]['entry']
+                    init_sl_dist = pos.get('initial_sl_dist', 0)
+                    if init_sl_dist > 0:
+                        partial_target = first_entry + self.partial_tp_rr * init_sl_dist \
+                            if pos['dir'] == 'long' else \
+                            first_entry - self.partial_tp_rr * init_sl_dist
+                        partial_hit = (pos['dir'] == 'long' and bar['high'] >= partial_target) or \
+                                      (pos['dir'] == 'short' and bar['low']  <= partial_target)
+                        if partial_hit:
+                            # 部分利確: 最初のレイヤーの partial_tp_pct を決済
+                            close_price = partial_target
+                            reduce_size = max(0.01, round(
+                                pos['layers'][0]['size'] * self.partial_tp_pct, 2))
+                            if pos['dir'] == 'long':
+                                pnl_part = (close_price - pos['layers'][0]['entry']) / self.pip * reduce_size
+                            else:
+                                pnl_part = (pos['layers'][0]['entry'] - close_price) / self.pip * reduce_size
+                            cash += pnl_part
+                            if cash > peak:
+                                peak = cash
+                            # 残ロット縮小
+                            pos['layers'][0]['size'] = max(
+                                0.01, pos['layers'][0]['size'] - reduce_size)
+                            # SLを建値に移動 (フリートレード化)
+                            if pos['dir'] == 'long':
+                                pos['sl'] = max(pos['sl'], first_entry)
+                            else:
+                                pos['sl'] = min(pos['sl'], first_entry)
+                            pos['partial_done'] = True
 
                 # ===== SL/TP判定（共有ライン） =====
                 exit_price = None

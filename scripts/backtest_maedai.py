@@ -77,7 +77,8 @@ def make_maedai_engine(risk_pct=0.03):
 def make_maedai_htf_engine(risk_pct=0.03, sl_n_confirm=2, sl_min_atr=0.8,
                             dynamic_rr=5.0, trail_start=4.0, trail_dist=3.0,
                             min_trades=5, long_biased=True,
-                            min_short_drop_atr=3.0, breakeven_rr=2.0):
+                            min_short_drop_atr=3.0, breakeven_rr=2.0,
+                            partial_tp_rr=0.0, partial_tp_pct=0.5):
     """
     マエダイ式 汎用HTFエンジン (4H/8H/12H/D1 共通):
 
@@ -110,6 +111,8 @@ def make_maedai_htf_engine(risk_pct=0.03, sl_n_confirm=2, sl_min_atr=0.8,
         long_biased         = long_biased,
         min_short_drop_atr  = min_short_drop_atr,
         breakeven_rr        = breakeven_rr,
+        partial_tp_rr       = partial_tp_rr,
+        partial_tp_pct      = partial_tp_pct,
         target_max_dd       = 0.30,
         target_min_wr       = 0.30,
         target_rr_threshold = 5.0,
@@ -237,6 +240,7 @@ def build_strategies():
         sig_maedai_dc_ema_tf,
         sig_rsi_pullback_tf,
         sig_dc_adx_rsi_tf,
+        sig_maedai_yagami_union,
     )
 
     return [
@@ -336,6 +340,14 @@ def build_strategies():
         ('4H_DC15d_ADX25',   sig_dc_adx_rsi_tf('4h',  lookback_days=15, adx_min=25, confirm_bars=1), '4h'),
         ('8H_DC20d_ADX20',   sig_dc_adx_rsi_tf('8h',  lookback_days=20, adx_min=20, confirm_bars=1), '8h'),
         ('12H_DC30d_ADX20',  sig_dc_adx_rsi_tf('12h', lookback_days=30, adx_min=20, confirm_bars=1), '12h'),
+
+        # ── マエダイ × RSI押し目 OR統合 (ユーザー提案: どちらか反応でエントリー) ──
+        # DCブレイク OR RSI押し目 → どちらか点灯でエントリー
+        # ピラミッド設定で強トレンド時に自動的に厚くなる
+        ('4H_OR_DC15_RSI45',  sig_maedai_yagami_union('4h',  lookback_days=15, confirm_bars=2, rsi_oversold=45), '4h'),
+        ('4H_OR_DC10_RSI45',  sig_maedai_yagami_union('4h',  lookback_days=10, confirm_bars=1, rsi_oversold=45), '4h'),
+        ('8H_OR_DC20_RSI45',  sig_maedai_yagami_union('8h',  lookback_days=20, confirm_bars=2, rsi_oversold=45), '8h'),
+        ('12H_OR_DC30_RSI45', sig_maedai_yagami_union('12h', lookback_days=30, confirm_bars=2, rsi_oversold=45), '12h'),
     ]
 
 
@@ -348,23 +360,48 @@ def run_backtest(data, strategies, risk_pct=0.03, trade_start='2020-01-01'):
     trade_start: この日付以降のみエントリー (それ以前はEMA/DC指標のウォームアップ)
     """
     engine_1h  = make_maedai_engine(risk_pct=risk_pct)
+
+    # 標準エンジン (breakeven_rr=2.0: 含み益2倍でSL建値移動)
     engine_4h  = make_maedai_htf_engine(risk_pct=risk_pct, sl_n_confirm=3,
                                          sl_min_atr=0.8, dynamic_rr=5.0,
                                          trail_start=4.0, trail_dist=3.0, min_trades=5,
-                                         long_biased=True)
+                                         long_biased=True, breakeven_rr=2.0)
     engine_8h  = make_maedai_htf_engine(risk_pct=risk_pct, sl_n_confirm=3,
                                          sl_min_atr=0.8, dynamic_rr=5.0,
                                          trail_start=4.0, trail_dist=3.0, min_trades=4,
-                                         long_biased=True)
+                                         long_biased=True, breakeven_rr=2.0)
     engine_12h = make_maedai_htf_engine(risk_pct=risk_pct, sl_n_confirm=2,
                                          sl_min_atr=0.8, dynamic_rr=5.0,
                                          trail_start=4.0, trail_dist=3.0, min_trades=3,
-                                         long_biased=True)
+                                         long_biased=True, breakeven_rr=2.0)
     engine_d1  = make_maedai_d1_engine(risk_pct=risk_pct)
+
+    # スケールアウトエンジン (partial_tp_rr=2.0: RR2で半分利確 → ユーザー式スケールアウト模倣)
+    engine_4h_scaleout  = make_maedai_htf_engine(risk_pct=risk_pct, sl_n_confirm=3,
+                                                   sl_min_atr=0.8, dynamic_rr=5.0,
+                                                   trail_start=4.0, trail_dist=3.0, min_trades=5,
+                                                   long_biased=True, breakeven_rr=2.0,
+                                                   partial_tp_rr=2.0, partial_tp_pct=0.5)
+    engine_8h_scaleout  = make_maedai_htf_engine(risk_pct=risk_pct, sl_n_confirm=3,
+                                                   sl_min_atr=0.8, dynamic_rr=5.0,
+                                                   trail_start=4.0, trail_dist=3.0, min_trades=4,
+                                                   long_biased=True, breakeven_rr=2.0,
+                                                   partial_tp_rr=2.0, partial_tp_pct=0.5)
+    engine_12h_scaleout = make_maedai_htf_engine(risk_pct=risk_pct, sl_n_confirm=2,
+                                                   sl_min_atr=0.8, dynamic_rr=5.0,
+                                                   trail_start=4.0, trail_dist=3.0, min_trades=3,
+                                                   long_biased=True, breakeven_rr=2.0,
+                                                   partial_tp_rr=2.0, partial_tp_pct=0.5)
 
     engine_map = {
         '1h': engine_1h, '4h': engine_4h,
         '8h': engine_8h, '12h': engine_12h, '1d': engine_d1,
+    }
+    # OR統合戦略はスケールアウトエンジンで実行
+    scaleout_map = {
+        '4h': engine_4h_scaleout,
+        '8h': engine_8h_scaleout,
+        '12h': engine_12h_scaleout,
     }
     bars_4h = data.get('4h')
     bars_d1 = data.get('1d')
@@ -376,7 +413,13 @@ def run_backtest(data, strategies, risk_pct=0.03, trade_start='2020-01-01'):
         if bars is None or len(bars) < 30:
             continue
 
-        engine = engine_map.get(freq, engine_1h)
+        # OR統合戦略はスケールアウトエンジンを使用
+        is_union = name.startswith(('4H_OR_', '8H_OR_', '12H_OR_'))
+        if is_union and freq in scaleout_map:
+            engine = scaleout_map[freq]
+        else:
+            engine = engine_map.get(freq, engine_1h)
+
         # 4H/8H/12H は D1スウィングSL を使用 (グリッドサーチで最適と判明)
         # 1H は 4Hスウィングを使用
         if freq in ('4h', '8h', '12h'):

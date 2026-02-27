@@ -1718,3 +1718,72 @@ def sig_dc_adx_rsi_tf(freq='4h', lookback_days=15, ema_days=200,
         return signals
 
     return _f
+
+
+# ──────────────────────────────────────────────────────
+# マエダイ×やがみ 複合シグナル (ユーザー提案: OR統合+両方で厚くする)
+# ──────────────────────────────────────────────────────
+
+def sig_maedai_yagami_union(freq='4h', lookback_days=15, ema_days=200,
+                              confirm_bars=2, rsi_oversold=45):
+    """
+    マエダイ(DCブレイク) OR RSI押し目 のいずれか点灯でエントリー。
+
+    ユーザー提案: 「どちらかが反応したらポジションを取って、
+                   両方反応したら厚くはればいいんじゃないか」
+
+    実装:
+    1. DCブレイク+EMA200 (マエダイ式) が点灯 → エントリー
+    2. RSI押し目+EMA200 が点灯            → エントリー
+    3. どちらか1つで通常エントリー (OR)
+    4. 「厚くはる」はエンジンのピラミッド設定で自動対応
+       (含み益 2ATR ごとに自動追加 → 強トレンド時に自然に積み上がる)
+    """
+    BARS_PER_DAY = {'1h': 24, '2h': 12, '4h': 6, '6h': 4,
+                    '8h': 3, '12h': 2, '1d': 1}
+
+    def _f(bars):
+        bpd   = BARS_PER_DAY.get(freq, 1)
+        lb    = max(5, lookback_days * bpd)
+        ema_n = max(20, ema_days * bpd)
+
+        c = bars['close']
+        h = bars['high']
+        l = bars['low']
+
+        # ── マエダイ: DCブレイク + EMA200 ──
+        dc_hi = h.shift(1).rolling(lb).max()
+        dc_lo = l.shift(1).rolling(lb).min()
+        ema   = c.ewm(span=ema_n, adjust=False).mean()
+
+        raw_dc_long  = (c > dc_hi) & (c > ema)
+        raw_dc_short = (c < dc_lo) & (c < ema)
+
+        if confirm_bars >= 1:
+            ml, ms = raw_dc_long.copy(), raw_dc_short.copy()
+            for lag in range(1, confirm_bars + 1):
+                ml = ml & raw_dc_long.shift(lag).fillna(False)
+                ms = ms & raw_dc_short.shift(lag).fillna(False)
+            maedai_long  = ml
+            maedai_short = ms
+        else:
+            maedai_long  = raw_dc_long
+            maedai_short = raw_dc_short
+
+        # ── RSI押し目: EMA上 + RSI反発 ──
+        delta    = c.diff()
+        avg_gain = delta.clip(lower=0).ewm(com=13, adjust=False).mean()
+        avg_loss = (-delta.clip(upper=0)).ewm(com=13, adjust=False).mean()
+        rsi = 100 - (100 / (1 + avg_gain / avg_loss.replace(0, 1e-10)))
+
+        rsi_long  = (c > ema) & (rsi.shift(1) <= rsi_oversold)       & (rsi > rsi_oversold)
+        rsi_short = (c < ema) & (rsi.shift(1) >= (100 - rsi_oversold)) & (rsi < (100 - rsi_oversold))
+
+        # ── OR統合 (どちらか反応でエントリー) ──
+        signals = pd.Series('flat', index=bars.index)
+        signals[maedai_long  | rsi_long]  = 'long'
+        signals[maedai_short | rsi_short] = 'short'
+
+        return signals
+
+    return _f
