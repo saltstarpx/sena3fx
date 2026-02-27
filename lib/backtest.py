@@ -1,11 +1,16 @@
 """
-改良版ティックレベルバックテストエンジン v4.0
+改良版ティックレベルバックテストエンジン v4.1
 =============================================
 v3.0からの追加:
   - ピラミッティング（含み益時に追加エントリー）
   - シーズナリティフィルター（allowed_months）
   - 月次PnL統計
   - 複利対応（資金比率リスク管理で自動スケール）
+
+v4.1からの追加 (richmanbtc methodology):
+  - p-mean法による安定性検証 (5区間分割t検定)
+    出典: richmanbtc note「ストラテジーの検証。p平均法」
+    基準: p_mean < 0.03, p_mean_error_rate < 0.00001
 """
 import numpy as np
 import pandas as pd
@@ -13,6 +18,7 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Callable
 import json
 import os
+from math import factorial
 
 
 class BacktestEngine:
@@ -554,6 +560,44 @@ class BacktestEngine:
             years_active = 1.0
         trades_per_year = n / years_active
 
+        # ── richmanbtc p-mean法 (5区間安定性検証) ──
+        # 出典: note.com/btcml「ストラテジーの検証。p平均法」
+        # バックテスト期間を5等分し、各区間でt検定。
+        # 全区間で安定して勝てるか検証する。
+        # error_rate = (mean(p)*N)^N / N!
+        #
+        # 【スウィング戦略への適用注意】
+        # richmanbtcの基準(p_mean<0.03)はHFT用 (1区間1000+取引)。
+        # スウィング (1区間~26取引, WR=37%, RR=3) の理論値: p_mean≈0.10-0.25
+        # → 代わりに「全N区間でプラス」= winning_segments/N を使う。
+        # 全5区間プラス = 完全安定。4/5区間プラス = 許容範囲。
+        p_mean_val = None
+        p_mean_error_rate = None
+        winning_segments = None
+        p_mean_segments = 5
+        try:
+            from scipy import stats as _stats
+            pnl_series = [t['pnl'] for t in trades]
+            seg_size = max(1, len(pnl_series) // p_mean_segments)
+            p_values = []
+            seg_means = []
+            for seg_i in range(p_mean_segments):
+                seg = pnl_series[seg_i * seg_size:(seg_i + 1) * seg_size]
+                if len(seg) >= 3:
+                    t_stat, p_val = _stats.ttest_1samp(seg, 0)
+                    # 片側検定: 母平均>0 を検定
+                    p_one = p_val / 2 if t_stat > 0 else 1.0 - p_val / 2
+                    p_values.append(p_one)
+                    seg_means.append(np.mean(seg))
+            if p_values:
+                p_mean_val = float(np.mean(p_values))
+                N = len(p_values)
+                p_mean_error_rate = float((p_mean_val * N) ** N / factorial(N))
+                # スウィング向け安定指標: 勝ちセグメント数/全体
+                winning_segments = sum(1 for m in seg_means if m > 0)
+        except ImportError:
+            pass  # scipy未インストールの場合はスキップ
+
         # 合格判定（設定可能な基準）
         wr_min = self.target_min_wr
         dd_max = self.target_max_dd
@@ -593,5 +637,10 @@ class BacktestEngine:
             'passed': passed,
             'trades_per_year': round(trades_per_year, 1),
             'hold_8_24h': hold_8_24h,   # 8-24h保有ゾーン (ユーザー黄金ゾーン)
+            # richmanbtc p-mean法 (5区間安定性スコア)
+            # p_mean < 0.03 はHFT基準。スウィング向け基準: winning_segments=5/5
+            'p_mean': round(p_mean_val, 4) if p_mean_val is not None else None,
+            'p_mean_error_rate': float(f'{p_mean_error_rate:.2e}') if p_mean_error_rate is not None else None,
+            'winning_segments': winning_segments,  # 5区間中のプラス区間数 (5/5が最良)
             'trades': trades,
         }

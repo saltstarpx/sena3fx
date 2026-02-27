@@ -1,11 +1,122 @@
 {
   "cycle_count": 2,
-  "best_strategies": [],
+  "best_strategies": [
+    {
+      "name": "SEAS_UNION3d45_RR3",
+      "pf": 1.722,
+      "max_dd_pct": 22.2,
+      "roi_pct": 188.6,
+      "trades_per_year": 55.3,
+      "wr_pct": 36.6,
+      "notes": "6月・7月スキップ + DC3日OR RSI45 + RR3。全期間(2021-2026)で最高PF。"
+    },
+    {
+      "name": "SEAS_UNION2d38_RR3",
+      "pf": 1.658,
+      "max_dd_pct": 23.5,
+      "roi_pct": 168.1,
+      "trades_per_year": 55.3,
+      "wr_pct": 35.6,
+      "notes": "季節フィルター適用ベスト戦略。"
+    },
+    {
+      "name": "NT_4H_UNION2d38_RR3",
+      "pf": 1.454,
+      "max_dd_pct": 23.5,
+      "roi_pct": 134.1,
+      "trades_per_year": 64.5,
+      "wr_pct": 33.1,
+      "notes": "季節フィルターなしベースライン。年間取引数最多。"
+    }
+  ],
   "banned_strategies": [],
   "insights": [
     "サイクル#1: 平均リターン -19.86%",
     "やがみ戦略 平均リターン: -27.74% vs インジケーター戦略: -13.22%",
     "サイクル#2: 平均リターン -19.86%",
-    "やがみ戦略 平均リターン: -27.74% vs インジケーター戦略: -13.22%"
-  ]
+    "やがみ戦略 平均リターン: -27.74% vs インジケーター戦略: -13.22%",
+
+    "ミッション5.0 達成: 固定ATR SL + 固定RR3 (トレーリングなし) で50+/yr AND PF>1.3 達成",
+    "D1スウィングSL問題の根本原因: SL=6-8ATR遠すぎ → trailing 1.5-3ATRで発動 → 実効RR<1",
+    "解決策: use_dynamic_sl=False, default_sl_atr=1.5, trail_start_atr=0.0, risk_pct=0.02",
+    "季節性フィルター効果: 6月・7月スキップ → PF 1.454→1.658 (+14%), ROI 134%→168% (+25%)",
+    "6月が主犯: Gold横横(-0.3%) → DCブレイク全てダマシ → WR=17%",
+    "7月も問題: Gold微動(+0.2%) → WR=0-22% (UNION系はWR=0%も)"
+  ],
+
+  "richmanbtc_methodology": {
+    "source": "note.com/btcml - richmanbtc (SS級botter、東大院卒、年収10億円規模)",
+    "last_updated": "2026-02-27",
+
+    "core_philosophy": "機械学習の予測精度の問題に帰着させ、Kaggler界隈のノウハウを適用。バックテスト成績ではなく予測精度(R2)を改善するのがベストプラクティス。",
+
+    "key_insights": [
+      {
+        "id": "1",
+        "title": "ATR指値エントリー (Maker戦略)",
+        "detail": "現在レートからATR×0.5離れた位置に指値注文を入れる。機械学習なしでも2018-2021のBTCで2年半+1700%を達成。ATR係数(0.5)は変更可能: 大きくすると約定確率↓・RR↑、小さくすると約定確率→1・取引回数↑",
+        "formula": "buy_price = close - ATR * 0.5 / sell_price = close + ATR * 0.5",
+        "applicability_to_sena3fx": "高。現在の成行エントリー(bar close)をATR指値に変更すると、ブレイクアウト後の自然な押し目で入れる。WR改善の可能性大。",
+        "status": "未実装 - 要検証"
+      },
+      {
+        "id": "2",
+        "title": "p-mean法 (安定性検証)",
+        "detail": "バックテスト期間を5等分し、各区間でt検定。全区間で安定して勝てるか検証。エラー率 = (mean(p)*N)^N / N!。基準: p_mean < 0.03、error_rate < 0.00001。従来のt検定・PSR・DSRより時系列の変化に強い。",
+        "formula": "error_rate = (mean(p_values) * N) ** N / factorial(N)",
+        "applicability_to_sena3fx": "高。現在の評価はPF/MaxDD/WR/頻度のみ。p-mean追加でストラテジーの全期間安定性を定量化できる。",
+        "status": "実装済み (lib/backtest.py の _report() に追加)"
+      },
+      {
+        "id": "3",
+        "title": "Non-Stationarity Score (特徴量の定常性検証)",
+        "detail": "特徴量からインデックス(時刻)をLightGBMで予測。決定係数R²>0.3なら非定常 → 汎化性能悪化の恐れ。差分・対数差分・価格比で定常化する。価格系特徴量は必ずclose割りで正規化。",
+        "formula": "non_stationarity_score = R² of (features → time_index prediction)",
+        "applicability_to_sena3fx": "中。現在の特徴量(RSI, EMA, DC)はすでに相対的。DCのlookbackを増やすなら非定常性チェックが重要。",
+        "status": "将来の機械学習移行時に実装予定"
+      },
+      {
+        "id": "4",
+        "title": "目的変数(y)設計 - ATR×k リターン",
+        "detail": "y = ATR×k指値注文が約定した場合の累積リターン。単純なΔ終値ではなく執行コストを込みにした実際の損益を予測対象にする。ポジション保有時間・約定確率も計算。",
+        "applicability_to_sena3fx": "中。機械学習モデルを将来導入する際の目的変数として使用。",
+        "status": "将来の機械学習移行時に実装予定"
+      },
+      {
+        "id": "5",
+        "title": "バリデーション手法 - TimeSeriesSplit",
+        "detail": "k-fold cross validationの代わりにTimeSeriesSplitを使用。trainとtestを時系列で分割し、testは将来のデータのみ。同じデータで何度も実験するとデータにフィッティングするため、testは最終確認のみに使用。",
+        "applicability_to_sena3fx": "高。現在の全期間単一バックテストではなく、rolling windowバックテストを追加すべき。",
+        "status": "部分的に実装済み (trade_start パラメータで期間制御)"
+      },
+      {
+        "id": "6",
+        "title": "ポジションサイジング - 予測値比例 (Kelly型)",
+        "detail": "ポジションサイズ = 予測リターン / (予測分散の平方根) に比例。Kellyの精神: エッジが大きいときは大きく張る。固定ロットではなく動的サイジング。",
+        "applicability_to_sena3fx": "中。現在は固定2%リスク。将来的に確信度スコアに基づいて0.5-3%に可変化できる。",
+        "status": "未実装"
+      },
+      {
+        "id": "7",
+        "title": "特徴量エンジニアリング - TA-Lib網羅",
+        "detail": "特徴量の意味は深く考えず、TA-Libの指標を片っ端から追加してから重要度で絞る。価格(close)で割って正規化。非定常な特徴量は除外または定常化。",
+        "feature_list": ["DEMA", "EMA", "HT_TRENDLINE", "KAMA", "MA", "SMA", "T3", "TEMA", "WMA", "LINEARREG", "Bollinger Bands", "ADX", "ADXR", "AROON", "ATR", "NATR", "STDDEV", "TRANGE", "APO", "MACD", "MOM", "AD", "ADOSC", "OBV", "HT_PHASOR", "HT_SINE", "HT_DCPERIOD"],
+        "applicability_to_sena3fx": "中。将来ML実装時の特徴量候補として使用。",
+        "status": "将来の機械学習移行時に実装予定"
+      }
+    ],
+
+    "key_failure_patterns": [
+      "特徴量リーク: 未来の情報が特徴量に混入 → バックテスト優秀・実運用完全失敗",
+      "非定常特徴量: 絶対価格を特徴量にすると過去の相場環境に過学習",
+      "過最適化: 同じテストデータで何度も実験するとデータにフィッティング",
+      "評価指標の不連続性: sign(y_pred)をベースにしたPFはコロナショック等で急変"
+    ],
+
+    "applicable_to_current_system": {
+      "immediate": ["p-mean法による安定性検証 (実装済み)", "ATR指値エントリーの検証 (要実装)"],
+      "medium_term": ["rolling window バックテスト", "確信度スコアによる可変リスク"],
+      "long_term": ["LightGBM MLモデルへの移行", "Non-Stationarity Score監視", "TA-Lib特徴量追加"]
+    }
+  }
 }
