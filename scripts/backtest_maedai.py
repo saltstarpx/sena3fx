@@ -78,7 +78,8 @@ def make_maedai_htf_engine(risk_pct=0.03, sl_n_confirm=2, sl_min_atr=0.8,
                             dynamic_rr=5.0, trail_start=4.0, trail_dist=3.0,
                             min_trades=5, long_biased=True,
                             min_short_drop_atr=3.0, breakeven_rr=2.0,
-                            partial_tp_rr=0.0, partial_tp_pct=0.5):
+                            partial_tp_rr=0.0, partial_tp_pct=0.5,
+                            min_hold_hours=0.0, symbol_risk_mult=1.0):
     """
     マエダイ式 汎用HTFエンジン (4H/8H/12H/D1 共通):
 
@@ -113,6 +114,8 @@ def make_maedai_htf_engine(risk_pct=0.03, sl_n_confirm=2, sl_min_atr=0.8,
         breakeven_rr        = breakeven_rr,
         partial_tp_rr       = partial_tp_rr,
         partial_tp_pct      = partial_tp_pct,
+        min_hold_hours      = min_hold_hours,
+        symbol_risk_mult    = symbol_risk_mult,
         target_max_dd       = 0.30,
         target_min_wr       = 0.30,
         target_rr_threshold = 5.0,
@@ -126,6 +129,72 @@ def make_maedai_d1_engine(risk_pct=0.03):
         risk_pct=risk_pct, sl_n_confirm=2, sl_min_atr=0.8,
         dynamic_rr=5.0, trail_start=4.0, trail_dist=3.0, min_trades=3,
         long_biased=True
+    )
+
+
+def make_user_optimized_engine(risk_pct=0.03, freq='4h',
+                                long_biased=True,
+                                min_hold_hours=1.0):
+    """
+    ユーザー実績「勝ちの設計図」に最適化したエンジン。
+
+    変更点:
+    - dynamic_rr=2.0: TP=SL×2 (8-24h保有ゾーン狙い、高WRのRR設計)
+    - partial_tp_rr=1.0: RR1達成でポジの50%利確 (分割決済PF=5.58)
+    - min_hold_hours=1.0: 最低1h保有 (< 1h PF=0.35の養分行動を防止)
+    - trail_start=2.0: 含み益2ATRでトレーリング開始 (利益を守る)
+    - breakeven_rr=1.0: RR1でSL建値移動 (フリートレード化)
+
+    注意: dynamic_rr=2.0 は 5.0 より低WRになりやすいが、
+    トレード頻度と勝率(WR)が上がり、保有時間が短くなる。
+    ユーザー実績のWR=58%, 8-24h保有に近い設計。
+    """
+    min_trades_map = {'4h': 5, '8h': 4, '12h': 3}
+    min_trades = min_trades_map.get(freq, 5)
+
+    return make_maedai_htf_engine(
+        risk_pct           = risk_pct,
+        sl_n_confirm       = 2,
+        sl_min_atr         = 0.8,
+        dynamic_rr         = 2.0,        # RR2: 8-24h保有ゾーン狙い
+        trail_start        = 2.0,        # 含み益2ATRでトレーリング
+        trail_dist         = 1.5,
+        min_trades         = min_trades,
+        long_biased        = long_biased,
+        min_short_drop_atr = 2.0,        # ショート条件を少し緩める
+        breakeven_rr       = 1.0,        # RR1でSL建値移動
+        partial_tp_rr      = 1.0,        # RR1で50%利確 (分割決済模倣)
+        partial_tp_pct     = 0.5,
+        min_hold_hours     = min_hold_hours,  # 1h未満は決済しない
+    )
+
+
+def make_short_engine(risk_pct=0.03, freq='4h'):
+    """
+    ショート専用エンジン (指令4)。
+
+    ユーザーショート実績: PF=12.49, WR=76.7%
+    long_biased=False: ショートシグナルを通常通り受け付ける
+    min_short_drop_atr=1.0: 少しの下落でもショート許可
+    dynamic_rr=2.0: ショートは短い保有時間で確実に利確
+    """
+    min_trades_map = {'4h': 3, '8h': 3, '12h': 3}
+    min_trades = min_trades_map.get(freq, 3)
+
+    return make_maedai_htf_engine(
+        risk_pct           = risk_pct,
+        sl_n_confirm       = 2,
+        sl_min_atr         = 0.8,
+        dynamic_rr         = 2.0,
+        trail_start        = 2.0,
+        trail_dist         = 1.5,
+        min_trades         = min_trades,
+        long_biased        = False,      # ショートバイアスなし (シグナル通り)
+        min_short_drop_atr = 1.0,        # ショート条件を緩める
+        breakeven_rr       = 1.0,
+        partial_tp_rr      = 1.0,
+        partial_tp_pct     = 0.5,
+        min_hold_hours     = 1.0,
     )
 
 
@@ -241,6 +310,10 @@ def build_strategies():
         sig_rsi_pullback_tf,
         sig_dc_adx_rsi_tf,
         sig_maedai_yagami_union,
+        # 指令1・4・5: 時間フィルター + ショート戦略
+        sig_rsi_pullback_filtered,
+        sig_rsi_short_tf,
+        sig_dc_filtered,
     )
 
     return [
@@ -348,6 +421,31 @@ def build_strategies():
         ('4H_OR_DC10_RSI45',  sig_maedai_yagami_union('4h',  lookback_days=10, confirm_bars=1, rsi_oversold=45), '4h'),
         ('8H_OR_DC20_RSI45',  sig_maedai_yagami_union('8h',  lookback_days=20, confirm_bars=2, rsi_oversold=45), '8h'),
         ('12H_OR_DC30_RSI45', sig_maedai_yagami_union('12h', lookback_days=30, confirm_bars=2, rsi_oversold=45), '12h'),
+
+        # ── 指令1・5: NYセッション + 禁止時間フィルター ──
+        # NYセッション(UTC 12-21時) + JST12時台禁止 + 土曜禁止
+        ('NY_4H_RSI_PB_45',  sig_rsi_pullback_filtered('4h',  rsi_oversold=45, ny_session_only=True,  block_noon_jst=True, block_saturday=True), '4h'),
+        ('NY_8H_RSI_PB_45',  sig_rsi_pullback_filtered('8h',  rsi_oversold=45, ny_session_only=False, block_noon_jst=True, block_saturday=True), '8h'),
+        ('NY_12H_RSI_PB_45', sig_rsi_pullback_filtered('12h', rsi_oversold=45, ny_session_only=False, block_noon_jst=True, block_saturday=True), '12h'),
+        # DCブレイク + 禁止時間フィルター (NY限定は4H足に不向きのため禁止時間帯のみブロック)
+        ('FLT_4H_DC15_C2',   sig_dc_filtered('4h',  lookback_days=15, confirm_bars=2, ny_session_only=False, block_noon_jst=True, block_saturday=True), '4h'),
+        ('FLT_8H_DC20_C1',   sig_dc_filtered('8h',  lookback_days=20, confirm_bars=1, ny_session_only=False, block_noon_jst=True, block_saturday=True), '8h'),
+        ('FLT_12H_DC30_C2',  sig_dc_filtered('12h', lookback_days=30, confirm_bars=2, ny_session_only=False, block_noon_jst=True, block_saturday=True), '12h'),
+
+        # ── 指令4: ショート専用戦略 (RSI戻り売り) ──
+        # EMA200下 + RSI70以上から下抜け → ショート
+        # ユーザーショート実績: PF=12.49, WR=76.7%
+        ('SHORT_4H_RSI55',  sig_rsi_short_tf('4h',  rsi_overbought=55, ny_session_only=True,  block_noon_jst=True, block_saturday=True), '4h'),
+        ('SHORT_8H_RSI55',  sig_rsi_short_tf('8h',  rsi_overbought=55, ny_session_only=False, block_noon_jst=True, block_saturday=True), '8h'),
+        ('SHORT_12H_RSI55', sig_rsi_short_tf('12h', rsi_overbought=55, ny_session_only=False, block_noon_jst=True, block_saturday=True), '12h'),
+
+        # ── 指令2・3・7: ユーザー最適化エンジン (8-24h保有 + 分割決済 + 最低1h保有) ──
+        # dynamic_rr=2.0 + partial_tp_rr=1.0 + min_hold_hours=1.0
+        # → 8-24h黄金ゾーン + 分割決済 + ポジポジ病防止
+        ('OPT_4H_RSI_PB',   sig_rsi_pullback_tf('4h',  rsi_oversold=45), '4h_opt'),
+        ('OPT_8H_RSI_PB',   sig_rsi_pullback_tf('8h',  rsi_oversold=45), '8h_opt'),
+        ('OPT_4H_DC15',     sig_maedai_dc_ema_tf('4h', lookback_days=15, confirm_bars=2), '4h_opt'),
+        ('OPT_8H_DC20',     sig_maedai_dc_ema_tf('8h', lookback_days=20, confirm_bars=2), '8h_opt'),
     ]
 
 
@@ -376,7 +474,7 @@ def run_backtest(data, strategies, risk_pct=0.03, trade_start='2020-01-01'):
                                          long_biased=True, breakeven_rr=2.0)
     engine_d1  = make_maedai_d1_engine(risk_pct=risk_pct)
 
-    # スケールアウトエンジン (partial_tp_rr=2.0: RR2で半分利確 → ユーザー式スケールアウト模倣)
+    # スケールアウトエンジン (partial_tp_rr=2.0: RR2で半分利確)
     engine_4h_scaleout  = make_maedai_htf_engine(risk_pct=risk_pct, sl_n_confirm=3,
                                                    sl_min_atr=0.8, dynamic_rr=5.0,
                                                    trail_start=4.0, trail_dist=3.0, min_trades=5,
@@ -393,9 +491,24 @@ def run_backtest(data, strategies, risk_pct=0.03, trade_start='2020-01-01'):
                                                    long_biased=True, breakeven_rr=2.0,
                                                    partial_tp_rr=2.0, partial_tp_pct=0.5)
 
+    # ユーザー最適化エンジン (8-24h + 分割決済 + 最低1h保有): 指令2・3・7
+    engine_4h_opt  = make_user_optimized_engine(risk_pct=risk_pct, freq='4h',  long_biased=True, min_hold_hours=1.0)
+    engine_8h_opt  = make_user_optimized_engine(risk_pct=risk_pct, freq='8h',  long_biased=True, min_hold_hours=1.0)
+
+    # ショート専用エンジン (指令4): long_biased=False
+    engine_4h_short  = make_short_engine(risk_pct=risk_pct, freq='4h')
+    engine_8h_short  = make_short_engine(risk_pct=risk_pct, freq='8h')
+    engine_12h_short = make_short_engine(risk_pct=risk_pct, freq='12h')
+
     engine_map = {
-        '1h': engine_1h, '4h': engine_4h,
-        '8h': engine_8h, '12h': engine_12h, '1d': engine_d1,
+        '1h':     engine_1h,
+        '4h':     engine_4h,
+        '8h':     engine_8h,
+        '12h':    engine_12h,
+        '1d':     engine_d1,
+        # ユーザー最適化エンジン (freq suffix: _opt)
+        '4h_opt': engine_4h_opt,
+        '8h_opt': engine_8h_opt,
     }
     # OR統合戦略はスケールアウトエンジンで実行
     scaleout_map = {
@@ -403,33 +516,48 @@ def run_backtest(data, strategies, risk_pct=0.03, trade_start='2020-01-01'):
         '8h': engine_8h_scaleout,
         '12h': engine_12h_scaleout,
     }
+    # ショート戦略用エンジン
+    short_map = {
+        '4h': engine_4h_short,
+        '8h': engine_8h_short,
+        '12h': engine_12h_short,
+    }
     bars_4h = data.get('4h')
     bars_d1 = data.get('1d')
     results = []
     trade_map = {}
 
     for name, sig_fn, freq in strategies:
-        bars = data.get(freq)
+        # _opt サフィックスは実データ時間足を '4h' / '8h' に変換
+        actual_freq = freq.replace('_opt', '')
+        bars = data.get(actual_freq)
         if bars is None or len(bars) < 30:
             continue
 
-        # OR統合戦略はスケールアウトエンジンを使用
+        # エンジン選択ロジック
         is_union = name.startswith(('4H_OR_', '8H_OR_', '12H_OR_'))
-        if is_union and freq in scaleout_map:
-            engine = scaleout_map[freq]
+        is_short = name.startswith('SHORT_')
+        is_opt   = freq.endswith('_opt')
+
+        if is_union and actual_freq in scaleout_map:
+            engine = scaleout_map[actual_freq]
+        elif is_short and actual_freq in short_map:
+            engine = short_map[actual_freq]
+        elif is_opt:
+            engine = engine_map.get(freq, engine_4h_opt)
         else:
             engine = engine_map.get(freq, engine_1h)
 
         # 4H/8H/12H は D1スウィングSL を使用 (グリッドサーチで最適と判明)
         # 1H は 4Hスウィングを使用
-        if freq in ('4h', '8h', '12h'):
+        if actual_freq in ('4h', '8h', '12h'):
             htf = bars_d1
-        elif freq == '1h':
+        elif actual_freq == '1h':
             htf = bars_4h
         else:
             htf = None
         try:
-            result = engine.run(bars, sig_fn, freq=freq, name=name, htf_bars=htf,
+            result = engine.run(bars, sig_fn, freq=actual_freq, name=name, htf_bars=htf,
                                 trade_start=trade_start)
         except Exception as e:
             print(f"  [{name}] エラー: {e}")
@@ -479,12 +607,14 @@ def print_ranking(results, trade_start='2020-01-01'):
         roi = r.get('total_return_pct', 0)
         pnl = r.get('total_pnl', 0)
         n   = r.get('total_trades', 0)
+        dur = r.get('avg_duration_hours', 0)
         final_man = int((INIT_CASH + pnl) / 10_000)
         three_x   = '★3x' if roi >= TARGET_ROI else ''
         passed    = '★' if r.get('passed') else ''
+        gold_zone = '⬛8-24h' if r.get('hold_8_24h') else ''  # 8-24h黄金ゾーン
         line = (f"{rank:<5}{r['strategy']:<25}{r.get('timeframe','?'):<5}{n:>7}"
                 f"{wr:>7.1f}%{pf:>8.3f}{rr:>6.1f}{dd:>7.1f}%"
-                f"{roi:>7.1f}%{final_man:>13,d}万{three_x:>7}  {passed}")
+                f"{roi:>7.1f}%{final_man:>13,d}万{three_x:>7}  {passed}{gold_zone}")
         print(line)
 
     print('-' * 110)

@@ -54,6 +54,8 @@ class BacktestEngine:
                  breakeven_rr=0.0,
                  partial_tp_rr=0.0,
                  partial_tp_pct=0.5,
+                 min_hold_hours=0.0,
+                 symbol_risk_mult=1.0,
                  target_max_dd=0.15,
                  target_min_wr=0.50,
                  target_rr_threshold=2.0,
@@ -92,6 +94,8 @@ class BacktestEngine:
         self.breakeven_rr = breakeven_rr
         self.partial_tp_rr  = partial_tp_rr   # 0=無効, 2.0=RR2達成で部分利確
         self.partial_tp_pct = partial_tp_pct  # 部分利確サイズ比率 (デフォルト50%)
+        self.min_hold_hours = min_hold_hours  # 最低保有時間(h): この時間内はSL以外で決済しない
+        self.symbol_risk_mult = symbol_risk_mult  # 銘柄別リスク係数 (銀=0.5等)
         self.target_max_dd = target_max_dd
         self.target_min_wr = target_min_wr
         self.target_rr_threshold = target_rr_threshold
@@ -320,24 +324,29 @@ class BacktestEngine:
                 exit_price = None
                 exit_reason = None
 
+                # 最低保有時間チェック: SL以外の決済は min_hold_hours 以内禁止
+                hold_seconds = (bar_time - pos['layers'][0]['entry_time']).total_seconds()
+                min_hold_ok = (self.min_hold_hours <= 0 or
+                               hold_seconds >= self.min_hold_hours * 3600)
+
                 if pos['dir'] == 'long':
                     if bar['low'] <= pos['sl']:
                         exit_price = pos['sl']
                         exit_reason = 'stop_loss'
-                    elif bar['high'] >= pos['tp']:
+                    elif min_hold_ok and bar['high'] >= pos['tp']:
                         exit_price = pos['tp']
                         exit_reason = 'take_profit'
-                    elif self.exit_on_signal and sig in ('short', 'close'):
+                    elif min_hold_ok and self.exit_on_signal and sig in ('short', 'close'):
                         exit_price = bar['close']
                         exit_reason = 'signal'
                 else:
                     if bar['high'] >= pos['sl']:
                         exit_price = pos['sl']
                         exit_reason = 'stop_loss'
-                    elif bar['low'] <= pos['tp']:
+                    elif min_hold_ok and bar['low'] <= pos['tp']:
                         exit_price = pos['tp']
                         exit_reason = 'take_profit'
-                    elif self.exit_on_signal and sig in ('long', 'close'):
+                    elif min_hold_ok and self.exit_on_signal and sig in ('long', 'close'):
                         exit_price = bar['close']
                         exit_reason = 'signal'
 
@@ -444,7 +453,8 @@ class BacktestEngine:
                 entry_price = bar['close'] - spread / 2 - self.slippage
 
             # 複利ロット計算（現在の資金 × risk_pct がリスク額）
-            risk_amount = cash * self.risk_pct
+            # symbol_risk_mult: 銘柄別リスク係数 (例: 銀スポット=0.5 → ロット半減)
+            risk_amount = cash * self.risk_pct * self.symbol_risk_mult
             sl_pips = sl_dist / self.pip
             pos_size = max(0.01, round(risk_amount / sl_pips, 2)) if sl_pips > 0 else 0.01
 
@@ -534,6 +544,11 @@ class BacktestEngine:
         wr_ok = (wr >= wr_min) or (rr_ratio >= rr_thr and wr >= wr_min * 0.5)
         passed = (pf >= 1.3 and max_dd <= dd_max and n >= n_min and wr_ok)
 
+        # 8-24時間保有フラグ (指令7: 黄金ゾーン判定)
+        # ユーザー分析: 8-24h保有でPF=13.08 / WR=74.8% (最高パターン)
+        # 評価関数の主基準ではなく「付加情報」として提供
+        hold_8_24h = (8.0 <= avg_dur <= 24.0)
+
         return {
             'strategy': name,
             'engine': 'yagami_v4',
@@ -555,5 +570,6 @@ class BacktestEngine:
             'monthly_pnl': monthly_pnl,
             'pyramid_trade_rate_pct': round(pyramid_rate, 1),
             'passed': passed,
+            'hold_8_24h': hold_8_24h,   # 8-24h保有ゾーン (ユーザー黄金ゾーン)
             'trades': trades,
         }

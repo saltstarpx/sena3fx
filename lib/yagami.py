@@ -1787,3 +1787,149 @@ def sig_maedai_yagami_union(freq='4h', lookback_days=15, ema_days=200,
         return signals
 
     return _f
+
+
+# ──────────────────────────────────────────────────────
+# 時刻フィルター (指令1・指令5)
+# ──────────────────────────────────────────────────────
+
+def _apply_time_filters(signals, bars,
+                        ny_session_only=False,
+                        block_noon_jst=False,
+                        block_saturday=False):
+    """
+    シグナルに時刻フィルターを適用するユーティリティ。
+
+    ユーザー分析から:
+    - NYセッション(JST 21-06時) は利益の53%, PF=3.05
+    - JST 12時台はPF=0.94 (損失パターン)
+    - 土曜日はPF=0.46 (明確な損失パターン)
+
+    Args:
+        ny_session_only: TrueでNYセッション(UTC 12-21時)のみエントリー
+        block_noon_jst: TrueでJST 12時台(UTC 03:00-03:59)ブロック
+        block_saturday: TrueでJST土曜日(UTC金曜15時以降+土曜)ブロック
+    """
+    idx = bars.index
+    filtered = signals.copy()
+
+    # UTC→JST変換 (JST = UTC+9)
+    # UTC hour での判定: JST時間 = (UTC_hour + 9) % 24
+    utc_hours = idx.hour
+
+    if ny_session_only:
+        # NYセッション: JST 21:00-翌06:00 = UTC 12:00-21:00
+        # (サマータイム無視の近似値)
+        ny_mask = (utc_hours >= 12) & (utc_hours < 21)
+        filtered[~ny_mask] = 'flat'
+
+    if block_noon_jst:
+        # JST 12:00-12:59 = UTC 03:00-03:59
+        noon_mask = (utc_hours == 3)
+        filtered[noon_mask] = 'flat'
+
+    if block_saturday:
+        # JST 土曜日 = UTC 金曜15:00以降〜土曜14:59
+        # 簡略: UTC weekday==4 (金曜) hour>=15 または weekday==5 (土曜)
+        dow = idx.weekday
+        sat_mask = ((dow == 4) & (utc_hours >= 15)) | (dow == 5)
+        filtered[sat_mask] = 'flat'
+
+    return filtered
+
+
+def sig_rsi_pullback_filtered(freq='4h', ema_days=200, rsi_period=14,
+                               rsi_oversold=45, rsi_overbought=55,
+                               ny_session_only=True,
+                               block_noon_jst=True,
+                               block_saturday=True):
+    """
+    RSI押し目エントリー + ユーザー実績フィルター全適用版。
+
+    ユーザーの「勝ちの設計図」に基づく全フィルター:
+    1. NYセッション(UTC 12-21時)のみ (利益53%, PF=3.05)
+    2. JST 12時台ブロック (PF=0.94の損失パターン)
+    3. 土曜日ブロック (PF=0.46の明確な損失)
+    4. EMA200 + RSI押し目 (押し目買い)
+    """
+    base_fn = sig_rsi_pullback_tf(freq=freq, ema_days=ema_days,
+                                   rsi_period=rsi_period,
+                                   rsi_oversold=rsi_oversold,
+                                   rsi_overbought=rsi_overbought)
+
+    def _f(bars):
+        signals = base_fn(bars)
+        return _apply_time_filters(signals, bars,
+                                   ny_session_only=ny_session_only,
+                                   block_noon_jst=block_noon_jst,
+                                   block_saturday=block_saturday)
+    return _f
+
+
+def sig_rsi_short_tf(freq='4h', ema_days=200, rsi_period=14,
+                      rsi_overbought=55,
+                      ny_session_only=True,
+                      block_noon_jst=True,
+                      block_saturday=True):
+    """
+    RSI戻り売り戦略 (指令4: ショート専用)。
+
+    ユーザー実績: ショートPF=12.49 (ロングPF=1.86を圧倒)
+
+    エントリー条件:
+    - close < EMA200 (下降トレンド)
+    - RSIが rsi_overbought 以上から下抜け (戻りから売り)
+    - NYセッション限定 + 禁止時間帯スキップ
+
+    ロングシグナルは出さない (純粋ショート戦略)。
+    エンジン側は long_biased=False で実行すること。
+    """
+    BARS_PER_DAY = {'1h': 24, '2h': 12, '4h': 6, '6h': 4,
+                    '8h': 3, '12h': 2, '1d': 1}
+
+    def _f(bars):
+        bpd   = BARS_PER_DAY.get(freq, 1)
+        ema_n = max(20, ema_days * bpd)
+        c = bars['close']
+
+        ema   = c.ewm(span=ema_n, adjust=False).mean()
+        delta = c.diff()
+        avg_gain = delta.clip(lower=0).ewm(com=rsi_period - 1, adjust=False).mean()
+        avg_loss = (-delta.clip(upper=0)).ewm(com=rsi_period - 1, adjust=False).mean()
+        rs  = avg_gain / avg_loss.replace(0, 1e-10)
+        rsi = 100 - (100 / (1 + rs))
+
+        rsi_cross_down = (rsi.shift(1) >= rsi_overbought) & (rsi < rsi_overbought)
+        short_mask = (c < ema) & rsi_cross_down
+
+        signals = pd.Series('flat', index=bars.index)
+        signals[short_mask] = 'short'
+
+        return _apply_time_filters(signals, bars,
+                                   ny_session_only=ny_session_only,
+                                   block_noon_jst=block_noon_jst,
+                                   block_saturday=block_saturday)
+    return _f
+
+
+def sig_dc_filtered(freq='4h', lookback_days=15, ema_days=200,
+                    confirm_bars=2,
+                    ny_session_only=False,
+                    block_noon_jst=True,
+                    block_saturday=True):
+    """
+    DC+EMA200ブレイクアウト + 禁止時間帯フィルター。
+
+    既存のsig_maedai_dc_ema_tfにユーザーの禁止フィルターを追加。
+    ny_session_only=Falseで「禁止時間帯だけ除外」のモードも可能。
+    """
+    base_fn = sig_maedai_dc_ema_tf(freq=freq, lookback_days=lookback_days,
+                                    ema_days=ema_days, confirm_bars=confirm_bars)
+
+    def _f(bars):
+        signals = base_fn(bars)
+        return _apply_time_filters(signals, bars,
+                                   ny_session_only=ny_session_only,
+                                   block_noon_jst=block_noon_jst,
+                                   block_saturday=block_saturday)
+    return _f
