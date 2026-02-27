@@ -13,3 +13,8 @@ pyyaml>=6.0
 
 # タイムゾーン (Python 3.9未満の場合)
 python-dateutil>=2.8.2
+
+# バックテスト (backtest/vectorbt_runner.py で使用)
+# ※ インストールが重いため、バックテスト実行時のみ必要
+# pip install vectorbt
+vectorbt>=0.26.0

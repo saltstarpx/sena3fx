@@ -1,0 +1,82 @@
+# ============================================================
+#  sena3fx Live Trading Bot v2.0 - 設定ファイルテンプレート
+#  4H × 15m デュアルタイムフレームシステム
+#
+#  使い方: このファイルを config.yaml にコピーして編集する
+#    copy config_v2.example.yaml config.yaml
+#
+#  ※ config.yaml は .gitignore に登録済み (APIキー保護)
+# ============================================================
+
+# ---- OANDA 口座設定 -----------------------------------------
+oanda:
+  # 口座ID: OANDAダッシュボード → 「マイアカウント」で確認
+  account_id: "ENTER_YOUR_ACCOUNT_ID"
+
+  # APIキー: OANDAダッシュボード → 「APIアクセス管理」で生成
+  api_key: "ENTER_YOUR_API_KEY"
+
+  # 環境: "practice" (デモ) または "live" (本番)
+  # ★ 必ずデモ口座で動作確認してから本番に切り替えること！
+  environment: "practice"
+
+# ---- 通貨ペア設定 -------------------------------------------
+instruments:
+
+  # --- Gold (XAU_USD) ----------------------------------------
+  XAU_USD:
+    enabled: true               # true=監視, false=スキップ
+
+    # ---- トレンド判定 (4H足) ----
+    ema_days: 21                # EMA日数 (21日 = 4H換算126本)
+                                # 価格がEMA上で上昇 → 上昇トレンド確認
+
+    # ---- エントリーシグナル (15m足) ----
+    dc_lookback_15m: 20         # ドンチャン期間 (20本 = 5時間)
+                                # 直近20本の高値を上抜け → ロングシグナル
+
+    # ---- SL設定 (4H スイング) ----
+    swing_window: 3             # スイング判定ウィンドウ (前後3本)
+                                # 前後3本より低い安値 = スイングロー
+    swing_lookback: 10          # スイング探索範囲 (直近10本の4H足)
+                                # この範囲でスイングローを探す
+
+    # ---- RR設定 ----
+    min_rr: 2.0                 # 最小RR比 (2.0未満は全スキップ)
+    rr_target: 2.5              # TP = entry + rr_target × SL距離
+                                # rr_target が min_rr 以上なら全て通過
+
+    # ---- ポジションサイズ ----
+    # lot = (総資金 × risk_pct) / (entry - SL) / lot_divisor
+    risk_pct: 0.02              # 1トレードのリスク率 (2%)
+    lot_divisor: 1.0            # ロット換算除数 (OANDAは1.0)
+    max_units: 200              # 最大ユニット数 (上限キャップ)
+                                # XAU_USD: 1 unit = 1 troy ounce
+
+  # --- Silver (XAG_USD) ---------------------------------------
+  XAG_USD:
+    enabled: false              # ★ Goldのみで動作確認後に true に変更
+
+    ema_days: 21
+    dc_lookback_15m: 20
+
+    swing_window: 3
+    swing_lookback: 10
+
+    min_rr: 2.0
+    rr_target: 2.5
+
+    risk_pct: 0.02
+    lot_divisor: 1.0
+    max_units: 2000             # XAG_USD: 1 unit = 1 troy ounce
+
+# ---- ボット動作設定 -----------------------------------------
+bot:
+  check_interval_seconds: 60   # シグナル確認間隔 (秒)
+                                # 15m足を見逃さないよう60秒推奨
+
+  max_drawdown_pct: 0.20       # 最大ドローダウン率 (20%)
+                                # 残高がピーク比-20%になったら自動停止
+
+  log_dir: "logs"              # ログ保存ディレクトリ
+  log_level: "INFO"            # DEBUG / INFO / WARNING / ERROR
