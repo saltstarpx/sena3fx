@@ -49,6 +49,8 @@ class BacktestEngine:
                  trail_start_atr=0.0,
                  trail_dist_atr=2.0,
                  exit_on_signal=True,
+                 long_biased=False,
+                 min_short_drop_atr=3.0,
                  target_max_dd=0.15,
                  target_min_wr=0.50,
                  target_rr_threshold=2.0,
@@ -82,6 +84,8 @@ class BacktestEngine:
         self.trail_start_atr = trail_start_atr
         self.trail_dist_atr = trail_dist_atr
         self.exit_on_signal = exit_on_signal
+        self.long_biased = long_biased
+        self.min_short_drop_atr = min_short_drop_atr
         self.target_max_dd = target_max_dd
         self.target_min_wr = target_min_wr
         self.target_rr_threshold = target_rr_threshold
@@ -167,7 +171,8 @@ class BacktestEngine:
     def run(self, data, signal_func, freq='1h', name='Strategy',
             use_ticks=False, ticks=None,
             allowed_months=None,
-            htf_bars=None):
+            htf_bars=None,
+            trade_start=None):
         """
         バックテスト実行。
 
@@ -177,11 +182,15 @@ class BacktestEngine:
                         None の場合は全月でトレード。
         htf_bars: 1H/4H 上位足バー。SLのスウィングピボット検出に使用。
                   指定なしの場合は同一時間足のバーで検出。
+        trade_start: エントリー開始日 (例: '2020-01-01')。
+                     それ以前はウォームアップ期間としてエントリーしない。
         """
         if use_ticks and ticks is not None:
             bars = self._make_bars(ticks, freq)
         else:
             bars = data
+
+        _trade_start_ts = pd.Timestamp(trade_start) if trade_start else None
 
         if len(bars) < 30:
             return None
@@ -328,6 +337,18 @@ class BacktestEngine:
             # シーズナリティフィルター
             if allowed_months is not None and bar_time.month not in allowed_months:
                 continue
+
+            # ウォームアップ期間フィルター（2020年1/1以降のみエントリー等）
+            if _trade_start_ts is not None and bar_time < _trade_start_ts:
+                continue
+
+            # ロングバイアス: ショートは直近高値から大きく落ちた時のみ許可
+            # やがみ: 「ショートは大きく落ちたときのみ考える」
+            if self.long_biased and sig == 'short':
+                recent_high = bars['high'].iloc[max(0, i - 10):i + 1].max()
+                drop = (recent_high - bar['close']) / max(bar_atr, 0.01)
+                if drop < self.min_short_drop_atr:
+                    continue  # 大きい下落でなければショートスキップ
 
             spread = bar.get('spread', 0.5) if 'spread' in bar.index else 0.5
 

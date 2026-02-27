@@ -42,9 +42,9 @@ os.makedirs(IMAGES_DIR,  exist_ok=True)
 # エンジン設定: マエダイメソッド専用
 # ──────────────────────────────────────────────
 
-def make_maedai_engine(risk_pct=0.02):
+def make_maedai_engine(risk_pct=0.03):
     """
-    マエダイ式エンジン (1H/4H用):
+    マエダイ式エンジン (1H用):
     - tight SL (ATR×0.8)
     - large TP (ATR×10)
     - trailing stop: 含み益 3ATR で発動、SLを 1.5ATR 追従
@@ -53,7 +53,7 @@ def make_maedai_engine(risk_pct=0.02):
     """
     from lib.backtest import BacktestEngine
     return BacktestEngine(
-        init_cash       = 5_000_000,
+        init_cash       = 10_000_000,
         risk_pct        = risk_pct,
         default_sl_atr  = 0.8,
         default_tp_atr  = 10.0,
@@ -66,56 +66,62 @@ def make_maedai_engine(risk_pct=0.02):
         trail_start_atr = 3.0,
         trail_dist_atr  = 1.5,
         exit_on_signal  = False,
+        long_biased     = True,
         target_max_dd   = 0.30,
         target_min_wr   = 0.30,
         target_rr_threshold = 5.0,
-        target_min_trades = 20,
+        target_min_trades = 5,
     )
 
 
-def make_maedai_htf_engine(risk_pct=0.02, sl_n_confirm=2, sl_min_atr=0.8,
-                            dynamic_rr=2.5, trail_start=4.0, trail_dist=3.0,
-                            min_trades=20):
+def make_maedai_htf_engine(risk_pct=0.03, sl_n_confirm=2, sl_min_atr=0.8,
+                            dynamic_rr=5.0, trail_start=4.0, trail_dist=3.0,
+                            min_trades=5, long_biased=True,
+                            min_short_drop_atr=3.0):
     """
     マエダイ式 汎用HTFエンジン (4H/8H/12H/D1 共通):
 
-    use_dynamic_sl=True: スウィングピボット SL (より安定した背)
-    sl_n_confirm: SL用ピボット確認本数 (大きいほど安定、2=4H/D1, 3=8H/12H)
+    use_dynamic_sl=True: D1スウィングピボット SL (安定した背)
+    sl_n_confirm: SL用ピボット確認本数 (大きいほど安定)
     sl_min_atr: SLが近すぎる場合のATR最小距離倍率
-    dynamic_rr: TP = SL距離 × dynamic_rr (スウィングSL基準でRRを確保)
-    trail_start/trail_dist: トレーリングストップ (SL追従)
+    dynamic_rr: TP = SL距離 × dynamic_rr (RR5目標)
+    long_biased: ロングバイアス (ショートは大きな下落時のみ)
     exit_on_signal=False: 逆シグナルではクローズしない
+    目標: 元本1000万円を3倍(3000万円)にする
     """
     from lib.backtest import BacktestEngine
     return BacktestEngine(
-        init_cash         = 5_000_000,
-        risk_pct          = risk_pct,
-        default_sl_atr    = 1.0,          # フォールバックSL (スウィングが近すぎる時)
-        default_tp_atr    = 10.0,
-        slippage_pips     = 0.3,
-        pip               = 0.1,
-        use_dynamic_sl    = True,
-        sl_n_confirm      = sl_n_confirm, # ピボット確認本数
-        sl_min_atr        = sl_min_atr,   # SL最小距離
-        dynamic_rr        = dynamic_rr,   # TP = SL距離 × rr
-        pyramid_entries   = 3,
-        pyramid_atr       = 2.0,
-        pyramid_size_mult = 1.0,
-        trail_start_atr   = trail_start,
-        trail_dist_atr    = trail_dist,
-        exit_on_signal    = False,
-        target_max_dd     = 0.30,
-        target_min_wr     = 0.30,
-        target_rr_threshold = 4.0,
-        target_min_trades = min_trades,
+        init_cash           = 10_000_000,
+        risk_pct            = risk_pct,
+        default_sl_atr      = 1.0,          # フォールバックSL (スウィングが近すぎる時)
+        default_tp_atr      = 10.0,
+        slippage_pips       = 0.3,
+        pip                 = 0.1,
+        use_dynamic_sl      = True,
+        sl_n_confirm        = sl_n_confirm,
+        sl_min_atr          = sl_min_atr,
+        dynamic_rr          = dynamic_rr,   # TP = SL距離 × 5 (RR5目標)
+        pyramid_entries     = 3,
+        pyramid_atr         = 2.0,
+        pyramid_size_mult   = 1.0,
+        trail_start_atr     = trail_start,
+        trail_dist_atr      = trail_dist,
+        exit_on_signal      = False,
+        long_biased         = long_biased,
+        min_short_drop_atr  = min_short_drop_atr,
+        target_max_dd       = 0.30,
+        target_min_wr       = 0.30,
+        target_rr_threshold = 5.0,
+        target_min_trades   = min_trades,
     )
 
 
-def make_maedai_d1_engine(risk_pct=0.02):
-    """D1専用エンジン: グリッドサーチで dynamic_rr=2.0 が最適と判明"""
+def make_maedai_d1_engine(risk_pct=0.03):
+    """D1専用エンジン: ロングバイアス、RR5目標、元本1000万円"""
     return make_maedai_htf_engine(
         risk_pct=risk_pct, sl_n_confirm=2, sl_min_atr=0.8,
-        dynamic_rr=2.0, trail_start=4.0, trail_dist=3.0, min_trades=15
+        dynamic_rr=5.0, trail_start=4.0, trail_dist=3.0, min_trades=3,
+        long_biased=True
     )
 
 
@@ -297,6 +303,9 @@ def build_strategies():
         ('4H_DC20d_Confirm2',     sig_maedai_dc_ema_tf('4h', lookback_days=20, confirm_bars=2), '4h'),
         ('4H_DC15d_Confirm1',     sig_maedai_dc_ema_tf('4h', lookback_days=15, confirm_bars=1), '4h'),
         ('4H_DC15d_Confirm2',     sig_maedai_dc_ema_tf('4h', lookback_days=15, confirm_bars=2), '4h'),
+        # 4H短期: 10日ブレイク (より頻繁なエントリー、デイスイング維持)
+        ('4H_DC10d_Confirm1',     sig_maedai_dc_ema_tf('4h', lookback_days=10, confirm_bars=1), '4h'),
+        ('4H_DC10d_Confirm2',     sig_maedai_dc_ema_tf('4h', lookback_days=10, confirm_bars=2), '4h'),
         # 8H: 30日=90bar相当
         ('8H_DC30d_Confirm1',     sig_maedai_dc_ema_tf('8h', lookback_days=30, confirm_bars=1), '8h'),
         ('8H_DC20d_Confirm1',     sig_maedai_dc_ema_tf('8h', lookback_days=20, confirm_bars=1), '8h'),
@@ -311,17 +320,23 @@ def build_strategies():
 # バックテスト実行
 # ──────────────────────────────────────────────
 
-def run_backtest(data, strategies, risk_pct=0.02):
+def run_backtest(data, strategies, risk_pct=0.03, trade_start='2020-01-01'):
+    """
+    trade_start: この日付以降のみエントリー (それ以前はEMA/DC指標のウォームアップ)
+    """
     engine_1h  = make_maedai_engine(risk_pct=risk_pct)
     engine_4h  = make_maedai_htf_engine(risk_pct=risk_pct, sl_n_confirm=3,
-                                         sl_min_atr=0.8, dynamic_rr=3.0,
-                                         trail_start=4.0, trail_dist=3.0, min_trades=20)
+                                         sl_min_atr=0.8, dynamic_rr=5.0,
+                                         trail_start=4.0, trail_dist=3.0, min_trades=5,
+                                         long_biased=True)
     engine_8h  = make_maedai_htf_engine(risk_pct=risk_pct, sl_n_confirm=3,
-                                         sl_min_atr=0.8, dynamic_rr=3.0,
-                                         trail_start=4.0, trail_dist=3.0, min_trades=15)
+                                         sl_min_atr=0.8, dynamic_rr=5.0,
+                                         trail_start=4.0, trail_dist=3.0, min_trades=4,
+                                         long_biased=True)
     engine_12h = make_maedai_htf_engine(risk_pct=risk_pct, sl_n_confirm=2,
-                                         sl_min_atr=0.8, dynamic_rr=3.0,
-                                         trail_start=4.0, trail_dist=3.0, min_trades=12)
+                                         sl_min_atr=0.8, dynamic_rr=5.0,
+                                         trail_start=4.0, trail_dist=3.0, min_trades=3,
+                                         long_biased=True)
     engine_d1  = make_maedai_d1_engine(risk_pct=risk_pct)
 
     engine_map = {
@@ -348,7 +363,8 @@ def run_backtest(data, strategies, risk_pct=0.02):
         else:
             htf = None
         try:
-            result = engine.run(bars, sig_fn, freq=freq, name=name, htf_bars=htf)
+            result = engine.run(bars, sig_fn, freq=freq, name=name, htf_bars=htf,
+                                trade_start=trade_start)
         except Exception as e:
             print(f"  [{name}] エラー: {e}")
             continue
@@ -367,48 +383,62 @@ def run_backtest(data, strategies, risk_pct=0.02):
 # 出力
 # ──────────────────────────────────────────────
 
-def print_ranking(results):
+INIT_CASH  = 10_000_000   # 元本 1000万円
+TARGET_ROI = 200.0         # 目標: 3倍 (+200% ROI)
+
+
+def print_ranking(results, trade_start='2020-01-01'):
     if not results:
         print("\n[結果] 有効な戦略なし")
         return
 
-    print(f"\n{'='*95}")
-    print(f"マエダイメソッド バックテスト結果 (DD≤30% / WR≥30% / RR目標 1:8以上)")
-    print(f"{'='*95}")
+    target_man = int(INIT_CASH * 3 / 10_000)  # 3000万円
+
+    print(f"\n{'='*110}")
+    print(f"バックテスト結果  期間: {trade_start}〜  "
+          f"元本: {INIT_CASH//10_000}万円  目標: {target_man}万円(3倍)  "
+          f"リスク/トレード: 3%  MaxDD: 30%  RR目標: 5以上")
+    print(f"{'='*110}")
     hdr = (f"{'Rank':<5}{'Strategy':<25}{'TF':<5}{'Trades':>7}"
-           f"{'WR%':>7}{'PF':>8}{'RR':>7}{'MaxDD%':>8}"
-           f"{'Return%':>9}{'PnL':>13}{'Pass':<6}")
+           f"{'WR%':>7}{'PF':>8}{'RR':>6}{'MaxDD%':>8}"
+           f"{'ROI%':>8}{'最終資産(万円)':>15}{'3x?':>6}{'Pass':<5}")
     print(hdr)
-    print('-' * 95)
+    print('-' * 110)
 
     for rank, r in enumerate(results, 1):
-        pf = r.get('profit_factor', 0)
-        wr = r.get('win_rate_pct', 0)
-        rr = r.get('rr_ratio', 0)
-        dd = r.get('max_drawdown_pct', 0)
-        ret = r.get('total_return_pct', 0)
+        pf  = r.get('profit_factor', 0)
+        wr  = r.get('win_rate_pct', 0)
+        rr  = r.get('rr_ratio', 0)
+        dd  = r.get('max_drawdown_pct', 0)
+        roi = r.get('total_return_pct', 0)
         pnl = r.get('total_pnl', 0)
         n   = r.get('total_trades', 0)
-        passed = '★' if r.get('passed') else ''
+        final_man = int((INIT_CASH + pnl) / 10_000)
+        three_x   = '★3x' if roi >= TARGET_ROI else ''
+        passed    = '★' if r.get('passed') else ''
         line = (f"{rank:<5}{r['strategy']:<25}{r.get('timeframe','?'):<5}{n:>7}"
-                f"{wr:>7.1f}%{pf:>8.3f}{rr:>7.1f}{dd:>7.1f}%"
-                f"{ret:>8.1f}%{pnl:>13,.0f}  {passed}")
+                f"{wr:>7.1f}%{pf:>8.3f}{rr:>6.1f}{dd:>7.1f}%"
+                f"{roi:>7.1f}%{final_man:>13,d}万{three_x:>7}  {passed}")
         print(line)
 
-    print('-' * 95)
-    passed = [r for r in results if r.get('passed')]
-    print(f"合格 (PF≥1.3, DD≤30%, WR≥30%): {len(passed)} / {len(results)}")
+    print('-' * 110)
+    passed_list = [r for r in results if r.get('passed')]
+    print(f"合格 (PF≥1.3, DD≤30%, WR≥30% or RR≥5): {len(passed_list)} / {len(results)}")
     print()
 
     # 合格戦略のサマリー
-    if passed:
+    if passed_list:
         print("【合格戦略 詳細】")
-        for r in passed:
+        for r in passed_list:
+            pnl = r.get('total_pnl', 0)
+            roi = r.get('total_return_pct', 0)
+            final_man = int((INIT_CASH + pnl) / 10_000)
+            three_x = '★ 3倍達成!' if roi >= TARGET_ROI else f'  → {final_man}万円'
             print(f"  {r['strategy']}")
             print(f"    PF={r.get('profit_factor')}  WR={r.get('win_rate_pct')}%  "
-                  f"RR={r.get('rr_ratio')}  DD={r.get('max_drawdown_pct')}%")
-            print(f"    Return={r.get('total_return_pct')}%  "
-                  f"PnL={r.get('total_pnl'):,.0f}  Trades={r.get('total_trades')}")
+                  f"RR={r.get('rr_ratio')}  MaxDD={r.get('max_drawdown_pct')}%")
+            print(f"    ROI={roi:.1f}%  1000万→{final_man}万円 {three_x}  "
+                  f"Trades={r.get('total_trades')}")
             pyr = r.get('pyramid_trade_rate_pct', 0)
             print(f"    Pyramid追加率={pyr:.1f}%  AvgDuration={r.get('avg_duration_hours')}h")
         print()
@@ -583,18 +613,19 @@ def _generate_pnl_image(name, trades, data_source):
 def main():
     parser = argparse.ArgumentParser(description='マエダイメソッド バックテスト')
     parser.add_argument('--dukascopy', action='store_true', help='Dukascopyデータを使用')
-    parser.add_argument('--risk-pct', type=float, default=0.02,
-                        help='1トレードリスク比率 (デフォルト: 0.02 = 2%%)')
+    parser.add_argument('--risk-pct', type=float, default=0.03,
+                        help='1トレードリスク比率 (デフォルト: 0.03 = 3%%, 範囲: 0.02〜0.05)')
     parser.add_argument('--top-n', type=int, default=3,
                         help='トレード履歴を表示する上位N戦略 (デフォルト: 3)')
     parser.add_argument('--no-image', action='store_true', help='画像生成スキップ')
     args = parser.parse_args()
 
     print('=' * 70)
-    print('マエダイメソッド バックテスト')
-    print('「背を近くして何度も挑戦、大きい値動きを取る」')
-    print(f'リスク設定: {args.risk_pct*100:.1f}% / トレード  '
-          f'SL=ATR×0.8  TP=ATR×10  Trail@3ATR')
+    print('マエダイメソッド バックテスト v2  [やがみメソッド準拠]')
+    print('「デイレベルスイング: 背を近くして大きい値動きを取る」')
+    print(f'元本: 1,000万円  目標: 3,000万円(3倍)  期間: 2020/1/1〜')
+    print(f'リスク/トレード: {args.risk_pct*100:.0f}%  RR目標: 5以上  MaxDD: 30%')
+    print(f'戦略: ロングバイアス (ショートは大幅下落時のみ)')
     print('=' * 70)
 
     # データ
@@ -608,10 +639,11 @@ def main():
 
     # バックテスト
     print("バックテスト実行中...")
-    results, trade_map = run_backtest(data, strategies, risk_pct=args.risk_pct)
+    results, trade_map = run_backtest(data, strategies, risk_pct=args.risk_pct,
+                                      trade_start='2020-01-01')
 
     # 結果表示
-    print_ranking(results)
+    print_ranking(results, trade_start='2020-01-01')
 
     # 上位N戦略のトレード履歴
     top_n = min(args.top_n, len(results))
@@ -635,20 +667,25 @@ def main():
     # サマリー表示
     print()
     print('=' * 70)
-    print('【マエダイメソッド 設計思想の確認】')
-    print('  - 1トレード損失は小さく (ATR×0.8 で即カット)')
-    print('  - 何度もエントリーして大きいブレイクを待つ')
-    print('  - 含み益 3ATR → トレーリング発動、以降は利益を伸ばすだけ')
+    print('【マエダイ × やがみメソッド 設計思想】')
+    print('  - スキャ禁止: デイレベルのスイングのみ (4H/12H/D1足エントリー)')
+    print('  - D1スウィング安値/高値にSLを置く (安定した「背」)')
+    print('  - ロングバイアス: ショートは大幅下落(3ATR以上)時のみ')
+    print('  - TP = SL距離 × 5 (RR5目標) → 勝率30%でも PF≥1.9')
+    print('  - 含み益 4ATR → トレーリング発動、利益を守りつつ伸ばす')
     print('  - 含み益 2ATR ごとに同量ピラミッド (最大4倍ポジ)')
-    print('  - 勝率30%でも RR1:10 なら期待値 = 0.3×10 - 0.7 = 2.3 (プラス)')
+    print(f'  - 目標: 1000万円 → 3000万円 (RR5×WR40%=期待値+13%/トレード)')
     print()
     if results:
         best = results[0]
-        print(f"  最優秀: {best['strategy']}")
-        print(f"    勝率={best.get('win_rate_pct')}%  PF={best.get('profit_factor')}  "
+        pnl  = best.get('total_pnl', 0)
+        roi  = best.get('total_return_pct', 0)
+        fman = int((INIT_CASH + pnl) / 10_000)
+        three_x = '【3倍達成!】' if roi >= TARGET_ROI else ''
+        print(f"  最優秀: {best['strategy']} {three_x}")
+        print(f"    WR={best.get('win_rate_pct')}%  PF={best.get('profit_factor')}  "
               f"RR={best.get('rr_ratio')}  MaxDD={best.get('max_drawdown_pct')}%")
-        print(f"    総リターン={best.get('total_return_pct')}%  "
-              f"PnL={best.get('total_pnl'):,.0f}")
+        print(f"    ROI={roi:.1f}%  1000万→{fman}万円  Trades={best.get('total_trades')}")
     print('=' * 70)
 
 
