@@ -499,12 +499,15 @@ class BacktestEngine:
             })
             cash += total_pnl
 
-        return self._report(name, trades, cash, max_dd, freq, len(bars))
+        return self._report(name, trades, cash, max_dd, freq, len(bars),
+                            trade_start=_trade_start_ts)
 
-    def _report(self, name, trades, final_cash, max_dd, freq, n_bars):
+    def _report(self, name, trades, final_cash, max_dd, freq, n_bars,
+                trade_start=None):
         n = len(trades)
         if n == 0:
-            return {'strategy': name, 'total_trades': 0, 'passed': False}
+            return {'strategy': name, 'total_trades': 0, 'passed': False,
+                    'trades_per_year': 0.0}
 
         wins = [t for t in trades if t['pnl'] > 0]
         losses = [t for t in trades if t['pnl'] <= 0]
@@ -535,6 +538,22 @@ class BacktestEngine:
         pyramid_trades = [t for t in trades if t.get('pyramid_layers', 1) > 1]
         pyramid_rate = len(pyramid_trades) / n * 100 if n > 0 else 0
 
+        # ── 年間取引回数を計算 ──
+        # trade_start〜最終trade の実期間(年)で割り、年換算レートを算出
+        if trades and trade_start is not None:
+            first_trade = pd.Timestamp(trades[0]['entry_time'])
+            last_trade  = pd.Timestamp(trades[-1]['exit_time'])
+            trade_start_ts = pd.Timestamp(trade_start)
+            start_ts = max(first_trade, trade_start_ts)
+            years_active = max((last_trade - start_ts).days / 365.25, 1/12)
+        elif trades:
+            first_trade = pd.Timestamp(trades[0]['entry_time'])
+            last_trade  = pd.Timestamp(trades[-1]['exit_time'])
+            years_active = max((last_trade - first_trade).days / 365.25, 1/12)
+        else:
+            years_active = 1.0
+        trades_per_year = n / years_active
+
         # 合格判定（設定可能な基準）
         wr_min = self.target_min_wr
         dd_max = self.target_max_dd
@@ -542,7 +561,9 @@ class BacktestEngine:
         n_min  = self.target_min_trades
         # 高RR時はWR基準を緩和 (RR≥rr_thr なら WR≥0.25 でも可)
         wr_ok = (wr >= wr_min) or (rr_ratio >= rr_thr and wr >= wr_min * 0.5)
-        passed = (pf >= 1.3 and max_dd <= dd_max and n >= n_min and wr_ok)
+        # ミッション2: 年間50回以上 AND PF>1.3 が必須条件
+        freq_ok = trades_per_year >= 50.0
+        passed = (pf >= 1.3 and max_dd <= dd_max and n >= n_min and wr_ok and freq_ok)
 
         # 8-24時間保有フラグ (指令7: 黄金ゾーン判定)
         # ユーザー分析: 8-24h保有でPF=13.08 / WR=74.8% (最高パターン)
@@ -570,6 +591,7 @@ class BacktestEngine:
             'monthly_pnl': monthly_pnl,
             'pyramid_trade_rate_pct': round(pyramid_rate, 1),
             'passed': passed,
+            'trades_per_year': round(trades_per_year, 1),
             'hold_8_24h': hold_8_24h,   # 8-24h保有ゾーン (ユーザー黄金ゾーン)
             'trades': trades,
         }

@@ -198,12 +198,101 @@ def make_short_engine(risk_pct=0.03, freq='4h'):
     )
 
 
+def make_notrail_atr_engine(sl_atr=1.5, rr=3.0, long_biased=True, risk_pct=0.03):
+    """
+    固定ATR SL + 固定RR TP、トレーリングストップなし。
+
+    問題の根本原因への対処:
+    - D1スウィングSL = 6〜8 ATR (遠すぎる背)
+    - トレーリングが1.5〜3 ATRで発動 → 実効RR << 1
+
+    本エンジンの設計:
+    - SL = sl_atr × ATR (タイト固定背、デフォルト1.5倍)
+    - TP = sl_atr × rr × ATR (固定RR達成で確実利確)
+    - トレーリングなし → 含み益をTPまで伸ばす
+    - ピラミッドなし → シグナル頻度を最大化
+
+    強気相場での期待:
+      WR=35%でRR3: PF = 0.35×3/0.65 = 1.62 ✓
+      WR=30%でRR3: PF = 0.30×3/0.70 = 1.29 (境界)
+      WR=40%でRR5: PF = 0.40×5/0.60 = 3.33 ✓
+    """
+    from lib.backtest import BacktestEngine
+    return BacktestEngine(
+        init_cash        = 10_000_000,
+        risk_pct         = risk_pct,
+        default_sl_atr   = sl_atr,
+        default_tp_atr   = sl_atr * rr,   # TP = SL × RR (use_dynamic_sl=False 時に使用)
+        slippage_pips    = 0.3,
+        pip              = 0.1,
+        use_dynamic_sl   = False,          # 固定ATR SL (スウィングピボット不使用)
+        pyramid_entries  = 0,              # ピラミッドなし
+        trail_start_atr  = 0.0,           # トレーリングなし
+        trail_dist_atr   = 0.0,
+        breakeven_rr     = 0.0,           # ブレイクイーブンなし
+        partial_tp_rr    = 0.0,           # 部分利確なし
+        exit_on_signal   = False,
+        long_biased      = long_biased,
+        target_max_dd    = 0.30,
+        target_min_wr    = 0.20,           # 低WR許容 (高RR設計)
+        target_rr_threshold = rr,
+        target_min_trades = 5,
+    )
+
+
 # ──────────────────────────────────────────────
 # データ
 # ──────────────────────────────────────────────
 
 def load_data(use_dukascopy=False, start_warmup='2014-01-01'):
-    """データ取得 (Dukascopy OHLC CSV → ティックCSV → サンプル)"""
+    """データ取得 (優先順位: data/ohlc/ → Dukascopy OHLC CSV → サンプル)"""
+
+    # ── 最優先: data/ohlc/ 本物マーケットデータ (Manus AI 提供) ──
+    ohlc_dir = os.path.join(BASE_DIR, 'data', 'ohlc')
+    path_ohlc_1h = os.path.join(ohlc_dir, 'XAUUSD_1h.csv')
+    path_ohlc_4h = os.path.join(ohlc_dir, 'XAUUSD_4h.csv')
+    path_ohlc_8h = os.path.join(ohlc_dir, 'XAUUSD_8h.csv')
+    path_ohlc_1d = os.path.join(ohlc_dir, 'XAUUSD_1d.csv')
+
+    if os.path.exists(path_ohlc_1h):
+        try:
+            def _load_ohlc_csv(path):
+                df = pd.read_csv(path, index_col=0, parse_dates=True)
+                df.index = pd.to_datetime(df.index, utc=True).tz_localize(None)
+                df = df.rename(columns={c: c.lower() for c in df.columns})
+                df = df[['open', 'high', 'low', 'close']].dropna()
+                df = df[(df['high'] - df['low']) > 0]
+                return df.sort_index()
+
+            bars_1h = _load_ohlc_csv(path_ohlc_1h)
+            bars_4h = _load_ohlc_csv(path_ohlc_4h) if os.path.exists(path_ohlc_4h) else \
+                      bars_1h.resample('4h').agg({'open':'first','high':'max','low':'min','close':'last'}).dropna()
+            bars_8h = _load_ohlc_csv(path_ohlc_8h) if os.path.exists(path_ohlc_8h) else \
+                      bars_1h.resample('8h').agg({'open':'first','high':'max','low':'min','close':'last'}).dropna()
+            bars_1d = _load_ohlc_csv(path_ohlc_1d) if os.path.exists(path_ohlc_1d) else \
+                      bars_1h.resample('1D').agg({'open':'first','high':'max','low':'min','close':'last'}).dropna()
+
+            # 12H はリサンプリングで生成
+            bars_12h = bars_1h.resample('12h').agg(
+                {'open':'first','high':'max','low':'min','close':'last'}
+            ).dropna()
+            bars_12h = bars_12h[(bars_12h['high'] - bars_12h['low']) > 0]
+
+            print(f"[Data] 本物データ(data/ohlc): "
+                  f"1h={len(bars_1h)}, 4h={len(bars_4h)}, "
+                  f"8h={len(bars_8h)}, 12h={len(bars_12h)}, 1d={len(bars_1d)} bars")
+            print(f"       期間: {bars_1h.index.min().date()} ~ {bars_1h.index.max().date()}")
+            return {
+                'source': 'real_ohlc',
+                '1h':  bars_1h,
+                '4h':  bars_4h,
+                '8h':  bars_8h,
+                '12h': bars_12h,
+                '1d':  bars_1d,
+            }
+        except Exception as e:
+            print(f"[Data] data/ohlc/ 読み込み失敗: {e}")
+
     # 1. 保存済み Dukascopy OHLC CSV を優先読み込み
     path_1h = os.path.join(BASE_DIR, 'data', 'XAUUSD_1h_dukascopy.csv')
     path_4h = os.path.join(BASE_DIR, 'data', 'XAUUSD_4h_dukascopy.csv')
@@ -213,7 +302,7 @@ def load_data(use_dukascopy=False, start_warmup='2014-01-01'):
             bars_4h = pd.read_csv(path_4h, index_col=0, parse_dates=True) \
                 if os.path.exists(path_4h) else \
                 bars_1h.resample('4h').agg(
-                    open='first', high='max', low='min', close='last'
+                    {'open': 'first', 'high': 'max', 'low': 'min', 'close': 'last'}
                 ).dropna(subset=['open'])
 
             ts_start = pd.Timestamp(start_warmup)
@@ -226,7 +315,7 @@ def load_data(use_dukascopy=False, start_warmup='2014-01-01'):
                 ).dropna(subset=['open'])
                 return b[(b['high'] - b['low']) > 0]
 
-            bars_4h_r = _resample(bars_1h, '4h')   # 4H (1H集計版)
+            bars_4h_r = _resample(bars_1h, '4h')
             bars_8h   = _resample(bars_1h, '8h')
             bars_12h  = _resample(bars_1h, '12h')
             bars_d1   = _resample(bars_1h, '1D')
@@ -493,6 +582,38 @@ def build_strategies():
         ('AGG_4H_UNION_7d42',    sig_aggressive_union('4h', ema_days=21, lookback_days_dc=7,  rsi_thresh=42), '4h_opt'),
         ('AGG_8H_UNION_7d42',    sig_aggressive_union('8h', ema_days=21, lookback_days_dc=7,  rsi_thresh=42), '8h_opt'),
         ('AGG_4H_UNION_10d45',   sig_aggressive_union('4h', ema_days=50, lookback_days_dc=10, rsi_thresh=45), '4h_opt'),
+
+        # ══════════════════════════════════════════════════════════════
+        # ノートレール固定ATR戦略: D1スウィングSL問題を根本解決
+        # 設計: SL=1.5ATR固定 + TP=RR×ATR + トレーリングなし
+        #
+        # 根本問題: D1スウィング SL = 6〜8 ATR → trailing stop が 1.5〜3 ATR で
+        # 発動 → 実効RR << 1 → PF低迷
+        #
+        # 解決策: 固定ATR SL (タイト背) + 固定RR TP (大きく取る)
+        # 強気相場でWR=35%ならRR3でPF=1.62、RR5でPF=3.33
+        # ══════════════════════════════════════════════════════════════
+
+        # ── 4H: DC3日ブレイク + RR3 (50+/yr 狙い) ──
+        ('NT_4H_DC3d_RR3',    sig_dc_fast('4h', lookback_days=3, ema_filter=False, confirm_bars=0), '4h_nt3'),
+        # ── 4H: DC2日ブレイク + RR3 (最大頻度) ──
+        ('NT_4H_DC2d_RR3',    sig_dc_fast('4h', lookback_days=2, ema_filter=False, confirm_bars=0), '4h_nt3'),
+        # ── 4H: DC5日ブレイク + RR3 ──
+        ('NT_4H_DC5d_RR3',    sig_dc_fast('4h', lookback_days=5, ema_filter=False, confirm_bars=0), '4h_nt3'),
+        # ── 4H: DC3日ブレイク + RR5 (高PF狙い) ──
+        ('NT_4H_DC3d_RR5',    sig_dc_fast('4h', lookback_days=3, ema_filter=False, confirm_bars=0), '4h_nt5'),
+        # ── 4H: UNION (DC3d OR RSI40) + RR3 ──
+        ('NT_4H_UNION3d40_RR3', sig_aggressive_union('4h', ema_days=21, lookback_days_dc=3, rsi_thresh=40), '4h_nt3'),
+        # ── 4H: UNION (DC2d OR RSI38) + RR3 (最積極) ──
+        ('NT_4H_UNION2d38_RR3', sig_aggressive_union('4h', ema_days=21, lookback_days_dc=2, rsi_thresh=38), '4h_nt3'),
+        # ── 4H: UNION (DC2d OR RSI40) + RR5 ──
+        ('NT_4H_UNION2d40_RR5', sig_aggressive_union('4h', ema_days=21, lookback_days_dc=2, rsi_thresh=40), '4h_nt5'),
+        # ── 4H: UNION (DC3d OR RSI45) + RR3 (標準) ──
+        ('NT_4H_UNION3d45_RR3', sig_aggressive_union('4h', ema_days=21, lookback_days_dc=3, rsi_thresh=45), '4h_nt3'),
+        # ── 1H: DC5日ブレイク + RR3 (1H足は4Hの4倍の頻度) ──
+        ('NT_1H_DC5d_RR3',    sig_dc_fast('1h', lookback_days=5, ema_filter=False, confirm_bars=0), '1h_nt3'),
+        # ── 1H: DC3日ブレイク + RR3 (最大1H頻度) ──
+        ('NT_1H_DC3d_RR3',    sig_dc_fast('1h', lookback_days=3, ema_filter=False, confirm_bars=0), '1h_nt3'),
     ]
 
 
@@ -547,6 +668,13 @@ def run_backtest(data, strategies, risk_pct=0.03, trade_start='2020-01-01'):
     engine_8h_short  = make_short_engine(risk_pct=risk_pct, freq='8h')
     engine_12h_short = make_short_engine(risk_pct=risk_pct, freq='12h')
 
+    # ノートレール固定ATR エンジン (ミッション5.0対応: D1スウィングSL問題の根本解決)
+    # リスク2%に設定: MaxDD = 1-(0.98)^11 ≈ 20% (WR=33%のストリーク対策)
+    # 3%だとMaxDD≈33%で基準超過のため、2%で安全マージンを確保
+    nt_risk = min(risk_pct, 0.02)
+    engine_nt_rr3 = make_notrail_atr_engine(sl_atr=1.5, rr=3.0, long_biased=True, risk_pct=nt_risk)
+    engine_nt_rr5 = make_notrail_atr_engine(sl_atr=1.5, rr=5.0, long_biased=True, risk_pct=nt_risk)
+
     engine_map = {
         '1h':     engine_1h,
         '4h':     engine_4h,
@@ -556,6 +684,11 @@ def run_backtest(data, strategies, risk_pct=0.03, trade_start='2020-01-01'):
         # ユーザー最適化エンジン (freq suffix: _opt)
         '4h_opt': engine_4h_opt,
         '8h_opt': engine_8h_opt,
+        # ノートレール固定ATR (freq suffix: _nt3 / _nt5)
+        '4h_nt3': engine_nt_rr3,
+        '4h_nt5': engine_nt_rr5,
+        '1h_nt3': engine_nt_rr3,
+        '1h_nt5': engine_nt_rr5,
     }
     # OR統合戦略はスケールアウトエンジンで実行
     scaleout_map = {
@@ -576,18 +709,24 @@ def run_backtest(data, strategies, risk_pct=0.03, trade_start='2020-01-01'):
     n_total = len(strategies)
 
     for i, (name, sig_fn, freq) in enumerate(strategies):
-        # _opt サフィックスは実データ時間足を '4h' / '8h' に変換
-        actual_freq = freq.replace('_opt', '')
+        # サフィックスを除去して実データ時間足を取得
+        actual_freq = freq
+        for sfx in ('_opt', '_nt3', '_nt5'):
+            actual_freq = actual_freq.replace(sfx, '')
         bars = data.get(actual_freq)
         if bars is None or len(bars) < 30:
             continue
 
         # エンジン選択ロジック
-        is_union = name.startswith(('4H_OR_', '8H_OR_', '12H_OR_'))
-        is_short = name.startswith('SHORT_') or name.startswith('BearDiv_Short')
-        is_opt   = freq.endswith('_opt')
+        is_union    = name.startswith(('4H_OR_', '8H_OR_', '12H_OR_'))
+        is_short    = name.startswith('SHORT_') or name.startswith('BearDiv_Short')
+        is_opt      = freq.endswith('_opt')
+        is_notrail  = freq.endswith(('_nt3', '_nt5'))
 
-        if is_union and actual_freq in scaleout_map:
+        if is_notrail:
+            # ノートレール固定ATR: htfなし (use_dynamic_sl=False のため不使用)
+            engine = engine_map.get(freq, engine_nt_rr3)
+        elif is_union and actual_freq in scaleout_map:
             engine = scaleout_map[actual_freq]
         elif is_short and actual_freq in short_map:
             engine = short_map[actual_freq]
@@ -596,11 +735,14 @@ def run_backtest(data, strategies, risk_pct=0.03, trade_start='2020-01-01'):
         else:
             engine = engine_map.get(freq, engine_1h)
 
-        # 4H/8H/12H は D1スウィングSL を使用 (グリッドサーチで最適と判明)
-        # 1H は 4Hスウィングを使用
-        if actual_freq in ('4h', '8h', '12h'):
+        # HTF (スウィングSL用): ノートレール戦略はuse_dynamic_sl=Falseのためhtf不要
+        if is_notrail:
+            htf = None
+        elif actual_freq in ('4h', '8h', '12h'):
+            # 4H/8H/12H は D1スウィングSL を使用 (グリッドサーチで最適と判明)
             htf = bars_d1
         elif actual_freq == '1h':
+            # 1H は 4Hスウィングを使用
             htf = bars_4h
         else:
             htf = None
@@ -643,33 +785,34 @@ def print_ranking(results, trade_start='2020-01-01'):
           f"元本: {INIT_CASH//10_000}万円  目標: {target_man}万円(3倍)  "
           f"リスク/トレード: 3%  MaxDD: 30%  RR目標: 5以上")
     print(f"{'='*110}")
-    hdr = (f"{'Rank':<5}{'Strategy':<25}{'TF':<5}{'Trades':>7}"
+    hdr = (f"{'Rank':<5}{'Strategy':<25}{'TF':<5}{'Trades':>7}{'Yr/回':>7}"
            f"{'WR%':>7}{'PF':>8}{'RR':>6}{'MaxDD%':>8}"
            f"{'ROI%':>8}{'最終資産(万円)':>15}{'3x?':>6}{'Pass':<5}")
     print(hdr)
-    print('-' * 110)
+    print('-' * 115)
 
     for rank, r in enumerate(results, 1):
-        pf  = r.get('profit_factor', 0)
-        wr  = r.get('win_rate_pct', 0)
-        rr  = r.get('rr_ratio', 0)
-        dd  = r.get('max_drawdown_pct', 0)
-        roi = r.get('total_return_pct', 0)
-        pnl = r.get('total_pnl', 0)
-        n   = r.get('total_trades', 0)
-        dur = r.get('avg_duration_hours', 0)
+        pf   = r.get('profit_factor', 0)
+        wr   = r.get('win_rate_pct', 0)
+        rr   = r.get('rr_ratio', 0)
+        dd   = r.get('max_drawdown_pct', 0)
+        roi  = r.get('total_return_pct', 0)
+        pnl  = r.get('total_pnl', 0)
+        n    = r.get('total_trades', 0)
+        tpy  = r.get('trades_per_year', 0)
         final_man = int((INIT_CASH + pnl) / 10_000)
         three_x   = '★3x' if roi >= TARGET_ROI else ''
         passed    = '★' if r.get('passed') else ''
-        gold_zone = '⬛8-24h' if r.get('hold_8_24h') else ''  # 8-24h黄金ゾーン
-        line = (f"{rank:<5}{r['strategy']:<25}{r.get('timeframe','?'):<5}{n:>7}"
+        # 年50回達成フラグ (必須条件)
+        freq_mark = '✓50+' if tpy >= 50 else f'({tpy:.0f})'
+        line = (f"{rank:<5}{r['strategy']:<25}{r.get('timeframe','?'):<5}{n:>7}{freq_mark:>7}"
                 f"{wr:>7.1f}%{pf:>8.3f}{rr:>6.1f}{dd:>7.1f}%"
-                f"{roi:>7.1f}%{final_man:>13,d}万{three_x:>7}  {passed}{gold_zone}")
+                f"{roi:>7.1f}%{final_man:>13,d}万{three_x:>7}  {passed}")
         print(line)
 
-    print('-' * 110)
+    print('-' * 115)
     passed_list = [r for r in results if r.get('passed')]
-    print(f"合格 (PF≥1.3, DD≤30%, WR≥30% or RR≥5): {len(passed_list)} / {len(results)}")
+    print(f"合格 (PF≥1.3, DD≤30%, WR≥30% or RR≥5, 年≥50回): {len(passed_list)} / {len(results)}")
     print()
 
     # 合格戦略のサマリー
@@ -884,8 +1027,11 @@ def main():
     # 戦略
     strategies = build_strategies()
     if args.no_1h:
-        strategies = [(n, s, f) for n, s, f in strategies if not f.startswith('1h')]
-        print(f"戦略数: {len(strategies)} (1H足スキップ)")
+        # 動的SL 1H戦略はスキップ (8.6s/策略と遅い)
+        # ノートレール 1H戦略 (_nt3/_nt5) は固定ATR SLで高速のため残す
+        strategies = [(n, s, f) for n, s, f in strategies
+                      if not (f == '1h')]
+        print(f"戦略数: {len(strategies)} (動的SL 1H足スキップ、ノートレール1H継続)")
     else:
         print(f"戦略数: {len(strategies)}")
 
