@@ -1,0 +1,32 @@
+{
+  "generated_at": "2026-02-27T23:48:38.042777",
+  "strategy": "Currency Strength Portfolio (XAGUSD + XAGCHF + XAGJPY)",
+  "performance": {
+    "portfolio_cumulative": 44.81,
+    "benchmark_cumulative": 119.38,
+    "improvement": -74.57,
+    "portfolio_sharpe": 0.77,
+    "benchmark_sharpe": 0.84,
+    "portfolio_max_dd": -19.52,
+    "benchmark_max_dd": -36.18,
+    "portfolio_volatility": 0.8975,
+    "benchmark_volatility": 2.1905
+  },
+  "pair_contributions": {
+    "XAGUSD": {
+      "active_count": 617,
+      "cumulative_return": 102.97,
+      "win_rate": 53.6
+    },
+    "XAGCHF": {
+      "active_count": 144,
+      "cumulative_return": 35.09,
+      "win_rate": 56.9
+    },
+    "XAGJPY": {
+      "active_count": 236,
+      "cumulative_return": 0.94,
+      "win_rate": 50.0
+    }
+  }
+}
