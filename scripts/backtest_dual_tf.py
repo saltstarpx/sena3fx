@@ -46,10 +46,16 @@ def run_backtest(bars_4h, bars_15m, instrument='XAU_USD',
                  ema_days=21, dc_lookback=20,
                  swing_window=3, swing_lookback=10,
                  rr_target=2.5, min_rr=2.0, long_only=True,
-                 start_date=None, end_date=None):
+                 start_date=None, end_date=None,
+                 extra_filter=None, risk_scale_series=None):
     """
     バー・バー・シミュレーション (ロングオンリー)。
 
+    Args:
+        extra_filter:       pd.Series[bool] — Trueの足のみエントリー許可
+                            (時間フィルターの後に追加適用)
+        risk_scale_series:  pd.Series[float] — 各15m足のリスク倍率
+                            (1.0=通常, 0.7=30%縮小 など)
     Returns:
         trades:        list of dict  (全トレード記録)
         equity_curve:  pd.Series    (15m 足レベルのエクイティ)
@@ -75,6 +81,12 @@ def run_backtest(bars_4h, bars_15m, instrument='XAU_USD',
 
     signals = filter_signals_by_time(signals)
     print(f"  時間フィルター後: long={( signals=='long').sum()}, short={(signals=='short').sum()}")
+
+    # --- 追加フィルター (USD強弱・季節性など) ---
+    if extra_filter is not None:
+        filt = extra_filter.reindex(signals.index).ffill().fillna(True).astype(bool)
+        signals = signals.where(filt, other=None)
+        print(f"  追加フィルター後: long={(signals=='long').sum()}, short={(signals=='short').sum()}")
 
     # --- スイングSL ---
     print("  スイングSL計算...")
@@ -198,7 +210,12 @@ def run_backtest(bars_4h, bars_15m, instrument='XAU_USD',
                         skipped_rr += 1; ok = False
 
                 if ok:
-                    units = int((cash * risk_pct) / sl_dist)
+                    eff_risk = risk_pct
+                    if risk_scale_series is not None:
+                        scale = risk_scale_series.reindex([dt], method='ffill').iloc[0]
+                        if not pd.isna(scale):
+                            eff_risk = risk_pct * float(scale)
+                    units = int((cash * eff_risk) / sl_dist)
                     if units <= 0:
                         skipped_size0 += 1; ok = False
 
