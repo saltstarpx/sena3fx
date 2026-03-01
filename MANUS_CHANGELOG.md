@@ -108,3 +108,40 @@ Claude Codeが外部API（Dukascopy等）にアクセスできず、GBM（幾何
 2. **USD強弱をフィルターとして統合**: `calc_usd_strength()` を使い、USD上位25%時はロング回避
 3. **ポジションサイズ調整**: USD強弱に応じてロットサイズを0.7〜1.0倍に調整
 4. 詳細は `prompt_for_claude_code_v7.md` を参照
+
+---
+
+## [2026-03-01] Claude Code指示書v8追加：成功バイアス回避と戦略ポートフォリオ導入
+
+**変更者:** Manus AI
+**変更種別:** 指示書追加 + 開発フレームワーク刷新提案
+
+### 追加ファイル
+
+| ファイル | 説明 |
+|:---|:---|
+| `prompt_for_claude_code_v8.md` | Claude Code指示書v8（成功バイアス回避・戦略ポートフォリオ） |
+
+### 変更理由
+
+UKI氏の考察記事「Claude Codeで実験がワンパターンになる構造的理由とAgent Teamsでの対処」を分析し、当プロジェクトにも同様の成功バイアスリスク（やがみメソッドへの収斂）が存在することを特定。Agent Teamsの「コンテキスト分離」思想を応用した戦略ポートフォリオアプローチを提案。
+
+### 主な変更内容
+
+1. **3つの仮想チームメイト定義:**
+   - Teammate A "Yagami": 高勝率シグナル追求（WR>60%, PF>1.8）
+   - Teammate B "Maedai": 高RRトレンドフォロー（Sharpe>1.5, Calmar>3.0）
+   - Teammate C "Risk Manager": 市場環境フィルター開発（MDD低減率）
+
+2. **具体的タスク4件:**
+   - Task 1: USD強弱フィルターの統合（Manus分析結果の活用）
+   - Task 2: 季節フィルターの定量的評価
+   - Task 3: Maedai戦略の評価軸変更（Sharpe/Calmar中心）
+   - Task 4: ドキュメントとファイル構成の分離
+
+3. **評価軸の多元化:** PF/WR中心からSharpe Ratio, Calmar Ratio, MAR等の複数軸へ
+
+### Claude Codeへの指示
+
+`prompt_for_claude_code_v8.md`を読み、記載されたタスクを順次実行すること。
+特に、`CLAUDE.md`の情報密度がやがみメソッドに偏っている問題を認識し、ドキュメント分離を実施すること。
