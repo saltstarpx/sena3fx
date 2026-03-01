@@ -1,0 +1,1197 @@
+date,action,selected_pair,direction,return_pct,xagusd_return_pct,reason
+2021-05-25,TRADE,XAGUSD,long,-0.6563,-0.6563,diff too small (0.00 < 1.5)
+2021-05-26,TRADE,XAGUSD,long,0.237,0.237,diff too small (0.02 < 1.5)
+2021-05-27,TRADE,XAGUSD,long,0.2651,0.2651,diff too small (0.00 < 1.5)
+2021-05-28,TRADE,XAGUSD,long,0.0,0.0,diff too small (0.49 < 1.5)
+2021-06-01,TRADE,XAGUSD,long,0.3668,0.3668,diff too small (0.00 < 1.5)
+2021-06-02,TRADE,XAGUSD,long,-2.5758,-2.5758,diff too small (0.00 < 1.5)
+2021-06-03,TRADE,XAGUSD,long,1.5259,1.5259,diff too small (0.00 < 1.5)
+2021-06-04,TRADE,XAGNZD,long,-0.4136,0.4376,"NZD weakening (diff=1.83, accel=-2.557)"
+2021-06-07,TRADE,XAGUSD,long,-1.0214,-1.0214,diff too small (0.34 < 1.5)
+2021-06-08,TRADE,XAGUSD,long,0.9742,0.9742,diff too small (0.30 < 1.5)
+2021-06-09,TRADE,XAGUSD,long,0.1072,0.1072,diff too small (0.70 < 1.5)
+2021-06-10,TRADE,XAGUSD,long,0.4141,0.4141,diff too small (0.50 < 1.5)
+2021-06-11,TRADE,XAGUSD,long,-0.3804,-0.3804,diff too small (0.00 < 1.5)
+2021-06-14,TRADE,XAGUSD,long,-1.2311,-1.2311,diff too small (1.02 < 1.5)
+2021-06-15,TRADE,XAGUSD,long,0.4371,0.4371,diff too small (1.07 < 1.5)
+2021-06-16,TRADE,XAGUSD,long,-7.036,-7.036,diff too small (1.07 < 1.5)
+2021-06-17,TRADE,XAGUSD,short,-0.4411,-0.4411,diff too small (0.00 < 1.5)
+2021-06-18,TRADE,XAGUSD,short,-0.2196,-0.2196,diff too small (0.00 < 1.5)
+2021-06-21,TRADE,XAGUSD,short,0.6419,0.6419,diff too small (0.00 < 1.5)
+2021-06-22,TRADE,XAGUSD,short,-1.0059,-1.0059,diff too small (0.00 < 1.5)
+2021-06-23,TRADE,XAGUSD,short,0.2336,0.2336,diff too small (0.00 < 1.5)
+2021-06-24,TRADE,XAGUSD,short,-0.1344,-0.1344,diff too small (0.00 < 1.5)
+2021-06-25,TRADE,XAGUSD,short,-0.5214,-0.5214,diff too small (0.00 < 1.5)
+2021-06-28,TRADE,XAGUSD,short,1.3197,1.3197,diff too small (0.59 < 1.5)
+2021-06-29,TRADE,XAGUSD,short,-1.1325,-1.1325,diff too small (0.00 < 1.5)
+2021-06-30,TRADE,XAGUSD,short,0.344,0.344,diff too small (0.00 < 1.5)
+2021-07-01,TRADE,XAGUSD,short,-1.557,-1.557,diff too small (0.00 < 1.5)
+2021-07-02,TRADE,XAGUSD,short,0.0,0.0,diff too small (0.00 < 1.5)
+2021-07-06,TRADE,XAGUSD,short,0.1682,0.1682,diff too small (0.00 < 1.5)
+2021-07-07,TRADE,XAGUSD,short,0.5477,0.5477,diff too small (0.00 < 1.5)
+2021-07-08,TRADE,XAGUSD,short,-0.9397,-0.9397,diff too small (0.00 < 1.5)
+2021-07-09,TRADE,XAGUSD,short,-0.0229,-0.0229,diff too small (0.00 < 1.5)
+2021-07-12,TRADE,XAGUSD,short,0.3891,0.3891,diff too small (0.00 < 1.5)
+2021-07-13,TRADE,XAGUSD,short,-0.5016,-0.5016,diff too small (0.00 < 1.5)
+2021-07-14,TRADE,XAGUSD,short,-0.4915,-0.4915,diff too small (0.00 < 1.5)
+2021-07-15,TRADE,XAGUSD,short,2.2673,2.2673,diff too small (0.05 < 1.5)
+2021-07-16,TRADE,XAGUSD,short,2.5255,2.5255,diff too small (0.00 < 1.5)
+2021-07-19,TRADE,XAGUSD,short,0.593,0.593,diff too small (0.00 < 1.5)
+2021-07-20,TRADE,XAGUSD,short,-1.045,-1.045,diff too small (0.00 < 1.5)
+2021-07-21,TRADE,XAGUSD,short,-0.5032,-0.5032,diff too small (0.00 < 1.5)
+2021-07-22,TRADE,XAGUSD,short,0.5795,0.5795,diff too small (0.00 < 1.5)
+2021-07-23,TRADE,XAGUSD,short,-0.3053,-0.3053,diff too small (0.00 < 1.5)
+2021-07-26,TRADE,XAGUSD,short,2.6211,2.6211,diff too small (0.00 < 1.5)
+2021-07-27,TRADE,XAGUSD,short,-0.9094,-0.9094,diff too small (0.04 < 1.5)
+2021-07-28,TRADE,XAGUSD,short,-3.653,-3.653,diff too small (0.86 < 1.5)
+2021-07-29,TRADE,XAGUSD,short,0.916,0.916,diff too small (0.95 < 1.5)
+2021-07-30,TRADE,XAGCHF,short,-0.1346,-0.1136,"CHF strengthening (diff=1.77, accel=1.751)"
+2021-08-02,TRADE,XAGUSD,short,-0.0352,-0.0352,diff too small (0.87 < 1.5)
+2021-08-03,TRADE,XAGUSD,short,0.4694,0.4694,diff too small (0.63 < 1.5)
+2021-08-04,TRADE,XAGUSD,short,0.6641,0.6641,diff too small (1.26 < 1.5)
+2021-08-05,TRADE,XAGUSD,short,3.8177,3.8177,diff too small (0.70 < 1.5)
+2021-08-06,TRADE,XAGUSD,short,4.3477,4.3477,diff too small (0.05 < 1.5)
+2021-08-09,TRADE,XAGUSD,short,-0.5246,-0.5246,diff too small (0.00 < 1.5)
+2021-08-10,TRADE,XAGUSD,short,-0.4149,-0.4149,diff too small (0.00 < 1.5)
+2021-08-11,TRADE,XAGUSD,short,1.572,1.572,diff too small (0.00 < 1.5)
+2021-08-12,TRADE,XAGUSD,short,-2.8695,-2.8695,diff too small (0.00 < 1.5)
+2021-08-13,TRADE,XAGUSD,short,-0.0505,-0.0505,diff too small (0.00 < 1.5)
+2021-08-16,TRADE,XAGUSD,short,0.5551,0.5551,diff too small (0.00 < 1.5)
+2021-08-17,TRADE,XAGUSD,short,0.998,0.998,diff too small (0.27 < 1.5)
+2021-08-18,TRADE,XAGUSD,short,0.8201,0.8201,diff too small (0.00 < 1.5)
+2021-08-19,TRADE,XAGUSD,short,0.4953,0.4953,diff too small (0.00 < 1.5)
+2021-08-20,TRADE,XAGUSD,short,-2.3545,-2.3545,diff too small (0.00 < 1.5)
+2021-08-23,TRADE,XAGUSD,short,-1.0191,-1.0191,diff too small (0.00 < 1.5)
+2021-08-24,TRADE,XAGUSD,short,0.4981,0.4981,diff too small (0.00 < 1.5)
+2021-08-25,TRADE,XAGUSD,short,0.9465,0.9465,diff too small (0.00 < 1.5)
+2021-08-26,TRADE,XAGUSD,short,-2.183,-2.183,diff too small (0.00 < 1.5)
+2021-08-27,TRADE,XAGUSD,short,0.4156,0.4156,diff too small (0.00 < 1.5)
+2021-08-30,TRADE,XAGUSD,short,-0.0,-0.0,diff too small (0.89 < 1.5)
+2021-08-31,TRADE,XAGUSD,short,-0.9057,-0.9057,diff too small (0.00 < 1.5)
+2021-09-01,TRADE,XAGUSD,short,1.2491,1.2491,diff too small (0.00 < 1.5)
+2021-09-02,TRADE,XAGUSD,short,-3.7152,-3.7152,diff too small (0.01 < 1.5)
+2021-09-03,TRADE,XAGUSD,short,0.0,0.0,diff too small (1.29 < 1.5)
+2021-09-07,TRADE,XAGNZD,short,0.781,1.3233,"NZD strengthening (diff=1.93, accel=1.416)"
+2021-09-08,TRADE,XAGUSD,short,-0.5039,-0.5039,diff too small (0.39 < 1.5)
+2021-09-09,TRADE,XAGUSD,short,1.1519,1.1519,diff too small (0.13 < 1.5)
+2021-09-10,TRADE,XAGUSD,short,0.4276,0.4276,diff too small (0.51 < 1.5)
+2021-09-13,TRADE,XAGUSD,short,-0.3747,-0.3747,diff too small (0.21 < 1.5)
+2021-09-14,TRADE,XAGUSD,short,0.3481,0.3481,diff too small (0.18 < 1.5)
+2021-09-15,TRADE,XAGUSD,short,4.2384,4.2384,diff too small (0.82 < 1.5)
+2021-09-16,TRADE,XAGNZD,short,1.1618,2.0086,"NZD strengthening (diff=1.96, accel=1.060)"
+2021-09-17,TRADE,XAGUSD,short,0.5921,0.5921,diff too small (0.72 < 1.5)
+2021-09-20,TRADE,XAGUSD,short,-1.8499,-1.8499,diff too small (0.00 < 1.5)
+2021-09-21,TRADE,XAGUSD,short,-1.3113,-1.3113,diff too small (0.00 < 1.5)
+2021-09-22,TRADE,XAGUSD,short,0.9926,0.9926,diff too small (0.00 < 1.5)
+2021-09-23,TRADE,XAGUSD,short,1.1218,1.1218,diff too small (0.00 < 1.5)
+2021-09-24,TRADE,XAGUSD,short,-1.2015,-1.2015,diff too small (0.72 < 1.5)
+2021-09-27,TRADE,XAGUSD,short,1.0019,1.0019,diff too small (0.00 < 1.5)
+2021-09-28,TRADE,XAGUSD,short,4.329,4.329,diff too small (0.00 < 1.5)
+2021-09-29,TRADE,XAGUSD,short,-2.6189,-2.6189,diff too small (0.00 < 1.5)
+2021-09-30,TRADE,XAGUSD,short,-2.2206,-2.2206,diff too small (0.00 < 1.5)
+2021-10-01,TRADE,XAGUSD,short,-0.4798,-0.4798,diff too small (0.00 < 1.5)
+2021-10-04,TRADE,XAGUSD,short,0.1592,0.1592,diff too small (0.00 < 1.5)
+2021-10-05,TRADE,XAGUSD,short,0.3366,0.3366,diff too small (0.00 < 1.5)
+2021-10-06,TRADE,XAGUSD,short,-0.5598,-0.5598,diff too small (0.00 < 1.5)
+2021-10-07,TRADE,XAGUSD,short,-0.2077,-0.2077,diff too small (0.49 < 1.5)
+2021-10-08,TRADE,XAGUSD,short,0.172,0.172,diff too small (0.54 < 1.5)
+2021-10-11,TRADE,XAGUSD,short,0.6581,0.6581,diff too small (0.63 < 1.5)
+2021-10-12,TRADE,XAGUSD,short,-2.9256,-2.9256,diff too small (0.60 < 1.5)
+2021-10-13,TRADE,XAGUSD,short,-1.3262,-1.3262,diff too small (0.57 < 1.5)
+2021-10-14,TRADE,XAGUSD,short,0.5457,0.5457,diff too small (1.03 < 1.5)
+2021-10-15,TRADE,XAGCAD,short,0.3716,0.3644,"CAD strengthening (diff=1.75, accel=0.834)"
+2021-10-18,TRADE,XAGAUD,short,-2.7709,-2.6632,"AUD strengthening (diff=2.11, accel=2.131)"
+2021-10-19,TRADE,XAGCAD,short,-2.2046,-2.3552,"CAD strengthening (diff=2.07, accel=0.460)"
+2021-10-20,TRADE,XAGNZD,short,1.7126,1.1218,"NZD strengthening (diff=3.67, accel=3.830)"
+2021-10-21,TRADE,XAGNZD,short,-1.759,-1.1553,"NZD strengthening (diff=4.05, accel=3.430)"
+2021-10-22,TRADE,XAGNZD,short,-0.6595,-0.5854,"NZD strengthening (diff=1.93, accel=0.943)"
+2021-10-25,TRADE,XAGUSD,short,1.9779,1.9779,accel not confirmed for NZD
+2021-10-26,TRADE,XAGAUD,short,-0.1445,-0.4276,"AUD strengthening (diff=2.06, accel=0.536)"
+2021-10-27,TRADE,XAGUSD,short,0.2977,0.2977,accel not confirmed for AUD
+2021-10-28,TRADE,XAGUSD,short,0.7132,0.7132,accel not confirmed for AUD
+2021-10-29,TRADE,XAGAUD,short,-0.6749,-0.497,"AUD strengthening (diff=2.88, accel=0.856)"
+2021-11-01,TRADE,XAGAUD,short,2.3725,2.3437,"AUD strengthening (diff=2.08, accel=0.342)"
+2021-11-02,TRADE,XAGUSD,short,1.166,1.166,accel not confirmed for AUD
+2021-11-03,TRADE,XAGUSD,short,-2.9278,-2.9278,diff too small (0.92 < 1.5)
+2021-11-04,TRADE,XAGNZD,short,-1.9752,-1.029,"NZD strengthening (diff=1.96, accel=0.227)"
+2021-11-05,TRADE,XAGUSD,short,-1.5941,-1.5941,diff too small (0.22 < 1.5)
+2021-11-08,TRADE,XAGUSD,short,0.9129,0.9129,diff too small (0.59 < 1.5)
+2021-11-09,TRADE,XAGUSD,short,-1.8673,-1.8673,diff too small (1.19 < 1.5)
+2021-11-10,TRADE,XAGNZD,short,-3.0005,-2.1561,"NZD strengthening (diff=1.75, accel=0.655)"
+2021-11-11,TRADE,XAGGBP,long,0.5166,0.17,"GBP weakening (diff=2.82, accel=-1.915)"
+2021-11-12,TRADE,XAGUSD,long,-0.9351,-0.9351,accel not confirmed for GBP
+2021-11-15,TRADE,XAGEUR,long,0.0078,-0.6492,"EUR weakening (diff=2.07, accel=-1.066)"
+2021-11-16,TRADE,XAGUSD,short,-0.894,-0.894,diff too small (0.00 < 1.5)
+2021-11-17,TRADE,XAGEUR,long,-1.0569,-1.0569,"EUR weakening (diff=4.37, accel=-2.754)"
+2021-11-18,TRADE,XAGUSD,short,0.4859,0.4859,diff too small (0.00 < 1.5)
+2021-11-19,TRADE,XAGUSD,short,1.9492,1.9492,diff too small (0.00 < 1.5)
+2021-11-22,TRADE,XAGUSD,short,3.5478,3.5478,diff too small (0.00 < 1.5)
+2021-11-23,TRADE,XAGUSD,short,-0.2603,-0.2603,diff too small (0.00 < 1.5)
+2021-11-24,TRADE,XAGUSD,short,0.0,0.0,diff too small (0.00 < 1.5)
+2021-11-26,TRADE,XAGUSD,short,1.3329,1.3329,diff too small (0.00 < 1.5)
+2021-11-29,TRADE,XAGUSD,short,0.1491,0.1491,diff too small (0.00 < 1.5)
+2021-11-30,TRADE,XAGUSD,short,2.047,2.047,diff too small (0.00 < 1.5)
+2021-12-01,TRADE,XAGUSD,short,0.0852,0.0852,diff too small (0.00 < 1.5)
+2021-12-02,TRADE,XAGUSD,short,-0.7406,-0.7406,diff too small (0.00 < 1.5)
+2021-12-03,TRADE,XAGUSD,short,0.9668,0.9668,diff too small (0.00 < 1.5)
+2021-12-06,TRADE,XAGUSD,short,-1.1652,-1.1652,diff too small (0.00 < 1.5)
+2021-12-07,TRADE,XAGUSD,short,0.4314,0.4314,diff too small (0.00 < 1.5)
+2021-12-08,TRADE,XAGUSD,short,1.858,1.858,diff too small (0.00 < 1.5)
+2021-12-09,TRADE,XAGUSD,short,-0.8464,-0.8464,diff too small (0.00 < 1.5)
+2021-12-10,TRADE,XAGUSD,short,-0.5866,-0.5866,diff too small (0.00 < 1.5)
+2021-12-13,TRADE,XAGUSD,short,1.808,1.808,diff too small (0.00 < 1.5)
+2021-12-14,TRADE,XAGUSD,short,1.7316,1.7316,diff too small (0.00 < 1.5)
+2021-12-15,TRADE,XAGUSD,short,-4.403,-4.403,diff too small (0.00 < 1.5)
+2021-12-16,TRADE,XAGUSD,short,-0.2316,-0.2316,diff too small (0.00 < 1.5)
+2021-12-17,TRADE,XAGUSD,short,1.0308,1.0308,diff too small (0.00 < 1.5)
+2021-12-20,TRADE,XAGUSD,short,-1.0191,-1.0191,diff too small (0.00 < 1.5)
+2021-12-21,TRADE,XAGUSD,short,-1.2888,-1.2888,diff too small (0.00 < 1.5)
+2021-12-22,TRADE,XAGUSD,short,-0.6099,-0.6099,diff too small (0.05 < 1.5)
+2021-12-23,TRADE,XAGUSD,short,0.0,0.0,diff too small (1.17 < 1.5)
+2021-12-27,TRADE,XAGUSD,short,-0.5744,-0.5744,diff too small (1.21 < 1.5)
+2021-12-28,TRADE,XAGUSD,short,1.138,1.138,diff too small (1.35 < 1.5)
+2021-12-29,TRADE,XAGUSD,short,-0.7878,-0.7878,diff too small (0.94 < 1.5)
+2021-12-30,TRADE,XAGUSD,short,-1.3028,-1.3028,diff too small (1.07 < 1.5)
+2021-12-31,TRADE,XAGUSD,short,2.3062,2.3062,diff too small (0.81 < 1.5)
+2022-01-03,TRADE,XAGAUD,short,-2.0738,-1.0882,"AUD strengthening (diff=1.65, accel=0.198)"
+2022-01-04,TRADE,XAGUSD,short,-0.4862,-0.4862,diff too small (0.27 < 1.5)
+2022-01-05,TRADE,XAGUSD,short,4.216,4.216,diff too small (0.84 < 1.5)
+2022-01-06,TRADE,XAGUSD,short,-0.9921,-0.9921,diff too small (0.30 < 1.5)
+2022-01-07,TRADE,XAGUSD,short,-0.2322,-0.2322,diff too small (0.00 < 1.5)
+2022-01-10,TRADE,XAGUSD,short,-1.6039,-1.6039,diff too small (0.24 < 1.5)
+2022-01-11,TRADE,XAGUSD,short,-1.7276,-1.7276,diff too small (0.68 < 1.5)
+2022-01-12,TRADE,XAGUSD,short,0.194,0.194,diff too small (1.05 < 1.5)
+2022-01-13,TRADE,XAGCAD,short,1.0047,1.0538,"CAD strengthening (diff=2.16, accel=2.196)"
+2022-01-14,TRADE,XAGGBP,short,0.0,0.0,"GBP strengthening (diff=2.31, accel=0.795)"
+2022-01-18,TRADE,XAGCAD,short,-2.9964,-3.1464,"CAD strengthening (diff=1.81, accel=1.144)"
+2022-01-19,TRADE,XAGUSD,short,-2.002,-2.002,diff too small (1.09 < 1.5)
+2022-01-20,TRADE,XAGNZD,long,-1.1763,-1.6066,"NZD weakening (diff=2.11, accel=-1.393)"
+2022-01-21,TRADE,XAGNZD,long,-1.7243,-2.1346,"NZD weakening (diff=3.08, accel=-2.728)"
+2022-01-24,TRADE,XAGUSD,short,-0.4245,-0.4245,diff too small (0.00 < 1.5)
+2022-01-25,TRADE,XAGUSD,short,0.3725,0.3725,diff too small (0.00 < 1.5)
+2022-01-26,TRADE,XAGUSD,short,4.7633,4.7633,diff too small (0.00 < 1.5)
+2022-01-27,TRADE,XAGUSD,short,1.6363,1.6363,diff too small (0.00 < 1.5)
+2022-01-28,TRADE,XAGUSD,short,-0.417,-0.417,diff too small (0.00 < 1.5)
+2022-01-31,TRADE,XAGUSD,short,-0.8975,-0.8975,diff too small (0.00 < 1.5)
+2022-02-01,TRADE,XAGUSD,short,-0.5089,-0.5089,diff too small (0.00 < 1.5)
+2022-02-02,TRADE,XAGUSD,short,1.4795,1.4795,diff too small (0.00 < 1.5)
+2022-02-03,TRADE,XAGUSD,short,-0.4469,-0.4469,diff too small (0.25 < 1.5)
+2022-02-04,TRADE,XAGEUR,short,-2.5003,-2.6741,"EUR strengthening (diff=2.15, accel=3.553)"
+2022-02-07,TRADE,XAGEUR,short,-0.6228,-0.5157,"EUR strengthening (diff=1.61, accel=3.785)"
+2022-02-08,TRADE,XAGUSD,short,-0.6079,-0.6079,diff too small (1.45 < 1.5)
+2022-02-09,TRADE,XAGUSD,short,-0.7842,-0.7842,diff too small (0.65 < 1.5)
+2022-02-10,TRADE,XAGUSD,short,0.6505,0.6505,diff too small (0.20 < 1.5)
+2022-02-11,TRADE,XAGUSD,short,-2.05,-2.05,diff too small (0.00 < 1.5)
+2022-02-14,TRADE,XAGUSD,short,2.1262,2.1262,diff too small (0.00 < 1.5)
+2022-02-15,TRADE,XAGUSD,short,-1.1269,-1.1269,diff too small (0.00 < 1.5)
+2022-02-16,TRADE,XAGUSD,short,-1.1567,-1.1567,diff too small (0.00 < 1.5)
+2022-02-17,TRADE,XAGUSD,short,-0.4901,-0.4901,diff too small (0.40 < 1.5)
+2022-02-18,TRADE,XAGUSD,short,0.0,0.0,diff too small (0.89 < 1.5)
+2022-02-22,TRADE,XAGUSD,long,1.0037,1.0037,diff too small (0.18 < 1.5)
+2022-02-23,TRADE,XAGUSD,long,0.5335,0.5335,diff too small (0.27 < 1.5)
+2022-02-24,TRADE,XAGUSD,long,-2.7911,-2.7911,diff too small (0.00 < 1.5)
+2022-02-25,TRADE,XAGUSD,short,-1.5169,-1.5169,diff too small (0.14 < 1.5)
+2022-02-28,TRADE,XAGUSD,long,4.8151,4.8151,diff too small (0.89 < 1.5)
+2022-03-01,TRADE,XAGUSD,long,-1.3746,-1.3746,diff too small (0.16 < 1.5)
+2022-03-02,TRADE,XAGEUR,long,0.2712,0.0874,"EUR weakening (diff=1.59, accel=-1.439)"
+2022-03-03,TRADE,XAGEUR,long,2.7098,2.2892,"EUR weakening (diff=1.87, accel=-1.600)"
+2022-03-04,TRADE,XAGEUR,long,1.4961,-0.2676,"EUR weakening (diff=1.55, accel=-1.062)"
+2022-03-07,TRADE,XAGEUR,long,4.6584,4.5697,"EUR weakening (diff=3.38, accel=-2.921)"
+2022-03-08,TRADE,XAGEUR,long,-4.4957,-4.2063,"EUR weakening (diff=4.47, accel=-3.245)"
+2022-03-09,TRADE,XAGEUR,long,0.1146,1.7277,"EUR weakening (diff=3.89, accel=-1.575)"
+2022-03-10,TRADE,XAGGBP,long,0.2603,-0.3664,"GBP weakening (diff=2.04, accel=-1.038)"
+2022-03-11,TRADE,XAGGBP,long,-2.9096,-3.3019,"GBP weakening (diff=2.68, accel=-1.814)"
+2022-03-14,TRADE,XAGJPY,long,0.1041,-0.4793,"JPY weakening (diff=3.19, accel=-2.424)"
+2022-03-15,TRADE,XAGJPY,long,-1.7417,-1.8031,"JPY weakening (diff=3.83, accel=-2.206)"
+2022-03-16,TRADE,XAGJPY,long,4.2116,3.7049,"JPY weakening (diff=3.46, accel=-1.769)"
+2022-03-17,TRADE,XAGJPY,long,-2.3841,-2.0677,"JPY weakening (diff=3.92, accel=-2.456)"
+2022-03-18,TRADE,XAGJPY,long,1.5677,0.906,"JPY weakening (diff=2.97, accel=-1.860)"
+2022-03-21,TRADE,XAGJPY,long,-1.2971,-1.5703,"JPY weakening (diff=2.67, accel=-0.389)"
+2022-03-22,TRADE,XAGUSD,long,1.1453,1.1453,accel not confirmed for JPY
+2022-03-23,TRADE,XAGJPY,long,2.7196,2.9003,"JPY weakening (diff=3.72, accel=-1.506)"
+2022-03-24,TRADE,XAGJPY,long,-0.1831,-1.1776,"JPY weakening (diff=3.57, accel=-0.636)"
+2022-03-25,TRADE,XAGJPY,long,-1.6981,-1.637,"JPY weakening (diff=4.68, accel=-2.011)"
+2022-03-28,TRADE,XAGJPY,long,-0.7111,-1.8271,"JPY weakening (diff=4.37, accel=-1.511)"
+2022-03-29,TRADE,XAGJPY,long,1.1264,1.5658,"JPY weakening (diff=6.00, accel=-2.659)"
+2022-03-30,TRADE,XAGJPY,long,-0.8256,0.0717,"JPY weakening (diff=4.44, accel=-0.038)"
+2022-03-31,TRADE,XAGUSD,long,-1.9068,-1.9068,accel not confirmed for JPY
+2022-04-01,TRADE,XAGUSD,long,-0.2354,-0.2354,accel not confirmed for JPY
+2022-04-04,TRADE,XAGUSD,long,-0.2278,-0.2278,accel not confirmed for JPY
+2022-04-05,TRADE,XAGUSD,long,-0.2976,-0.2976,accel not confirmed for JPY
+2022-04-06,TRADE,XAGUSD,long,1.1368,1.1368,accel not confirmed for JPY
+2022-04-07,TRADE,XAGJPY,long,0.6502,0.3477,"JPY weakening (diff=5.43, accel=-1.225)"
+2022-04-08,TRADE,XAGJPY,long,0.875,0.6406,"JPY weakening (diff=6.06, accel=-2.346)"
+2022-04-11,TRADE,XAGJPY,long,3.8907,2.9906,"JPY weakening (diff=5.29, accel=-0.890)"
+2022-04-12,TRADE,XAGJPY,long,1.1016,1.1467,"JPY weakening (diff=6.03, accel=-1.932)"
+2022-04-13,TRADE,XAGJPY,long,-1.299,-1.2683,"JPY weakening (diff=5.43, accel=-0.699)"
+2022-04-14,TRADE,XAGUSD,long,0.0,0.0,accel not confirmed for JPY
+2022-04-18,TRADE,XAGJPY,long,-2.4971,-2.8653,"JPY weakening (diff=6.47, accel=-0.766)"
+2022-04-19,TRADE,XAGUSD,long,-0.4765,-0.4765,accel not confirmed for JPY
+2022-04-20,TRADE,XAGJPY,long,-3.5627,-2.5683,"JPY weakening (diff=8.12, accel=-1.838)"
+2022-04-21,TRADE,XAGJPY,long,-1.1744,-1.4784,"JPY weakening (diff=6.30, accel=-0.834)"
+2022-04-22,TRADE,XAGUSD,short,2.4282,2.4282,diff too small (0.00 < 1.5)
+2022-04-25,TRADE,XAGUSD,short,0.5324,0.5324,diff too small (0.00 < 1.5)
+2022-04-26,TRADE,XAGUSD,short,0.3568,0.3568,diff too small (0.00 < 1.5)
+2022-04-27,TRADE,XAGUSD,short,1.4025,1.4025,diff too small (0.00 < 1.5)
+2022-04-28,TRADE,XAGUSD,short,0.3848,0.3848,diff too small (0.00 < 1.5)
+2022-04-29,TRADE,XAGUSD,short,2.1528,2.1528,diff too small (0.00 < 1.5)
+2022-05-02,TRADE,XAGUSD,short,-0.3416,-0.3416,diff too small (0.00 < 1.5)
+2022-05-03,TRADE,XAGUSD,short,1.145,1.145,diff too small (0.00 < 1.5)
+2022-05-04,TRADE,XAGUSD,short,-0.1699,-0.1699,diff too small (0.00 < 1.5)
+2022-05-05,TRADE,XAGUSD,short,0.3348,0.3348,diff too small (0.00 < 1.5)
+2022-05-06,TRADE,XAGUSD,short,2.4323,2.4323,diff too small (0.00 < 1.5)
+2022-05-09,TRADE,XAGUSD,short,1.7997,1.7997,diff too small (0.00 < 1.5)
+2022-05-10,TRADE,XAGUSD,short,-0.748,-0.748,diff too small (0.00 < 1.5)
+2022-05-11,TRADE,XAGUSD,short,3.6798,3.6798,diff too small (0.00 < 1.5)
+2022-05-12,TRADE,XAGUSD,short,-1.0936,-1.0936,diff too small (0.00 < 1.5)
+2022-05-13,TRADE,XAGUSD,short,-2.6258,-2.6258,diff too small (0.00 < 1.5)
+2022-05-16,TRADE,XAGUSD,short,-0.938,-0.938,diff too small (0.00 < 1.5)
+2022-05-17,TRADE,XAGUSD,short,0.9385,0.9385,diff too small (0.00 < 1.5)
+2022-05-18,TRADE,XAGUSD,short,-1.6951,-1.6951,diff too small (0.00 < 1.5)
+2022-05-19,TRADE,XAGUSD,short,1.0458,1.0458,diff too small (0.00 < 1.5)
+2022-05-20,TRADE,XAGUSD,short,-0.2492,-0.2492,diff too small (0.00 < 1.5)
+2022-05-23,TRADE,XAGUSD,short,-1.5652,-1.5652,diff too small (0.00 < 1.5)
+2022-05-24,TRADE,XAGUSD,short,0.9201,0.9201,diff too small (0.11 < 1.5)
+2022-05-25,TRADE,XAGUSD,short,-0.3705,-0.3705,diff too small (0.58 < 1.5)
+2022-05-26,TRADE,XAGUSD,short,-0.5424,-0.5424,diff too small (0.65 < 1.5)
+2022-05-27,TRADE,XAGUSD,short,0.0,0.0,diff too small (0.73 < 1.5)
+2022-05-31,TRADE,XAGCAD,short,-0.9468,-1.0762,"CAD strengthening (diff=1.61, accel=1.321)"
+2022-06-01,TRADE,XAGCAD,short,-1.9023,-1.6907,"CAD strengthening (diff=1.51, accel=1.808)"
+2022-06-02,TRADE,XAGUSD,short,1.6357,1.6357,diff too small (0.00 < 1.5)
+2022-06-03,TRADE,XAGCAD,short,-0.9617,-0.8406,"CAD strengthening (diff=1.72, accel=1.595)"
+2022-06-06,TRADE,XAGUSD,short,-0.3851,-0.3851,diff too small (1.18 < 1.5)
+2022-06-07,TRADE,XAGUSD,short,0.3836,0.3836,diff too small (1.02 < 1.5)
+2022-06-08,TRADE,XAGCAD,short,1.1336,1.2549,"CAD strengthening (diff=1.56, accel=0.349)"
+2022-06-09,TRADE,XAGUSD,short,-0.5322,-0.5322,diff too small (1.09 < 1.5)
+2022-06-10,TRADE,XAGUSD,short,3.0895,3.0895,diff too small (0.00 < 1.5)
+2022-06-13,TRADE,XAGUSD,short,1.4127,1.4127,diff too small (0.00 < 1.5)
+2022-06-14,TRADE,XAGUSD,short,-2.2258,-2.2258,diff too small (0.00 < 1.5)
+2022-06-15,TRADE,XAGUSD,short,-2.1727,-2.1727,diff too small (0.00 < 1.5)
+2022-06-16,TRADE,XAGUSD,short,1.3445,1.3445,diff too small (0.00 < 1.5)
+2022-06-17,TRADE,XAGUSD,short,0.0,0.0,diff too small (0.00 < 1.5)
+2022-06-21,TRADE,XAGUSD,short,1.5951,1.5951,diff too small (0.00 < 1.5)
+2022-06-22,TRADE,XAGUSD,short,1.7518,1.7518,diff too small (0.00 < 1.5)
+2022-06-23,TRADE,XAGUSD,short,-0.3994,-0.3994,diff too small (0.00 < 1.5)
+2022-06-24,TRADE,XAGUSD,short,-0.2036,-0.2036,diff too small (0.00 < 1.5)
+2022-06-27,TRADE,XAGUSD,short,1.7109,1.7109,diff too small (0.00 < 1.5)
+2022-06-28,TRADE,XAGUSD,short,0.6203,0.6203,diff too small (0.00 < 1.5)
+2022-06-29,TRADE,XAGUSD,short,1.8676,1.8676,diff too small (0.00 < 1.5)
+2022-06-30,TRADE,XAGUSD,short,3.3774,3.3774,diff too small (0.00 < 1.5)
+2022-07-01,TRADE,XAGUSD,short,0.0,0.0,diff too small (0.00 < 1.5)
+2022-07-05,TRADE,XAGUSD,short,-0.1732,-0.1732,diff too small (0.00 < 1.5)
+2022-07-06,TRADE,XAGUSD,short,-0.1939,-0.1939,diff too small (0.00 < 1.5)
+2022-07-07,TRADE,XAGUSD,short,-0.2353,-0.2353,diff too small (0.00 < 1.5)
+2022-07-08,TRADE,XAGUSD,short,0.5217,0.5217,diff too small (0.00 < 1.5)
+2022-07-11,TRADE,XAGUSD,short,0.8811,0.8811,diff too small (0.00 < 1.5)
+2022-07-12,TRADE,XAGUSD,short,-1.2646,-1.2646,diff too small (0.00 < 1.5)
+2022-07-13,TRADE,XAGUSD,short,5.0632,5.0632,diff too small (0.00 < 1.5)
+2022-07-14,TRADE,XAGUSD,short,-2.086,-2.086,diff too small (0.00 < 1.5)
+2022-07-15,TRADE,XAGUSD,short,-1.3101,-1.3101,diff too small (0.00 < 1.5)
+2022-07-18,TRADE,XAGUSD,short,0.6439,0.6439,diff too small (0.00 < 1.5)
+2022-07-19,TRADE,XAGUSD,short,0.166,0.166,diff too small (0.00 < 1.5)
+2022-07-20,TRADE,XAGUSD,short,-0.2575,-0.2575,diff too small (0.13 < 1.5)
+2022-07-21,TRADE,XAGUSD,short,0.5458,0.5458,diff too small (0.00 < 1.5)
+2022-07-22,TRADE,XAGUSD,short,1.5658,1.5658,diff too small (1.11 < 1.5)
+2022-07-25,TRADE,XAGUSD,short,-1.055,-1.055,diff too small (0.30 < 1.5)
+2022-07-26,TRADE,XAGUSD,short,-0.357,-0.357,diff too small (0.85 < 1.5)
+2022-07-27,TRADE,XAGUSD,short,-6.8668,-6.8668,diff too small (0.00 < 1.5)
+2022-07-28,TRADE,XAGUSD,short,-1.6594,-1.6594,diff too small (0.86 < 1.5)
+2022-07-29,TRADE,XAGCHF,short,-0.681,-0.8236,"CHF strengthening (diff=1.56, accel=0.439)"
+2022-08-01,TRADE,XAGCHF,short,1.3761,1.0678,"CHF strengthening (diff=1.98, accel=0.719)"
+2022-08-02,TRADE,XAGJPY,short,-0.1633,1.1937,"JPY strengthening (diff=3.61, accel=3.082)"
+2022-08-03,TRADE,XAGJPY,short,-1.6202,-1.178,"JPY strengthening (diff=1.70, accel=2.136)"
+2022-08-04,TRADE,XAGUSD,short,1.3931,1.3931,diff too small (1.08 < 1.5)
+2022-08-05,TRADE,XAGCHF,short,-4.7889,-3.9003,"CHF strengthening (diff=2.20, accel=0.346)"
+2022-08-08,TRADE,XAGUSD,short,0.6507,0.6507,diff too small (0.39 < 1.5)
+2022-08-09,TRADE,XAGUSD,short,-1.2709,-1.2709,accel not confirmed for CHF
+2022-08-10,TRADE,XAGCHF,short,3.1125,1.8921,"CHF strengthening (diff=2.27, accel=0.615)"
+2022-08-11,TRADE,XAGCHF,short,-1.6211,-1.7269,"CHF strengthening (diff=4.89, accel=2.278)"
+2022-08-12,TRADE,XAGAUD,short,2.2499,2.0603,"AUD strengthening (diff=4.33, accel=2.313)"
+2022-08-15,TRADE,XAGAUD,short,-0.446,0.9185,"AUD strengthening (diff=4.68, accel=3.403)"
+2022-08-16,TRADE,XAGCHF,short,1.38,1.7643,"CHF strengthening (diff=2.29, accel=0.315)"
+2022-08-17,TRADE,XAGUSD,short,1.3343,1.3343,diff too small (1.17 < 1.5)
+2022-08-18,TRADE,XAGUSD,short,2.0053,2.0053,diff too small (0.00 < 1.5)
+2022-08-19,TRADE,XAGUSD,short,0.9707,0.9707,diff too small (0.00 < 1.5)
+2022-08-22,TRADE,XAGUSD,short,-0.7365,-0.7365,diff too small (0.00 < 1.5)
+2022-08-23,TRADE,XAGUSD,short,0.6154,0.6154,diff too small (0.00 < 1.5)
+2022-08-24,TRADE,XAGUSD,short,-1.1432,-1.1432,diff too small (0.00 < 1.5)
+2022-08-25,TRADE,XAGUSD,short,1.9413,1.9413,diff too small (0.00 < 1.5)
+2022-08-26,TRADE,XAGUSD,short,0.9872,0.9872,diff too small (0.00 < 1.5)
+2022-08-29,TRADE,XAGUSD,short,2.1342,2.1342,diff too small (0.00 < 1.5)
+2022-08-30,TRADE,XAGUSD,short,2.1863,2.1863,diff too small (0.00 < 1.5)
+2022-08-31,TRADE,XAGUSD,short,1.1879,1.1879,diff too small (0.00 < 1.5)
+2022-09-01,TRADE,XAGUSD,short,-1.282,-1.282,diff too small (0.00 < 1.5)
+2022-09-02,TRADE,XAGUSD,short,0.0,0.0,diff too small (0.00 < 1.5)
+2022-09-06,TRADE,XAGUSD,short,-1.9219,-1.9219,diff too small (0.00 < 1.5)
+2022-09-07,TRADE,XAGUSD,short,-1.0641,-1.0641,diff too small (0.00 < 1.5)
+2022-09-08,TRADE,XAGUSD,short,-1.7894,-1.7894,diff too small (0.00 < 1.5)
+2022-09-09,TRADE,XAGUSD,short,-5.8795,-5.8795,diff too small (0.00 < 1.5)
+2022-09-12,TRADE,XAGUSD,short,1.8476,1.8476,diff too small (0.00 < 1.5)
+2022-09-13,TRADE,XAGUSD,short,-0.4177,-0.4177,diff too small (0.68 < 1.5)
+2022-09-14,TRADE,XAGUSD,short,1.5202,1.5202,diff too small (0.00 < 1.5)
+2022-09-15,TRADE,XAGUSD,short,-0.631,-0.631,diff too small (0.00 < 1.5)
+2022-09-16,TRADE,XAGUSD,short,0.1192,0.1192,diff too small (0.00 < 1.5)
+2022-09-19,TRADE,XAGUSD,short,0.8873,0.8873,diff too small (0.00 < 1.5)
+2022-09-20,TRADE,XAGUSD,short,-1.6176,-1.6176,diff too small (0.00 < 1.5)
+2022-09-21,TRADE,XAGUSD,short,-0.7058,-0.7058,diff too small (0.00 < 1.5)
+2022-09-22,TRADE,XAGUSD,short,3.6167,3.6167,diff too small (0.00 < 1.5)
+2022-09-23,TRADE,XAGUSD,short,2.3088,2.3088,diff too small (0.00 < 1.5)
+2022-09-26,TRADE,XAGUSD,short,0.8095,0.8095,diff too small (0.00 < 1.5)
+2022-09-27,TRADE,XAGUSD,short,-2.9523,-2.9523,diff too small (0.00 < 1.5)
+2022-09-28,TRADE,XAGUSD,short,0.9842,0.9842,diff too small (0.00 < 1.5)
+2022-09-29,TRADE,XAGUSD,short,-1.8752,-1.8752,diff too small (0.00 < 1.5)
+2022-09-30,TRADE,XAGUSD,short,-8.2226,-8.2226,diff too small (0.00 < 1.5)
+2022-10-03,TRADE,XAGUSD,short,-2.5245,-2.5245,diff too small (0.00 < 1.5)
+2022-10-04,TRADE,XAGUSD,short,2.6525,2.6525,diff too small (0.00 < 1.5)
+2022-10-05,TRADE,XAGGBP,short,-1.4163,-0.5664,"GBP strengthening (diff=2.66, accel=9.810)"
+2022-10-06,TRADE,XAGUSD,short,1.9568,1.9568,diff too small (0.36 < 1.5)
+2022-10-07,TRADE,XAGUSD,short,3.1498,3.1498,diff too small (0.00 < 1.5)
+2022-10-10,TRADE,XAGUSD,short,0.6596,0.6596,diff too small (0.00 < 1.5)
+2022-10-11,TRADE,XAGUSD,short,2.826,2.826,diff too small (0.00 < 1.5)
+2022-10-12,TRADE,XAGUSD,short,0.1059,0.1059,diff too small (0.00 < 1.5)
+2022-10-13,TRADE,XAGUSD,short,4.4703,4.4703,diff too small (0.00 < 1.5)
+2022-10-14,TRADE,XAGUSD,short,-3.6581,-3.6581,diff too small (0.00 < 1.5)
+2022-10-17,TRADE,XAGUSD,short,0.5516,0.5516,diff too small (0.00 < 1.5)
+2022-10-18,TRADE,XAGUSD,short,1.2654,1.2654,diff too small (0.00 < 1.5)
+2022-10-19,TRADE,XAGUSD,short,-1.7997,-1.7997,diff too small (0.00 < 1.5)
+2022-10-20,TRADE,XAGUSD,short,-2.0197,-2.0197,diff too small (0.00 < 1.5)
+2022-10-21,TRADE,XAGUSD,short,-0.6879,-0.6879,diff too small (0.00 < 1.5)
+2022-10-24,TRADE,XAGUSD,short,-0.8605,-0.8605,diff too small (0.00 < 1.5)
+2022-10-25,TRADE,XAGUSD,short,-0.7291,-0.7291,diff too small (0.00 < 1.5)
+2022-10-26,TRADE,XAGUSD,short,0.0103,0.0103,diff too small (1.05 < 1.5)
+2022-10-27,TRADE,XAGGBP,short,1.0861,1.6994,"GBP strengthening (diff=4.24, accel=4.513)"
+2022-10-28,TRADE,XAGGBP,short,0.3725,0.1149,"GBP strengthening (diff=1.73, accel=3.669)"
+2022-10-31,TRADE,XAGUSD,short,-2.8654,-2.8654,diff too small (1.10 < 1.5)
+2022-11-01,TRADE,XAGUSD,short,0.3711,0.3711,diff too small (0.00 < 1.5)
+2022-11-02,TRADE,XAGUSD,short,0.8367,0.8367,diff too small (0.00 < 1.5)
+2022-11-03,TRADE,XAGUSD,short,-6.9665,-6.9665,diff too small (0.00 < 1.5)
+2022-11-04,TRADE,XAGUSD,short,-0.5195,-0.5195,diff too small (0.00 < 1.5)
+2022-11-07,TRADE,XAGUSD,short,-2.7706,-2.7706,diff too small (0.00 < 1.5)
+2022-11-08,TRADE,XAGUSD,long,-0.8334,-0.8334,diff too small (1.23 < 1.5)
+2022-11-09,TRADE,XAGUSD,long,1.7795,1.7795,diff too small (0.00 < 1.5)
+2022-11-10,TRADE,XAGUSD,long,-0.143,-0.143,diff too small (0.67 < 1.5)
+2022-11-11,TRADE,XAGUSD,long,2.0604,2.0604,diff too small (0.00 < 1.5)
+2022-11-14,TRADE,XAGUSD,long,-2.6842,-2.6842,diff too small (0.00 < 1.5)
+2022-11-15,TRADE,XAGUSD,long,0.0233,0.0233,diff too small (0.00 < 1.5)
+2022-11-16,TRADE,XAGUSD,long,-2.553,-2.553,diff too small (0.00 < 1.5)
+2022-11-17,TRADE,XAGNZD,short,-0.4493,-0.1002,"NZD strengthening (diff=8.66, accel=3.869)"
+2022-11-18,TRADE,XAGUSD,short,0.6054,0.6054,accel not confirmed for EUR
+2022-11-21,TRADE,XAGUSD,short,-0.8873,-0.8873,accel not confirmed for NZD
+2022-11-22,TRADE,XAGUSD,long,1.5356,1.5356,diff too small (0.00 < 1.5)
+2022-11-23,TRADE,XAGUSD,long,0.0,0.0,diff too small (0.00 < 1.5)
+2022-11-25,TRADE,XAGUSD,long,-2.4037,-2.4037,diff too small (0.00 < 1.5)
+2022-11-28,TRADE,XAGNZD,short,-2.2728,-1.406,"NZD strengthening (diff=5.04, accel=0.176)"
+2022-11-29,TRADE,XAGUSD,long,1.6318,1.6318,diff too small (0.00 < 1.5)
+2022-11-30,TRADE,XAGUSD,long,5.0441,5.0441,diff too small (0.00 < 1.5)
+2022-12-01,TRADE,XAGUSD,long,1.7714,1.7714,diff too small (0.00 < 1.5)
+2022-12-02,TRADE,XAGUSD,long,-3.6418,-3.6418,diff too small (0.00 < 1.5)
+2022-12-05,TRADE,XAGUSD,long,-0.3424,-0.3424,diff too small (0.00 < 1.5)
+2022-12-06,TRADE,XAGUSD,long,2.6533,2.6533,diff too small (0.00 < 1.5)
+2022-12-07,TRADE,XAGUSD,long,1.5544,1.5544,diff too small (0.00 < 1.5)
+2022-12-08,TRADE,XAGUSD,long,2.0466,2.0466,diff too small (0.00 < 1.5)
+2022-12-09,TRADE,XAGUSD,long,-1.3384,-1.3384,diff too small (0.26 < 1.5)
+2022-12-12,TRADE,XAGUSD,long,2.5022,2.5022,diff too small (1.44 < 1.5)
+2022-12-13,TRADE,XAGUSD,long,0.6092,0.6092,diff too small (0.02 < 1.5)
+2022-12-14,TRADE,XAGUSD,long,-3.416,-3.416,diff too small (0.00 < 1.5)
+2022-12-15,TRADE,XAGUSD,long,0.0994,0.0994,diff too small (0.00 < 1.5)
+2022-12-16,TRADE,XAGUSD,long,-0.527,-0.527,diff too small (0.00 < 1.5)
+2022-12-19,TRADE,XAGUSD,long,4.6246,4.6246,diff too small (0.00 < 1.5)
+2022-12-20,TRADE,XAGUSD,long,-0.2449,-0.2449,diff too small (0.00 < 1.5)
+2022-12-21,TRADE,XAGUSD,long,-2.3258,-2.3258,diff too small (0.00 < 1.5)
+2022-12-22,TRADE,XAGUSD,long,1.2268,1.2268,diff too small (0.00 < 1.5)
+2022-12-23,TRADE,XAGUSD,long,0.0,0.0,diff too small (0.00 < 1.5)
+2022-12-27,TRADE,XAGUSD,long,-1.5682,-1.5682,diff too small (0.00 < 1.5)
+2022-12-28,TRADE,XAGUSD,long,1.7538,1.7538,diff too small (0.00 < 1.5)
+2022-12-29,TRADE,XAGUSD,long,-0.8971,-0.8971,diff too small (0.00 < 1.5)
+2022-12-30,TRADE,XAGUSD,long,0.0,0.0,diff too small (0.00 < 1.5)
+2023-01-03,TRADE,XAGUSD,long,-1.1098,-1.1098,diff too small (0.00 < 1.5)
+2023-01-04,TRADE,XAGUSD,long,-2.2445,-2.2445,diff too small (0.00 < 1.5)
+2023-01-05,TRADE,XAGUSD,long,2.425,2.425,diff too small (0.00 < 1.5)
+2023-01-06,TRADE,XAGUSD,long,-0.4618,-0.4618,diff too small (0.00 < 1.5)
+2023-01-09,TRADE,XAGUSD,long,-0.8645,-0.8645,diff too small (0.00 < 1.5)
+2023-01-10,TRADE,XAGUSD,long,-0.7657,-0.7657,diff too small (0.00 < 1.5)
+2023-01-11,TRADE,XAGUSD,long,2.2978,2.2978,diff too small (0.00 < 1.5)
+2023-01-12,TRADE,XAGUSD,long,1.5421,1.5421,diff too small (0.00 < 1.5)
+2023-01-13,TRADE,XAGUSD,long,0.0,0.0,diff too small (0.00 < 1.5)
+2023-01-17,TRADE,XAGUSD,long,-1.729,-1.729,diff too small (0.00 < 1.5)
+2023-01-18,TRADE,XAGUSD,long,0.952,0.952,diff too small (0.00 < 1.5)
+2023-01-19,TRADE,XAGUSD,long,0.3199,0.3199,diff too small (0.00 < 1.5)
+2023-01-20,TRADE,XAGUSD,long,-1.5862,-1.5862,diff too small (0.00 < 1.5)
+2023-01-23,TRADE,XAGUSD,long,0.84,0.84,diff too small (0.00 < 1.5)
+2023-01-24,TRADE,XAGUSD,long,0.8034,0.8034,diff too small (0.00 < 1.5)
+2023-01-25,TRADE,XAGUSD,long,0.3817,0.3817,diff too small (0.00 < 1.5)
+2023-01-26,TRADE,XAGUSD,long,-1.6841,-1.6841,diff too small (0.00 < 1.5)
+2023-01-27,TRADE,XAGUSD,long,0.5016,0.5016,diff too small (0.00 < 1.5)
+2023-01-30,TRADE,XAGUSD,long,0.4356,0.4356,diff too small (0.00 < 1.5)
+2023-01-31,TRADE,XAGUSD,long,-0.9559,-0.9559,diff too small (0.00 < 1.5)
+2023-02-01,TRADE,XAGUSD,long,0.0553,0.0553,diff too small (0.00 < 1.5)
+2023-02-02,TRADE,XAGUSD,long,-5.099,-5.099,diff too small (0.00 < 1.5)
+2023-02-03,TRADE,XAGUSD,long,-0.703,-0.703,diff too small (0.00 < 1.5)
+2023-02-06,TRADE,XAGUSD,long,-0.2705,-0.2705,diff too small (1.43 < 1.5)
+2023-02-07,TRADE,XAGGBP,long,0.8968,1.1304,"GBP weakening (diff=1.68, accel=-3.314)"
+2023-02-08,TRADE,XAGUSD,long,-1.2071,-1.2071,diff too small (1.05 < 1.5)
+2023-02-09,TRADE,XAGNZD,long,-0.4885,-0.2851,"NZD weakening (diff=1.95, accel=-4.758)"
+2023-02-10,TRADE,XAGUSD,long,-0.9803,-0.9803,diff too small (1.22 < 1.5)
+2023-02-13,TRADE,XAGUSD,short,-0.11,-0.11,diff too small (1.10 < 1.5)
+2023-02-14,TRADE,XAGAUD,short,1.6034,1.3552,"AUD strengthening (diff=2.75, accel=2.424)"
+2023-02-15,TRADE,XAGAUD,short,-1.8162,-0.6405,"AUD strengthening (diff=1.62, accel=0.914)"
+2023-02-16,TRADE,XAGUSD,short,-0.0461,-0.0461,diff too small (0.00 < 1.5)
+2023-02-17,TRADE,XAGUSD,short,0.0,0.0,diff too small (0.00 < 1.5)
+2023-02-21,TRADE,XAGUSD,short,0.9511,0.9511,diff too small (0.00 < 1.5)
+2023-02-22,TRADE,XAGUSD,short,1.6712,1.6712,diff too small (0.00 < 1.5)
+2023-02-23,TRADE,XAGUSD,short,2.3147,2.3147,diff too small (0.00 < 1.5)
+2023-02-24,TRADE,XAGUSD,short,0.6537,0.6537,diff too small (0.00 < 1.5)
+2023-02-27,TRADE,XAGUSD,short,-1.4078,-1.4078,diff too small (0.00 < 1.5)
+2023-02-28,TRADE,XAGUSD,short,0.0095,0.0095,diff too small (0.00 < 1.5)
+2023-03-01,TRADE,XAGUSD,short,0.9208,0.9208,diff too small (0.00 < 1.5)
+2023-03-02,TRADE,XAGUSD,short,-1.5747,-1.5747,diff too small (0.00 < 1.5)
+2023-03-03,TRADE,XAGUSD,short,0.5168,0.5168,diff too small (0.00 < 1.5)
+2023-03-06,TRADE,XAGUSD,short,4.4319,4.4319,diff too small (0.00 < 1.5)
+2023-03-07,TRADE,XAGUSD,short,0.2443,0.2443,diff too small (0.19 < 1.5)
+2023-03-08,TRADE,XAGUSD,short,-0.1,-0.1,diff too small (0.00 < 1.5)
+2023-03-09,TRADE,XAGUSD,short,-1.7478,-1.7478,diff too small (0.00 < 1.5)
+2023-03-10,TRADE,XAGUSD,short,-6.9595,-6.9595,diff too small (0.00 < 1.5)
+2023-03-13,TRADE,XAGAUD,long,0.2464,0.6241,"AUD weakening (diff=2.80, accel=-1.604)"
+2023-03-14,TRADE,XAGAUD,long,-1.1506,-0.7068,"AUD weakening (diff=2.10, accel=-1.222)"
+2023-03-15,TRADE,XAGUSD,long,-0.8542,-0.8542,diff too small (0.20 < 1.5)
+2023-03-16,TRADE,XAGJPY,short,-3.8763,-3.5344,"JPY strengthening (diff=1.67, accel=3.689)"
+2023-03-17,TRADE,XAGUSD,long,0.8143,0.8143,diff too small (0.03 < 1.5)
+2023-03-20,TRADE,XAGUSD,long,-0.9275,-0.9275,diff too small (0.11 < 1.5)
+2023-03-21,TRADE,XAGUSD,long,1.5723,1.5723,diff too small (0.90 < 1.5)
+2023-03-22,TRADE,XAGUSD,long,2.0684,2.0684,diff too small (0.93 < 1.5)
+2023-03-23,TRADE,XAGUSD,long,0.445,0.445,diff too small (0.00 < 1.5)
+2023-03-24,TRADE,XAGUSD,long,-0.8302,-0.8302,diff too small (0.00 < 1.5)
+2023-03-27,TRADE,XAGUSD,long,1.1712,1.1712,diff too small (0.92 < 1.5)
+2023-03-28,TRADE,XAGUSD,long,0.2229,0.2229,diff too small (0.79 < 1.5)
+2023-03-29,TRADE,XAGUSD,long,2.2502,2.2502,diff too small (0.00 < 1.5)
+2023-03-30,TRADE,XAGUSD,long,0.728,0.728,diff too small (0.57 < 1.5)
+2023-03-31,TRADE,XAGUSD,long,-0.5607,-0.5607,diff too small (0.00 < 1.5)
+2023-04-03,TRADE,XAGUSD,long,4.5153,4.5153,diff too small (0.80 < 1.5)
+2023-04-04,TRADE,XAGUSD,long,-0.2358,-0.2358,diff too small (0.00 < 1.5)
+2023-04-05,TRADE,XAGUSD,long,0.2484,0.2484,diff too small (0.00 < 1.5)
+2023-04-06,TRADE,XAGUSD,long,0.0,0.0,diff too small (0.00 < 1.5)
+2023-04-10,TRADE,XAGUSD,long,1.1471,1.1471,diff too small (0.00 < 1.5)
+2023-04-11,TRADE,XAGAUD,long,0.9997,1.0863,"AUD weakening (diff=2.36, accel=-2.855)"
+2023-04-12,TRADE,XAGAUD,long,1.166,1.8501,"AUD weakening (diff=2.28, accel=-2.629)"
+2023-04-13,TRADE,XAGUSD,long,-1.7392,-1.7392,diff too small (1.12 < 1.5)
+2023-04-14,TRADE,XAGUSD,long,-1.4593,-1.4593,diff too small (0.00 < 1.5)
+2023-04-17,TRADE,XAGJPY,long,1.1199,0.7783,"JPY weakening (diff=1.64, accel=-2.279)"
+2023-04-18,TRADE,XAGJPY,long,0.1826,0.4674,"JPY weakening (diff=1.59, accel=-0.312)"
+2023-04-19,TRADE,XAGUSD,long,0.0079,0.0079,diff too small (0.76 < 1.5)
+2023-04-20,TRADE,XAGJPY,long,-1.7608,-1.2417,"JPY weakening (diff=2.78, accel=-0.696)"
+2023-04-21,TRADE,XAGNZD,long,1.5997,1.0099,"NZD weakening (diff=2.85, accel=-2.929)"
+2023-04-24,TRADE,XAGNZD,long,-2.2122,-1.6952,"NZD weakening (diff=2.09, accel=-0.213)"
+2023-04-25,TRADE,XAGUSD,long,-0.0241,-0.0241,diff too small (0.83 < 1.5)
+2023-04-26,TRADE,XAGAUD,long,0.8762,0.4503,"AUD weakening (diff=2.80, accel=-2.220)"
+2023-04-27,TRADE,XAGAUD,long,-0.2682,0.064,"AUD weakening (diff=2.99, accel=-1.502)"
+2023-04-28,TRADE,XAGAUD,long,0.3123,0.04,"AUD weakening (diff=2.97, accel=-1.412)"
+2023-05-01,TRADE,XAGJPY,long,2.4248,1.5794,"JPY weakening (diff=2.34, accel=-0.909)"
+2023-05-02,TRADE,XAGJPY,long,-0.4859,0.2834,"JPY weakening (diff=3.95, accel=-2.127)"
+2023-05-03,TRADE,XAGJPY,long,0.7549,2.1942,"JPY weakening (diff=3.28, accel=-1.955)"
+2023-05-04,TRADE,XAGJPY,long,-1.3898,-1.1216,"JPY weakening (diff=1.54, accel=-1.218)"
+2023-05-05,TRADE,XAGUSD,long,-0.4156,-0.4156,diff too small (0.50 < 1.5)
+2023-05-08,TRADE,XAGUSD,long,0.2418,0.2418,diff too small (0.00 < 1.5)
+2023-05-09,TRADE,XAGUSD,long,-0.9222,-0.9222,diff too small (0.00 < 1.5)
+2023-05-10,TRADE,XAGUSD,long,-4.7367,-4.7367,diff too small (0.00 < 1.5)
+2023-05-11,TRADE,XAGUSD,long,-1.0843,-1.0843,diff too small (0.00 < 1.5)
+2023-05-12,TRADE,XAGUSD,long,0.5627,0.5627,diff too small (1.02 < 1.5)
+2023-05-15,TRADE,XAGAUD,long,-2.4398,-1.6165,"AUD weakening (diff=2.42, accel=-2.532)"
+2023-05-16,TRADE,XAGUSD,long,0.0632,0.0632,diff too small (1.49 < 1.5)
+2023-05-17,TRADE,XAGAUD,long,-1.0497,-1.082,"AUD weakening (diff=2.30, accel=-2.329)"
+2023-05-18,TRADE,XAGJPY,long,2.5531,1.8089,"JPY weakening (diff=3.05, accel=-2.277)"
+2023-05-19,TRADE,XAGJPY,long,-1.5207,-0.857,"JPY weakening (diff=4.01, accel=-2.523)"
+2023-05-22,TRADE,XAGUSD,long,-1.0162,-1.0162,diff too small (1.45 < 1.5)
+2023-05-23,TRADE,XAGJPY,long,-1.5819,-1.5294,"JPY weakening (diff=2.65, accel=-1.362)"
+2023-05-24,TRADE,XAGJPY,long,-0.9361,-1.4233,"JPY weakening (diff=2.48, accel=-1.050)"
+2023-05-25,TRADE,XAGUSD,short,-1.9925,-1.9925,diff too small (0.00 < 1.5)
+2023-05-26,TRADE,XAGNZD,long,0.0,0.0,"NZD weakening (diff=3.67, accel=-2.283)"
+2023-05-30,TRADE,XAGNZD,long,1.4705,1.5092,"NZD weakening (diff=4.25, accel=-4.283)"
+2023-05-31,TRADE,XAGNZD,long,2.0742,1.7083,"NZD weakening (diff=3.52, accel=-3.513)"
+2023-06-01,TRADE,XAGNZD,long,-1.6358,-0.9717,"NZD weakening (diff=2.45, accel=-0.168)"
+2023-06-02,TRADE,XAGUSD,long,-0.461,-0.461,diff too small (0.96 < 1.5)
+2023-06-05,TRADE,XAGUSD,long,0.17,0.17,accel not confirmed for JPY
+2023-06-06,TRADE,XAGUSD,long,-0.5727,-0.5727,accel not confirmed for JPY
+2023-06-07,TRADE,XAGJPY,long,3.7958,3.5198,"JPY weakening (diff=1.97, accel=-0.097)"
+2023-06-08,TRADE,XAGJPY,long,-0.4542,0.2885,"JPY weakening (diff=3.04, accel=-1.384)"
+2023-06-09,TRADE,XAGJPY,long,-1.0736,-1.4342,"JPY weakening (diff=1.64, accel=-0.926)"
+2023-06-12,TRADE,XAGUSD,long,-0.9548,-0.9548,diff too small (1.04 < 1.5)
+2023-06-13,TRADE,XAGJPY,long,1.7327,1.2123,"JPY weakening (diff=1.93, accel=-0.486)"
+2023-06-14,TRADE,XAGJPY,long,-0.7781,-0.6363,"JPY weakening (diff=1.86, accel=-0.631)"
+2023-06-15,TRADE,XAGUSD,long,0.7743,0.7743,diff too small (1.10 < 1.5)
+2023-06-16,TRADE,XAGUSD,long,0.0,0.0,diff too small (1.00 < 1.5)
+2023-06-20,TRADE,XAGJPY,long,-2.1969,-1.8066,"JPY weakening (diff=2.29, accel=-1.189)"
+2023-06-21,TRADE,XAGGBP,short,1.5357,1.4841,"GBP strengthening (diff=2.73, accel=0.539)"
+2023-06-22,TRADE,XAGCAD,short,0.5956,0.4814,"CAD strengthening (diff=3.13, accel=1.107)"
+2023-06-23,TRADE,XAGCAD,short,-2.2824,-2.1363,"CAD strengthening (diff=2.24, accel=0.078)"
+2023-06-26,TRADE,XAGUSD,short,-0.5876,-0.5876,accel not confirmed for CAD
+2023-06-27,TRADE,XAGUSD,long,-0.3095,-0.3095,accel not confirmed for JPY
+2023-06-28,TRADE,XAGUSD,short,1.2113,1.2113,diff too small (1.37 < 1.5)
+2023-06-29,TRADE,XAGUSD,short,-0.9694,-0.9694,diff too small (0.00 < 1.5)
+2023-06-30,TRADE,XAGUSD,short,-0.377,-0.377,diff too small (0.00 < 1.5)
+2023-07-03,TRADE,XAGUSD,short,0.0,0.0,diff too small (0.84 < 1.5)
+2023-07-05,TRADE,XAGUSD,long,-2.2029,-2.2029,accel not confirmed for JPY
+2023-07-06,TRADE,XAGUSD,short,-1.7896,-1.7896,diff too small (1.46 < 1.5)
+2023-07-07,TRADE,XAGUSD,long,0.2555,0.2555,accel not confirmed for JPY
+2023-07-10,TRADE,XAGUSD,long,-0.2808,-0.2808,diff too small (0.56 < 1.5)
+2023-07-11,TRADE,XAGUSD,long,4.4746,4.4746,diff too small (0.00 < 1.5)
+2023-07-12,TRADE,XAGUSD,long,2.6908,2.6908,diff too small (0.00 < 1.5)
+2023-07-13,TRADE,XAGUSD,long,0.9932,0.9932,diff too small (0.00 < 1.5)
+2023-07-14,TRADE,XAGUSD,long,-0.6796,-0.6796,diff too small (0.00 < 1.5)
+2023-07-17,TRADE,XAGUSD,long,0.966,0.966,diff too small (0.00 < 1.5)
+2023-07-18,TRADE,XAGUSD,long,0.5382,0.5382,diff too small (0.00 < 1.5)
+2023-07-19,TRADE,XAGUSD,long,-1.6416,-1.6416,diff too small (0.00 < 1.5)
+2023-07-20,TRADE,XAGUSD,long,-0.4314,-0.4314,diff too small (0.24 < 1.5)
+2023-07-21,TRADE,XAGUSD,long,-1.0608,-1.0608,diff too small (0.92 < 1.5)
+2023-07-24,TRADE,XAGJPY,long,0.8361,0.9985,"JPY weakening (diff=1.70, accel=-2.727)"
+2023-07-25,TRADE,XAGUSD,long,0.5875,0.5875,diff too small (1.29 < 1.5)
+2023-07-26,TRADE,XAGUSD,long,-2.3726,-2.3726,diff too small (0.52 < 1.5)
+2023-07-27,TRADE,XAGUSD,long,0.5529,0.5529,diff too small (0.00 < 1.5)
+2023-07-28,TRADE,XAGUSD,long,1.986,1.986,diff too small (0.16 < 1.5)
+2023-07-31,TRADE,XAGUSD,long,-2.5992,-2.5992,diff too small (0.59 < 1.5)
+2023-08-01,TRADE,XAGUSD,long,-1.8754,-1.8754,diff too small (0.74 < 1.5)
+2023-08-02,TRADE,XAGAUD,long,0.3943,-0.7072,"AUD weakening (diff=2.64, accel=-2.651)"
+2023-08-03,TRADE,XAGAUD,long,-0.1159,0.1314,"AUD weakening (diff=4.07, accel=-3.801)"
+2023-08-04,TRADE,XAGJPY,long,-2.5074,-2.0113,"JPY weakening (diff=3.03, accel=-3.152)"
+2023-08-07,TRADE,XAGUSD,short,1.8365,1.8365,diff too small (0.30 < 1.5)
+2023-08-08,TRADE,XAGUSD,short,0.2949,0.2949,diff too small (0.22 < 1.5)
+2023-08-09,TRADE,XAGUSD,short,-0.4238,-0.4238,diff too small (0.00 < 1.5)
+2023-08-10,TRADE,XAGUSD,short,0.3165,0.3165,diff too small (0.00 < 1.5)
+2023-08-11,TRADE,XAGUSD,short,0.1323,0.1323,diff too small (0.00 < 1.5)
+2023-08-14,TRADE,XAGUSD,short,0.2164,0.2164,diff too small (0.00 < 1.5)
+2023-08-15,TRADE,XAGUSD,short,0.509,0.509,diff too small (0.00 < 1.5)
+2023-08-16,TRADE,XAGUSD,short,-0.8452,-0.8452,diff too small (0.00 < 1.5)
+2023-08-17,TRADE,XAGUSD,short,-0.1103,-0.1103,diff too small (0.00 < 1.5)
+2023-08-18,TRADE,XAGUSD,short,-2.6834,-2.6834,diff too small (0.00 < 1.5)
+2023-08-21,TRADE,XAGUSD,long,0.4978,0.4978,accel not confirmed for AUD
+2023-08-22,TRADE,XAGUSD,long,4.0265,4.0265,accel not confirmed for AUD
+2023-08-23,TRADE,XAGUSD,long,-0.6239,-0.6239,accel not confirmed for AUD
+2023-08-24,TRADE,XAGUSD,long,0.0372,0.0372,accel not confirmed for JPY
+2023-08-25,TRADE,XAGJPY,long,0.3922,0.0743,"JPY weakening (diff=4.13, accel=-0.367)"
+2023-08-28,TRADE,XAGJPY,long,2.177,2.2238,"JPY weakening (diff=3.85, accel=-1.004)"
+2023-08-29,TRADE,XAGNZD,long,-1.1773,-0.1736,"NZD weakening (diff=3.43, accel=-0.097)"
+2023-08-30,TRADE,XAGUSD,long,-1.0593,-1.0593,accel not confirmed for JPY
+2023-08-31,TRADE,XAGJPY,long,-1.405,-0.9807,"JPY weakening (diff=2.38, accel=-0.805)"
+2023-09-01,TRADE,XAGUSD,long,0.0,0.0,accel not confirmed for JPY
+2023-09-05,TRADE,XAGUSD,long,-1.4942,-1.4942,accel not confirmed for JPY
+2023-09-06,TRADE,XAGUSD,short,1.1032,1.1032,diff too small (0.00 < 1.5)
+2023-09-07,TRADE,XAGUSD,short,0.2527,0.2527,diff too small (0.00 < 1.5)
+2023-09-08,TRADE,XAGUSD,short,-0.9217,-0.9217,diff too small (0.00 < 1.5)
+2023-09-11,TRADE,XAGUSD,short,-0.1039,-0.1039,diff too small (0.00 < 1.5)
+2023-09-12,TRADE,XAGUSD,short,0.9296,0.9296,diff too small (0.00 < 1.5)
+2023-09-13,TRADE,XAGUSD,short,0.7158,0.7158,diff too small (0.00 < 1.5)
+2023-09-14,TRADE,XAGUSD,short,-1.6617,-1.6617,diff too small (0.00 < 1.5)
+2023-09-15,TRADE,XAGUSD,short,-0.4584,-0.4584,diff too small (0.00 < 1.5)
+2023-09-18,TRADE,XAGGBP,long,-0.0522,-0.1636,"GBP weakening (diff=2.61, accel=-0.284)"
+2023-09-19,TRADE,XAGUSD,short,-1.6599,-1.6599,diff too small (0.00 < 1.5)
+2023-09-20,TRADE,XAGGBP,long,-0.0513,-0.5725,"GBP weakening (diff=2.50, accel=-0.503)"
+2023-09-21,TRADE,XAGGBP,long,0.9325,0.6484,"GBP weakening (diff=3.14, accel=-1.021)"
+2023-09-22,TRADE,XAGUSD,long,-1.9113,-1.9113,accel not confirmed for GBP
+2023-09-25,TRADE,XAGUSD,short,0.8425,0.8425,diff too small (0.00 < 1.5)
+2023-09-26,TRADE,XAGUSD,short,2.061,2.061,diff too small (0.00 < 1.5)
+2023-09-27,TRADE,XAGUSD,short,-0.1691,-0.1691,diff too small (0.00 < 1.5)
+2023-09-28,TRADE,XAGUSD,short,1.2392,1.2392,diff too small (0.00 < 1.5)
+2023-09-29,TRADE,XAGUSD,short,4.5782,4.5782,diff too small (0.00 < 1.5)
+2023-10-02,TRADE,XAGUSD,short,0.1885,0.1885,diff too small (0.00 < 1.5)
+2023-10-03,TRADE,XAGUSD,short,1.0483,1.0483,diff too small (0.00 < 1.5)
+2023-10-04,TRADE,XAGUSD,short,0.5154,0.5154,diff too small (0.00 < 1.5)
+2023-10-05,TRADE,XAGUSD,short,-3.3193,-3.3193,diff too small (0.00 < 1.5)
+2023-10-06,TRADE,XAGUSD,short,-0.9331,-0.9331,diff too small (0.00 < 1.5)
+2023-10-09,TRADE,XAGUSD,short,-0.161,-0.161,diff too small (0.00 < 1.5)
+2023-10-10,TRADE,XAGUSD,short,-0.8312,-0.8312,diff too small (0.00 < 1.5)
+2023-10-11,TRADE,XAGUSD,short,0.7515,0.7515,diff too small (0.49 < 1.5)
+2023-10-12,TRADE,XAGUSD,short,-4.2906,-4.2906,diff too small (0.07 < 1.5)
+2023-10-13,TRADE,XAGUSD,short,0.5148,0.5148,diff too small (0.00 < 1.5)
+2023-10-16,TRADE,XAGUSD,short,-1.119,-1.119,diff too small (0.00 < 1.5)
+2023-10-17,TRADE,XAGUSD,short,-0.3543,-0.3543,diff too small (0.00 < 1.5)
+2023-10-18,TRADE,XAGUSD,short,0.2484,0.2484,diff too small (0.00 < 1.5)
+2023-10-19,TRADE,XAGUSD,short,-2.0274,-2.0274,diff too small (0.00 < 1.5)
+2023-10-20,TRADE,XAGNZD,long,-0.9627,-1.1948,"NZD weakening (diff=3.45, accel=-0.939)"
+2023-10-23,TRADE,XAGNZD,long,-0.7698,-0.3988,"NZD weakening (diff=3.57, accel=-0.973)"
+2023-10-24,TRADE,XAGUSD,short,0.4482,0.4482,diff too small (0.00 < 1.5)
+2023-10-25,TRADE,XAGUSD,short,0.3934,0.3934,diff too small (0.00 < 1.5)
+2023-10-26,TRADE,XAGUSD,short,0.0746,0.0746,diff too small (0.00 < 1.5)
+2023-10-27,TRADE,XAGUSD,short,-2.2486,-2.2486,diff too small (0.00 < 1.5)
+2023-10-30,TRADE,XAGUSD,long,-1.8942,-1.8942,accel not confirmed for NZD
+2023-10-31,TRADE,XAGUSD,short,0.683,0.683,diff too small (0.00 < 1.5)
+2023-11-01,TRADE,XAGUSD,short,-0.2909,-0.2909,diff too small (0.00 < 1.5)
+2023-11-02,TRADE,XAGUSD,short,-1.9779,-1.9779,diff too small (0.68 < 1.5)
+2023-11-03,TRADE,XAGUSD,long,-0.2241,-0.2241,accel not confirmed for JPY
+2023-11-06,TRADE,XAGUSD,long,-2.769,-2.769,diff too small (0.00 < 1.5)
+2023-11-07,TRADE,XAGUSD,short,-0.6176,-0.6176,diff too small (1.45 < 1.5)
+2023-11-08,TRADE,XAGUSD,short,-0.8125,-0.8125,diff too small (0.69 < 1.5)
+2023-11-09,TRADE,XAGUSD,short,2.6981,2.6981,diff too small (0.22 < 1.5)
+2023-11-10,TRADE,XAGUSD,short,-0.3781,-0.3781,diff too small (0.00 < 1.5)
+2023-11-13,TRADE,XAGUSD,short,-3.4979,-3.4979,diff too small (0.00 < 1.5)
+2023-11-14,TRADE,XAGJPY,long,0.9801,1.7592,"JPY weakening (diff=2.57, accel=-0.450)"
+2023-11-15,TRADE,XAGUSD,long,1.733,1.733,diff too small (0.02 < 1.5)
+2023-11-16,TRADE,XAGUSD,long,-0.3474,-0.3474,diff too small (0.47 < 1.5)
+2023-11-17,TRADE,XAGUSD,long,-0.966,-0.966,diff too small (0.00 < 1.5)
+2023-11-20,TRADE,XAGUSD,long,1.1196,1.1196,diff too small (0.00 < 1.5)
+2023-11-21,TRADE,XAGUSD,long,-0.7172,-0.7172,diff too small (0.00 < 1.5)
+2023-11-22,TRADE,XAGUSD,long,0.0,0.0,diff too small (0.00 < 1.5)
+2023-11-24,TRADE,XAGUSD,long,1.4098,1.4098,diff too small (0.00 < 1.5)
+2023-11-27,TRADE,XAGUSD,long,1.0457,1.0457,diff too small (0.00 < 1.5)
+2023-11-28,TRADE,XAGUSD,long,0.5696,0.5696,diff too small (0.00 < 1.5)
+2023-11-29,TRADE,XAGUSD,long,0.8815,0.8815,diff too small (0.00 < 1.5)
+2023-11-30,TRADE,XAGUSD,long,0.8145,0.8145,diff too small (0.00 < 1.5)
+2023-12-01,TRADE,XAGUSD,long,-3.7021,-3.7021,diff too small (0.00 < 1.5)
+2023-12-04,TRADE,XAGUSD,long,-1.4417,-1.4417,diff too small (0.00 < 1.5)
+2023-12-05,TRADE,XAGUSD,long,-1.2892,-1.2892,diff too small (0.00 < 1.5)
+2023-12-06,TRADE,XAGUSD,long,-0.6572,-0.6572,diff too small (0.07 < 1.5)
+2023-12-07,TRADE,XAGUSD,long,-3.2066,-3.2066,diff too small (0.14 < 1.5)
+2023-12-08,TRADE,XAGJPY,short,0.3775,0.862,"JPY strengthening (diff=4.47, accel=2.139)"
+2023-12-11,TRADE,XAGJPY,short,-0.561,0.1976,"JPY strengthening (diff=2.84, accel=0.383)"
+2023-12-12,TRADE,XAGJPY,short,0.9405,0.3916,"JPY strengthening (diff=2.56, accel=0.905)"
+2023-12-13,TRADE,XAGJPY,short,-4.5991,-6.4358,"JPY strengthening (diff=2.79, accel=1.423)"
+2023-12-14,TRADE,XAGUSD,long,-0.9379,-0.9379,diff too small (0.00 < 1.5)
+2023-12-15,TRADE,XAGUSD,long,-0.1634,-0.1634,diff too small (0.00 < 1.5)
+2023-12-18,TRADE,XAGUSD,long,0.877,0.877,diff too small (0.00 < 1.5)
+2023-12-19,TRADE,XAGUSD,long,1.277,1.277,diff too small (0.00 < 1.5)
+2023-12-20,TRADE,XAGUSD,long,-0.1643,-0.1643,diff too small (0.00 < 1.5)
+2023-12-21,TRADE,XAGUSD,long,-0.0699,-0.0699,diff too small (0.00 < 1.5)
+2023-12-22,TRADE,XAGUSD,long,0.0,0.0,diff too small (0.00 < 1.5)
+2023-12-26,TRADE,XAGUSD,long,0.9568,0.9568,diff too small (0.00 < 1.5)
+2023-12-27,TRADE,XAGUSD,long,-0.9887,-0.9887,diff too small (0.00 < 1.5)
+2023-12-28,TRADE,XAGUSD,long,-1.1643,-1.1643,diff too small (0.00 < 1.5)
+2023-12-29,TRADE,XAGUSD,long,0.0,0.0,diff too small (0.00 < 1.5)
+2024-01-02,TRADE,XAGUSD,long,-3.3161,-3.3161,diff too small (0.00 < 1.5)
+2024-01-03,TRADE,XAGUSD,short,-0.1874,-0.1874,accel not confirmed for CHF
+2024-01-04,TRADE,XAGUSD,short,-0.5785,-0.5785,accel not confirmed for CHF
+2024-01-05,TRADE,XAGUSD,short,0.0086,0.0086,accel not confirmed for CHF
+2024-01-08,TRADE,XAGUSD,short,0.9343,0.9343,accel not confirmed for CHF
+2024-01-09,TRADE,XAGUSD,short,0.0873,0.0873,accel not confirmed for CHF
+2024-01-10,TRADE,XAGUSD,short,1.5163,1.5163,accel not confirmed for CHF
+2024-01-11,TRADE,XAGCHF,short,-2.8348,-2.7732,"CHF strengthening (diff=2.62, accel=0.032)"
+2024-01-12,TRADE,XAGNZD,short,0.0,0.0,"NZD strengthening (diff=2.57, accel=1.028)"
+2024-01-16,TRADE,XAGUSD,short,1.8183,1.8183,diff too small (1.10 < 1.5)
+2024-01-17,TRADE,XAGUSD,short,-0.6706,-0.6706,diff too small (0.00 < 1.5)
+2024-01-18,TRADE,XAGUSD,short,0.4235,0.4235,diff too small (0.35 < 1.5)
+2024-01-19,TRADE,XAGUSD,short,1.8076,1.8076,diff too small (0.10 < 1.5)
+2024-01-22,TRADE,XAGUSD,short,-0.7716,-0.7716,diff too small (0.42 < 1.5)
+2024-01-23,TRADE,XAGUSD,short,-1.885,-1.885,diff too small (0.26 < 1.5)
+2024-01-24,TRADE,XAGUSD,short,-0.2329,-0.2329,diff too small (0.89 < 1.5)
+2024-01-25,TRADE,XAGUSD,short,0.2324,0.2324,diff too small (0.71 < 1.5)
+2024-01-26,TRADE,XAGUSD,short,-1.6832,-1.6832,diff too small (0.58 < 1.5)
+2024-01-29,TRADE,XAGUSD,short,0.134,0.134,diff too small (0.00 < 1.5)
+2024-01-30,TRADE,XAGUSD,short,0.2423,0.2423,diff too small (0.63 < 1.5)
+2024-01-31,TRADE,XAGUSD,short,-0.3427,-0.3427,diff too small (1.16 < 1.5)
+2024-02-01,TRADE,XAGUSD,short,1.8547,1.8547,diff too small (0.73 < 1.5)
+2024-02-02,TRADE,XAGCHF,short,0.5385,1.6123,"CHF strengthening (diff=2.01, accel=1.179)"
+2024-02-05,TRADE,XAGUSD,short,-0.2597,-0.2597,diff too small (0.00 < 1.5)
+2024-02-06,TRADE,XAGUSD,short,0.5136,0.5136,diff too small (0.00 < 1.5)
+2024-02-07,TRADE,XAGUSD,short,-1.2883,-1.2883,diff too small (0.00 < 1.5)
+2024-02-08,TRADE,XAGUSD,short,0.164,0.164,diff too small (0.00 < 1.5)
+2024-02-09,TRADE,XAGUSD,short,-0.8034,-0.8034,diff too small (0.00 < 1.5)
+2024-02-12,TRADE,XAGUSD,short,2.6994,2.6994,diff too small (0.54 < 1.5)
+2024-02-13,TRADE,XAGUSD,short,-1.0635,-1.0635,diff too small (0.50 < 1.5)
+2024-02-14,TRADE,XAGUSD,short,-2.6018,-2.6018,diff too small (0.00 < 1.5)
+2024-02-15,TRADE,XAGUSD,short,-2.3001,-2.3001,diff too small (0.00 < 1.5)
+2024-02-16,TRADE,XAGUSD,long,0.0,0.0,diff too small (0.90 < 1.5)
+2024-02-20,TRADE,XAGUSD,short,1.1036,1.1036,diff too small (0.17 < 1.5)
+2024-02-21,TRADE,XAGUSD,short,0.3764,0.3764,diff too small (1.43 < 1.5)
+2024-02-22,TRADE,XAGUSD,short,-0.8961,-0.8961,diff too small (1.21 < 1.5)
+2024-02-23,TRADE,XAGUSD,short,1.9679,1.9679,diff too small (1.22 < 1.5)
+2024-02-26,TRADE,XAGUSD,short,-0.0266,-0.0266,diff too small (0.54 < 1.5)
+2024-02-27,TRADE,XAGUSD,short,0.5017,0.5017,diff too small (0.23 < 1.5)
+2024-02-28,TRADE,XAGUSD,short,-1.1423,-1.1423,diff too small (0.11 < 1.5)
+2024-02-29,TRADE,XAGUSD,short,-2.1354,-2.1354,diff too small (0.00 < 1.5)
+2024-03-01,TRADE,XAGJPY,long,2.7239,2.7171,"JPY weakening (diff=2.38, accel=-0.349)"
+2024-03-04,TRADE,XAGUSD,long,-0.0673,-0.0673,diff too small (1.22 < 1.5)
+2024-03-05,TRADE,XAGUSD,long,2.142,2.142,diff too small (1.22 < 1.5)
+2024-03-06,TRADE,XAGUSD,long,0.4038,0.4038,diff too small (1.37 < 1.5)
+2024-03-07,TRADE,XAGUSD,long,-0.1272,-0.1272,diff too small (0.63 < 1.5)
+2024-03-08,TRADE,XAGUSD,long,0.7108,0.7108,diff too small (0.00 < 1.5)
+2024-03-11,TRADE,XAGUSD,long,-1.2973,-1.2973,diff too small (0.00 < 1.5)
+2024-03-12,TRADE,XAGUSD,long,3.1619,3.1619,diff too small (0.00 < 1.5)
+2024-03-13,TRADE,XAGUSD,long,-0.3406,-0.3406,diff too small (0.00 < 1.5)
+2024-03-14,TRADE,XAGUSD,long,1.3106,1.3106,diff too small (0.00 < 1.5)
+2024-03-15,TRADE,XAGCHF,long,-0.5091,-0.4325,"CHF weakening (diff=1.85, accel=-1.273)"
+2024-03-18,TRADE,XAGNZD,long,-0.4359,-0.5062,"NZD weakening (diff=2.67, accel=-2.400)"
+2024-03-19,TRADE,XAGNZD,long,0.4323,-0.1242,"NZD weakening (diff=2.68, accel=-2.394)"
+2024-03-20,TRADE,XAGJPY,long,-0.5184,-0.3369,"JPY weakening (diff=3.97, accel=-3.489)"
+2024-03-21,TRADE,XAGJPY,long,-0.0564,-0.6318,"JPY weakening (diff=3.44, accel=-3.032)"
+2024-03-22,TRADE,XAGJPY,long,-0.0021,0.2147,"JPY weakening (diff=4.19, accel=-2.106)"
+2024-03-25,TRADE,XAGNZD,long,-1.2467,-1.0588,"NZD weakening (diff=4.52, accel=-1.067)"
+2024-03-26,TRADE,XAGCHF,long,1.0474,0.58,"CHF weakening (diff=4.21, accel=-1.220)"
+2024-03-27,TRADE,XAGCHF,long,0.9046,0.6985,"CHF weakening (diff=4.18, accel=-1.274)"
+2024-03-28,TRADE,XAGCHF,long,0.0,0.0,"CHF weakening (diff=4.89, accel=-1.725)"
+2024-04-01,TRADE,XAGUSD,long,3.4063,3.4063,accel not confirmed for CHF
+2024-04-02,TRADE,XAGUSD,long,4.4218,4.4218,accel not confirmed for CHF
+2024-04-03,TRADE,XAGUSD,long,0.7237,0.7237,accel not confirmed for CHF
+2024-04-04,TRADE,XAGUSD,long,0.958,0.958,accel not confirmed for CHF
+2024-04-05,TRADE,XAGCHF,long,1.3249,1.1387,"CHF weakening (diff=2.89, accel=-0.090)"
+2024-04-08,TRADE,XAGCHF,long,0.851,0.6459,"CHF weakening (diff=3.23, accel=-0.027)"
+2024-04-09,TRADE,XAGUSD,long,0.251,0.251,accel not confirmed for CHF
+2024-04-10,TRADE,XAGUSD,long,0.7689,0.7689,accel not confirmed for CHF
+2024-04-11,TRADE,XAGCHF,long,-0.0722,0.2804,"CHF weakening (diff=4.57, accel=-1.078)"
+2024-04-12,TRADE,XAGJPY,long,1.4618,1.4015,"JPY weakening (diff=3.71, accel=-0.795)"
+2024-04-15,TRADE,XAGCHF,long,-1.397,-1.1623,"CHF weakening (diff=4.52, accel=-0.544)"
+2024-04-16,TRADE,XAGJPY,long,0.4182,0.0989,"JPY weakening (diff=4.82, accel=-0.654)"
+2024-04-17,TRADE,XAGNZD,long,-0.4133,-0.06,"NZD weakening (diff=5.31, accel=-3.109)"
+2024-04-18,TRADE,XAGUSD,long,1.6908,1.6908,accel not confirmed for JPY
+2024-04-19,TRADE,XAGNZD,long,-5.4854,-5.5367,"NZD weakening (diff=3.90, accel=-0.981)"
+2024-04-22,TRADE,XAGUSD,long,0.4336,0.4336,accel not confirmed for JPY
+2024-04-23,TRADE,XAGUSD,long,-0.0256,-0.0256,accel not confirmed for JPY
+2024-04-24,TRADE,XAGUSD,long,0.0659,0.0659,accel not confirmed for JPY
+2024-04-25,TRADE,XAGJPY,long,-0.1525,-0.3694,"JPY weakening (diff=3.06, accel=-0.131)"
+2024-04-26,TRADE,XAGJPY,long,2.1811,0.4846,"JPY weakening (diff=3.01, accel=-0.407)"
+2024-04-29,TRADE,XAGJPY,long,-4.7513,-3.5875,"JPY weakening (diff=4.52, accel=-1.839)"
+2024-04-30,TRADE,XAGJPY,long,1.2754,0.3713,"JPY weakening (diff=2.59, accel=-0.579)"
+2024-05-01,TRADE,XAGJPY,long,-0.9291,0.3549,"JPY weakening (diff=4.92, accel=-1.874)"
+2024-05-02,TRADE,XAGUSD,long,-0.5191,-0.5191,accel not confirmed for JPY
+2024-05-03,TRADE,XAGUSD,long,3.494,3.494,diff too small (1.30 < 1.5)
+2024-05-06,TRADE,XAGUSD,long,-0.2411,-0.2411,diff too small (0.64 < 1.5)
+2024-05-07,TRADE,XAGUSD,long,0.2124,0.2124,diff too small (0.74 < 1.5)
+2024-05-08,TRADE,XAGUSD,long,2.8179,2.8179,diff too small (0.44 < 1.5)
+2024-05-09,TRADE,XAGUSD,long,0.5083,0.5083,diff too small (1.06 < 1.5)
+2024-05-10,TRADE,XAGJPY,long,0.0846,-0.191,"JPY weakening (diff=2.03, accel=-1.887)"
+2024-05-13,TRADE,XAGJPY,long,1.2043,0.9355,"JPY weakening (diff=2.18, accel=-2.504)"
+2024-05-14,TRADE,XAGJPY,long,3.7882,3.6124,"JPY weakening (diff=1.86, accel=-1.380)"
+2024-05-15,TRADE,XAGUSD,long,0.5116,0.5116,diff too small (1.49 < 1.5)
+2024-05-16,TRADE,XAGUSD,long,4.6587,4.6587,diff too small (0.00 < 1.5)
+2024-05-17,TRADE,XAGUSD,long,3.7298,3.7298,diff too small (0.07 < 1.5)
+2024-05-20,TRADE,XAGUSD,long,-1.0464,-1.0464,diff too small (0.02 < 1.5)
+2024-05-21,TRADE,XAGUSD,long,-1.798,-1.798,diff too small (0.54 < 1.5)
+2024-05-22,TRADE,XAGUSD,long,-3.2305,-3.2305,diff too small (0.66 < 1.5)
+2024-05-23,TRADE,XAGJPY,long,0.3238,0.1519,"JPY weakening (diff=2.18, accel=-1.722)"
+2024-05-24,TRADE,XAGJPY,long,0.0,0.0,"JPY weakening (diff=2.05, accel=-0.898)"
+2024-05-28,TRADE,XAGUSD,long,0.7257,0.7257,diff too small (0.89 < 1.5)
+2024-05-29,TRADE,XAGUSD,long,-2.5308,-2.5308,diff too small (0.78 < 1.5)
+2024-05-30,TRADE,XAGUSD,long,-3.4758,-3.4758,accel not confirmed for JPY
+2024-05-31,TRADE,XAGJPY,long,1.2817,1.1354,"JPY weakening (diff=2.00, accel=-0.294)"
+2024-06-03,TRADE,XAGJPY,long,-4.4389,-3.7629,"JPY weakening (diff=2.21, accel=-1.220)"
+2024-06-04,TRADE,XAGUSD,long,1.56,1.56,diff too small (0.98 < 1.5)
+2024-06-05,TRADE,XAGUSD,long,4.3375,4.3375,diff too small (0.00 < 1.5)
+2024-06-06,TRADE,XAGUSD,long,-6.119,-6.119,diff too small (0.03 < 1.5)
+2024-06-07,TRADE,XAGUSD,long,1.4795,1.4795,diff too small (0.02 < 1.5)
+2024-06-10,TRADE,XAGUSD,long,-2.1364,-2.1364,diff too small (1.47 < 1.5)
+2024-06-11,TRADE,XAGJPY,long,3.623,3.5801,"JPY weakening (diff=2.05, accel=-0.136)"
+2024-06-12,TRADE,XAGJPY,long,-4.1168,-3.9303,"JPY weakening (diff=1.99, accel=-1.149)"
+2024-06-13,TRADE,XAGJPY,long,1.6333,1.4212,"JPY weakening (diff=1.90, accel=-0.879)"
+2024-06-14,TRADE,XAGJPY,long,0.0034,-0.2619,"JPY weakening (diff=1.99, accel=-0.865)"
+2024-06-17,TRADE,XAGJPY,long,0.7121,0.6138,"JPY weakening (diff=1.53, accel=-0.255)"
+2024-06-18,TRADE,XAGUSD,long,0.0,0.0,diff too small (1.27 < 1.5)
+2024-06-20,TRADE,XAGUSD,long,-3.9089,-3.9089,diff too small (1.38 < 1.5)
+2024-06-21,TRADE,XAGJPY,long,0.2995,-0.284,"JPY weakening (diff=2.01, accel=-0.415)"
+2024-06-24,TRADE,XAGJPY,long,-2.318,-2.211,"JPY weakening (diff=2.77, accel=-1.027)"
+2024-06-25,TRADE,XAGJPY,long,0.2497,0.2497,"JPY weakening (diff=2.40, accel=-0.941)"
+2024-06-26,TRADE,XAGJPY,long,0.6168,0.0311,"JPY weakening (diff=2.42, accel=-0.721)"
+2024-06-27,TRADE,XAGJPY,long,1.1447,1.1031,"JPY weakening (diff=3.29, accel=-1.118)"
+2024-06-28,TRADE,XAGJPY,long,0.3527,0.2155,"JPY weakening (diff=3.06, accel=-0.571)"
+2024-07-01,TRADE,XAGUSD,long,0.1809,0.1809,accel not confirmed for JPY
+2024-07-02,TRADE,XAGJPY,long,4.066,4.0711,"JPY weakening (diff=3.84, accel=-0.648)"
+2024-07-03,TRADE,XAGJPY,long,0.0,0.0,"JPY weakening (diff=3.81, accel=-0.972)"
+2024-07-05,TRADE,XAGUSD,long,-2.4532,-2.4532,accel not confirmed for JPY
+2024-07-08,TRADE,XAGUSD,long,0.503,0.503,diff too small (0.86 < 1.5)
+2024-07-09,TRADE,XAGUSD,long,-0.1462,-0.1462,diff too small (0.52 < 1.5)
+2024-07-10,TRADE,XAGUSD,long,2.1707,2.1707,diff too small (0.90 < 1.5)
+2024-07-11,TRADE,XAGUSD,long,-1.6181,-1.6181,accel not confirmed for JPY
+2024-07-12,TRADE,XAGUSD,long,-0.6929,-0.6929,diff too small (0.00 < 1.5)
+2024-07-15,TRADE,XAGUSD,long,1.7051,1.7051,diff too small (0.00 < 1.5)
+2024-07-16,TRADE,XAGUSD,long,-3.3916,-3.3916,diff too small (0.00 < 1.5)
+2024-07-17,TRADE,XAGUSD,long,-0.4712,-0.4712,diff too small (0.00 < 1.5)
+2024-07-18,TRADE,XAGUSD,long,-3.0238,-3.0238,diff too small (0.00 < 1.5)
+2024-07-19,TRADE,XAGUSD,long,0.1238,0.1238,diff too small (0.01 < 1.5)
+2024-07-22,TRADE,XAGUSD,long,0.0275,0.0275,diff too small (0.26 < 1.5)
+2024-07-23,TRADE,XAGUSD,long,-0.0549,-0.0549,diff too small (1.39 < 1.5)
+2024-07-24,TRADE,XAGUSD,long,-4.4958,-4.4958,diff too small (1.36 < 1.5)
+2024-07-25,TRADE,XAGNZD,long,0.8284,0.1906,"NZD weakening (diff=2.05, accel=-2.165)"
+2024-07-26,TRADE,XAGNZD,long,-0.55,-0.5635,"NZD weakening (diff=2.52, accel=-1.966)"
+2024-07-29,TRADE,XAGNZD,long,2.5934,2.3896,"NZD weakening (diff=2.66, accel=-1.796)"
+2024-07-30,TRADE,XAGNZD,long,1.0315,1.456,"NZD weakening (diff=2.22, accel=-0.732)"
+2024-07-31,TRADE,XAGUSD,long,-1.5533,-1.5533,diff too small (1.37 < 1.5)
+2024-08-01,TRADE,XAGUSD,long,-0.3,-0.3,diff too small (0.37 < 1.5)
+2024-08-02,TRADE,XAGUSD,long,-4.1422,-4.1422,diff too small (1.44 < 1.5)
+2024-08-05,TRADE,XAGUSD,long,0.0739,0.0739,diff too small (0.70 < 1.5)
+2024-08-06,TRADE,XAGUSD,long,-0.9817,-0.9817,diff too small (0.17 < 1.5)
+2024-08-07,TRADE,XAGUSD,long,2.4972,2.4972,diff too small (0.16 < 1.5)
+2024-08-08,TRADE,XAGUSD,long,-0.0473,-0.0473,diff too small (1.08 < 1.5)
+2024-08-09,TRADE,XAGUSD,long,1.5644,1.5644,diff too small (0.00 < 1.5)
+2024-08-12,TRADE,XAGUSD,long,-0.7952,-0.7952,diff too small (0.34 < 1.5)
+2024-08-13,TRADE,XAGUSD,long,-1.5923,-1.5923,diff too small (0.01 < 1.5)
+2024-08-14,TRADE,XAGUSD,long,3.9921,3.9921,diff too small (0.00 < 1.5)
+2024-08-15,TRADE,XAGUSD,long,1.5384,1.5384,diff too small (0.00 < 1.5)
+2024-08-16,TRADE,XAGUSD,long,1.6054,1.6054,diff too small (0.47 < 1.5)
+2024-08-19,TRADE,XAGUSD,long,0.7353,0.7353,diff too small (0.00 < 1.5)
+2024-08-20,TRADE,XAGUSD,long,0.0713,0.0713,diff too small (0.00 < 1.5)
+2024-08-21,TRADE,XAGUSD,long,-1.5945,-1.5945,diff too small (0.00 < 1.5)
+2024-08-22,TRADE,XAGUSD,long,2.6891,2.6891,diff too small (0.00 < 1.5)
+2024-08-23,TRADE,XAGUSD,long,0.6412,0.6412,diff too small (0.00 < 1.5)
+2024-08-26,TRADE,XAGUSD,long,-0.0867,-0.0867,diff too small (0.00 < 1.5)
+2024-08-27,TRADE,XAGUSD,long,-2.5876,-2.5876,diff too small (0.00 < 1.5)
+2024-08-28,TRADE,XAGUSD,long,1.3059,1.3059,diff too small (0.00 < 1.5)
+2024-08-29,TRADE,XAGUSD,long,-2.7946,-2.7946,diff too small (0.00 < 1.5)
+2024-08-30,TRADE,XAGUSD,long,0.0,0.0,diff too small (0.00 < 1.5)
+2024-09-03,TRADE,XAGUSD,long,0.7728,0.7728,diff too small (0.00 < 1.5)
+2024-09-04,TRADE,XAGUSD,long,1.9633,1.9633,diff too small (0.00 < 1.5)
+2024-09-05,TRADE,XAGUSD,long,-3.1755,-3.1755,diff too small (0.00 < 1.5)
+2024-09-06,TRADE,XAGUSD,long,1.7369,1.7369,diff too small (0.00 < 1.5)
+2024-09-09,TRADE,XAGUSD,long,-0.1202,-0.1202,diff too small (0.00 < 1.5)
+2024-09-10,TRADE,XAGUSD,long,1.0829,1.0829,diff too small (0.00 < 1.5)
+2024-09-11,TRADE,XAGUSD,long,4.1312,4.1312,diff too small (0.00 < 1.5)
+2024-09-12,TRADE,XAGUSD,long,3.2142,3.2142,diff too small (0.00 < 1.5)
+2024-09-13,TRADE,XAGUSD,long,0.2345,0.2345,diff too small (0.00 < 1.5)
+2024-09-16,TRADE,XAGUSD,long,-0.494,-0.494,diff too small (0.00 < 1.5)
+2024-09-17,TRADE,XAGUSD,long,-0.9079,-0.9079,diff too small (0.00 < 1.5)
+2024-09-18,TRADE,XAGUSD,long,2.4818,2.4818,diff too small (0.00 < 1.5)
+2024-09-19,TRADE,XAGUSD,long,0.2637,0.2637,diff too small (0.00 < 1.5)
+2024-09-20,TRADE,XAGUSD,long,-1.3119,-1.3119,diff too small (0.00 < 1.5)
+2024-09-23,TRADE,XAGUSD,long,4.3683,4.3683,diff too small (0.00 < 1.5)
+2024-09-24,TRADE,XAGUSD,long,-1.2862,-1.2862,diff too small (0.00 < 1.5)
+2024-09-25,TRADE,XAGUSD,long,1.0316,1.0316,diff too small (0.00 < 1.5)
+2024-09-26,TRADE,XAGUSD,long,-1.58,-1.58,diff too small (0.00 < 1.5)
+2024-09-27,TRADE,XAGUSD,long,-1.1263,-1.1263,diff too small (0.00 < 1.5)
+2024-09-30,TRADE,XAGUSD,long,0.9017,0.9017,diff too small (0.00 < 1.5)
+2024-10-01,TRADE,XAGUSD,long,0.582,0.582,diff too small (0.00 < 1.5)
+2024-10-02,TRADE,XAGUSD,long,1.7737,1.7737,diff too small (0.00 < 1.5)
+2024-10-03,TRADE,XAGUSD,long,-0.1895,-0.1895,diff too small (0.00 < 1.5)
+2024-10-04,TRADE,XAGUSD,long,-1.1921,-1.1921,diff too small (1.03 < 1.5)
+2024-10-07,TRADE,XAGJPY,long,-4.8117,-4.3786,"JPY weakening (diff=3.17, accel=-5.633)"
+2024-10-08,TRADE,XAGNZD,long,0.1833,0.2306,"NZD weakening (diff=2.39, accel=-3.480)"
+2024-10-09,TRADE,XAGJPY,long,2.5948,1.9063,"JPY weakening (diff=2.21, accel=-3.746)"
+2024-10-10,TRADE,XAGNZD,long,1.2426,1.661,"NZD weakening (diff=2.87, accel=-2.813)"
+2024-10-11,TRADE,XAGNZD,long,-1.3167,-1.3864,"NZD weakening (diff=1.96, accel=-0.713)"
+2024-10-14,TRADE,XAGCAD,long,1.5882,1.4284,"CAD weakening (diff=1.86, accel=-1.101)"
+2024-10-15,TRADE,XAGJPY,long,0.3547,0.739,"JPY weakening (diff=2.16, accel=-0.166)"
+2024-10-16,TRADE,XAGEUR,long,-0.3908,-0.5888,"EUR weakening (diff=1.67, accel=-0.613)"
+2024-10-17,TRADE,XAGUSD,long,4.621,4.621,accel not confirmed for JPY
+2024-10-18,TRADE,XAGJPY,long,2.1923,2.5339,"JPY weakening (diff=2.36, accel=-0.435)"
+2024-10-21,TRADE,XAGUSD,long,2.8404,2.8404,diff too small (1.48 < 1.5)
+2024-10-22,TRADE,XAGUSD,long,-3.4194,-3.4194,accel not confirmed for JPY
+2024-10-23,TRADE,XAGJPY,long,0.992,-0.0862,"JPY weakening (diff=3.33, accel=-1.241)"
+2024-10-24,TRADE,XAGJPY,long,-0.6691,-0.0238,"JPY weakening (diff=4.49, accel=-2.126)"
+2024-10-25,TRADE,XAGJPY,long,1.4509,0.6755,"JPY weakening (diff=3.49, accel=-0.772)"
+2024-10-28,TRADE,XAGJPY,long,1.448,1.2977,"JPY weakening (diff=6.26, accel=-3.603)"
+2024-10-29,TRADE,XAGJPY,long,-0.9745,-1.0359,"JPY weakening (diff=5.46, accel=-2.497)"
+2024-10-30,TRADE,XAGJPY,long,-3.7622,-3.7182,"JPY weakening (diff=5.52, accel=-1.679)"
+2024-10-31,TRADE,XAGUSD,long,-0.3399,-0.3399,accel not confirmed for JPY
+2024-11-01,TRADE,XAGUSD,long,-0.1905,-0.1905,accel not confirmed for JPY
+2024-11-04,TRADE,XAGUSD,long,0.5388,0.5388,accel not confirmed for JPY
+2024-11-05,TRADE,XAGUSD,long,-4.3914,-4.3914,accel not confirmed for JPY
+2024-11-06,TRADE,XAGUSD,long,1.7424,1.7424,diff too small (0.73 < 1.5)
+2024-11-07,TRADE,XAGUSD,long,-1.2781,-1.2781,accel not confirmed for JPY
+2024-11-08,TRADE,XAGJPY,long,-2.7872,-2.6117,"JPY weakening (diff=2.27, accel=-0.129)"
+2024-11-11,TRADE,XAGEUR,long,0.9539,0.4781,"EUR weakening (diff=3.00, accel=-1.890)"
+2024-11-12,TRADE,XAGEUR,long,0.1347,-0.3128,"EUR weakening (diff=3.89, accel=-2.272)"
+2024-11-13,TRADE,XAGJPY,long,0.2311,-0.2681,"JPY weakening (diff=5.90, accel=-2.791)"
+2024-11-14,TRADE,XAGJPY,long,0.2164,-0.4491,"JPY weakening (diff=5.14, accel=-0.592)"
+2024-11-15,TRADE,XAGJPY,long,1.4247,2.6078,"JPY weakening (diff=6.78, accel=-1.922)"
+2024-11-18,TRADE,XAGNZD,long,-0.323,0.1444,"NZD weakening (diff=5.91, accel=-1.983)"
+2024-11-19,TRADE,XAGJPY,long,-0.7427,-0.8075,"JPY weakening (diff=4.61, accel=-0.484)"
+2024-11-20,TRADE,XAGUSD,long,-0.1421,-0.1421,accel not confirmed for JPY
+2024-11-21,TRADE,XAGUSD,long,1.2843,1.2843,accel not confirmed for JPY
+2024-11-22,TRADE,XAGUSD,long,-3.5102,-3.5102,accel not confirmed for EUR
+2024-11-25,TRADE,XAGUSD,long,0.5892,0.5892,accel not confirmed for EUR
+2024-11-26,TRADE,XAGNZD,long,-1.3498,-0.9115,"NZD weakening (diff=5.03, accel=-0.565)"
+2024-11-27,TRADE,XAGNZD,long,0.0,0.0,"NZD weakening (diff=4.29, accel=-0.806)"
+2024-11-29,TRADE,XAGUSD,long,-0.7691,-0.7691,accel not confirmed for EUR
+2024-12-02,TRADE,XAGUSD,long,2.0625,2.0625,accel not confirmed for EUR
+2024-12-03,TRADE,XAGUSD,long,1.3772,1.3772,accel not confirmed for EUR
+2024-12-04,TRADE,XAGUSD,long,-1.1776,-1.1776,accel not confirmed for EUR
+2024-12-05,TRADE,XAGAUD,long,-0.0964,0.167,"AUD weakening (diff=3.05, accel=-0.712)"
+2024-12-06,TRADE,XAGAUD,long,4.1095,3.3028,"AUD weakening (diff=3.47, accel=-1.255)"
+2024-12-09,TRADE,XAGAUD,long,-0.1365,0.4563,"AUD weakening (diff=4.02, accel=-1.366)"
+2024-12-10,TRADE,XAGCAD,long,0.6319,0.6149,"CAD weakening (diff=3.20, accel=-1.044)"
+2024-12-11,TRADE,XAGAUD,long,-4.2155,-4.0968,"AUD weakening (diff=4.19, accel=-1.563)"
+2024-12-12,TRADE,XAGNZD,long,-1.4282,-1.8349,"NZD weakening (diff=3.65, accel=-0.710)"
+2024-12-13,TRADE,XAGNZD,long,0.1301,0.137,"NZD weakening (diff=4.78, accel=-1.052)"
+2024-12-16,TRADE,XAGNZD,long,-0.7701,-0.404,"NZD weakening (diff=4.42, accel=-0.280)"
+2024-12-17,TRADE,XAGNZD,long,0.0522,-0.5332,"NZD weakening (diff=4.59, accel=-0.732)"
+2024-12-18,TRADE,XAGNZD,long,-1.9295,-4.3275,"NZD weakening (diff=5.28, accel=-0.512)"
+2024-12-19,TRADE,XAGUSD,short,-1.9454,-1.9454,diff too small (0.00 < 1.5)
+2024-12-20,TRADE,XAGNZD,long,0.339,0.7687,"NZD weakening (diff=7.86, accel=-1.782)"
+2024-12-23,TRADE,XAGNZD,long,0.3767,0.2877,"NZD weakening (diff=7.06, accel=-1.759)"
+2024-12-24,TRADE,XAGNZD,long,0.0,0.0,"NZD weakening (diff=7.12, accel=-1.717)"
+2024-12-26,TRADE,XAGJPY,long,-0.9183,-1.3046,"JPY weakening (diff=5.54, accel=-1.326)"
+2024-12-27,TRADE,XAGUSD,long,-1.8513,-1.8513,accel not confirmed for NZD
+2024-12-30,TRADE,XAGUSD,short,0.5703,0.5703,diff too small (0.00 < 1.5)
+2024-12-31,TRADE,XAGUSD,short,-2.3566,-2.3566,diff too small (0.00 < 1.5)
+2025-01-02,TRADE,XAGUSD,long,0.6212,0.6212,accel not confirmed for NZD
+2025-01-03,TRADE,XAGNZD,long,1.3798,1.7983,"NZD weakening (diff=6.11, accel=-0.555)"
+2025-01-06,TRADE,XAGUSD,long,0.3461,0.3461,accel not confirmed for NZD
+2025-01-07,TRADE,XAGUSD,long,0.0164,0.0164,accel not confirmed for JPY
+2025-01-08,TRADE,XAGJPY,long,1.0851,1.1132,"JPY weakening (diff=5.09, accel=-0.250)"
+2025-01-09,TRADE,XAGGBP,long,1.471,0.9743,"GBP weakening (diff=4.88, accel=-1.391)"
+2025-01-10,TRADE,XAGUSD,long,-3.2164,-3.2164,accel not confirmed for NZD
+2025-01-13,TRADE,XAGGBP,long,-0.096,0.1363,"GBP weakening (diff=5.76, accel=-1.091)"
+2025-01-14,TRADE,XAGGBP,long,4.1085,3.9393,"GBP weakening (diff=5.68, accel=-1.646)"
+2025-01-15,TRADE,XAGGBP,long,0.4055,0.6514,"GBP weakening (diff=5.50, accel=-1.548)"
+2025-01-16,TRADE,XAGGBP,long,-1.7629,-1.8145,"GBP weakening (diff=4.26, accel=-0.010)"
+2025-01-17,TRADE,XAGUSD,long,0.0,0.0,accel not confirmed for GBP
+2025-01-21,TRADE,XAGUSD,long,-0.23,-0.23,diff too small (1.39 < 1.5)
+2025-01-22,TRADE,XAGUSD,long,-1.8118,-1.8118,diff too small (1.38 < 1.5)
+2025-01-23,TRADE,XAGUSD,long,1.1411,1.1411,accel not confirmed for GBP
+2025-01-24,TRADE,XAGUSD,long,-2.4788,-2.4788,accel not confirmed for CHF
+2025-01-27,TRADE,XAGUSD,long,1.5634,1.5634,diff too small (0.82 < 1.5)
+2025-01-28,TRADE,XAGNZD,long,1.7097,1.663,"NZD weakening (diff=1.69, accel=-0.891)"
+2025-01-29,TRADE,XAGCAD,long,3.5981,3.6046,"CAD weakening (diff=1.73, accel=-0.467)"
+2025-01-30,TRADE,XAGAUD,long,-0.3334,-0.7292,"AUD weakening (diff=1.93, accel=-0.882)"
+2025-01-31,TRADE,XAGAUD,long,1.9834,0.8217,"AUD weakening (diff=2.14, accel=-1.439)"
+2025-02-03,TRADE,XAGAUD,long,0.336,1.5312,"AUD weakening (diff=5.23, accel=-3.404)"
+2025-02-04,TRADE,XAGAUD,long,-0.6328,-0.0943,"AUD weakening (diff=2.74, accel=-0.644)"
+2025-02-05,TRADE,XAGNZD,long,-1.7428,-1.0317,"NZD weakening (diff=1.58, accel=-0.305)"
+2025-02-06,TRADE,XAGUSD,long,-0.5628,-0.5628,diff too small (0.00 < 1.5)
+2025-02-07,TRADE,XAGUSD,long,0.1763,0.1763,diff too small (0.00 < 1.5)
+2025-02-10,TRADE,XAGUSD,long,-0.497,-0.497,diff too small (0.00 < 1.5)
+2025-02-11,TRADE,XAGUSD,long,1.4396,1.4396,diff too small (0.39 < 1.5)
+2025-02-12,TRADE,XAGUSD,long,-0.1376,-0.1376,diff too small (1.09 < 1.5)
+2025-02-13,TRADE,XAGCHF,long,-0.6539,0.4625,"CHF weakening (diff=2.00, accel=-1.577)"
+2025-02-14,TRADE,XAGUSD,long,0.0,0.0,diff too small (0.00 < 1.5)
+2025-02-18,TRADE,XAGUSD,long,-0.9725,-0.9725,diff too small (0.00 < 1.5)
+2025-02-19,TRADE,XAGUSD,long,1.367,1.367,diff too small (0.00 < 1.5)
+2025-02-20,TRADE,XAGUSD,long,-1.3993,-1.3993,diff too small (0.00 < 1.5)
+2025-02-21,TRADE,XAGUSD,long,-1.216,-1.216,diff too small (0.00 < 1.5)
+2025-02-24,TRADE,XAGUSD,long,-2.3761,-2.3761,diff too small (0.00 < 1.5)
+2025-02-25,TRADE,XAGUSD,long,1.4213,1.4213,diff too small (0.37 < 1.5)
+2025-02-26,TRADE,XAGUSD,long,-1.4014,-1.4014,diff too small (0.00 < 1.5)
+2025-02-27,TRADE,XAGUSD,long,-1.8301,-1.8301,diff too small (0.18 < 1.5)
+2025-02-28,TRADE,XAGNZD,long,3.0072,2.6042,"NZD weakening (diff=2.81, accel=-2.796)"
+2025-03-03,TRADE,XAGNZD,long,0.0906,0.2373,"NZD weakening (diff=2.62, accel=-1.996)"
+2025-03-04,TRADE,XAGNZD,long,1.465,2.3359,"NZD weakening (diff=2.10, accel=-1.482)"
+2025-03-05,TRADE,XAGUSD,long,0.6239,0.6239,diff too small (1.09 < 1.5)
+2025-03-06,TRADE,XAGUSD,long,-1.5576,-1.5576,diff too small (0.00 < 1.5)
+2025-03-07,TRADE,XAGUSD,long,-0.8388,-0.8388,diff too small (0.00 < 1.5)
+2025-03-10,TRADE,XAGUSD,long,1.8993,1.8993,diff too small (0.00 < 1.5)
+2025-03-11,TRADE,XAGUSD,long,1.8122,1.8122,diff too small (0.00 < 1.5)
+2025-03-12,TRADE,XAGUSD,long,1.6933,1.6933,diff too small (0.00 < 1.5)
+2025-03-13,TRADE,XAGUSD,long,0.3994,0.3994,diff too small (0.00 < 1.5)
+2025-03-14,TRADE,XAGUSD,long,-0.3305,-0.3305,diff too small (0.01 < 1.5)
+2025-03-17,TRADE,XAGUSD,long,1.4821,1.4821,diff too small (0.00 < 1.5)
+2025-03-18,TRADE,XAGUSD,long,-1.7467,-1.7467,diff too small (0.00 < 1.5)
+2025-03-19,TRADE,XAGUSD,long,-0.5563,-0.5563,diff too small (0.00 < 1.5)
+2025-03-20,TRADE,XAGUSD,long,-1.4681,-1.4681,diff too small (0.00 < 1.5)
+2025-03-21,TRADE,XAGUSD,long,-0.0751,-0.0751,diff too small (0.00 < 1.5)
+2025-03-24,TRADE,XAGUSD,long,2.2155,2.2155,diff too small (0.00 < 1.5)
+2025-03-25,TRADE,XAGUSD,long,0.0912,0.0912,diff too small (0.53 < 1.5)
+2025-03-26,TRADE,XAGUSD,long,2.5387,2.5387,diff too small (0.05 < 1.5)
+2025-03-27,TRADE,XAGUSD,long,-0.725,-0.725,diff too small (0.27 < 1.5)
+2025-03-28,TRADE,XAGUSD,long,-0.5398,-0.5398,diff too small (0.00 < 1.5)
+2025-03-31,TRADE,XAGUSD,long,-0.8677,-0.8677,diff too small (0.00 < 1.5)
+2025-04-01,TRADE,XAGUSD,long,0.9983,0.9983,diff too small (0.00 < 1.5)
+2025-04-02,TRADE,XAGUSD,long,-7.6959,-7.6959,diff too small (0.00 < 1.5)
+2025-04-03,TRADE,XAGUSD,long,-8.5668,-8.5668,diff too small (0.00 < 1.5)
+2025-04-04,TRADE,XAGJPY,short,-0.8001,-1.3532,"JPY strengthening (diff=5.67, accel=3.502)"
+2025-04-07,TRADE,XAGCHF,short,-1.2316,-0.2779,"CHF strengthening (diff=4.65, accel=2.496)"
+2025-04-08,TRADE,XAGCHF,short,-0.7956,-2.4703,"CHF strengthening (diff=3.52, accel=2.447)"
+2025-04-09,TRADE,XAGCHF,short,-2.3186,-1.1476,"CHF strengthening (diff=5.34, accel=4.142)"
+2025-04-10,TRADE,XAGCHF,short,0.4484,-3.7593,"CHF strengthening (diff=3.92, accel=1.720)"
+2025-04-11,TRADE,XAGUSD,long,0.8421,0.8421,diff too small (0.00 < 1.5)
+2025-04-14,TRADE,XAGUSD,long,0.4207,0.4207,diff too small (0.00 < 1.5)
+2025-04-15,TRADE,XAGUSD,long,2.169,2.169,diff too small (0.00 < 1.5)
+2025-04-16,TRADE,XAGUSD,long,-1.5368,-1.5368,diff too small (0.00 < 1.5)
+2025-04-17,TRADE,XAGUSD,long,1.4189,1.4189,diff too small (0.00 < 1.5)
+2025-04-22,TRADE,XAGUSD,long,1.9404,1.9404,diff too small (0.00 < 1.5)
+2025-04-23,TRADE,XAGUSD,long,-0.1074,-0.1074,diff too small (0.00 < 1.5)
+2025-04-24,TRADE,XAGUSD,long,-1.4724,-1.4724,diff too small (0.00 < 1.5)
+2025-04-25,TRADE,XAGUSD,long,0.003,0.003,diff too small (0.00 < 1.5)
+2025-04-28,TRADE,XAGUSD,long,0.8639,0.8639,diff too small (0.00 < 1.5)
+2025-04-29,TRADE,XAGUSD,long,-2.2359,-2.2359,diff too small (0.00 < 1.5)
+2025-04-30,TRADE,XAGUSD,long,-1.0513,-1.0513,diff too small (0.00 < 1.5)
+2025-05-01,TRADE,XAGUSD,long,-0.6213,-0.6213,diff too small (0.00 < 1.5)
+2025-05-02,TRADE,XAGUSD,long,0.6752,0.6752,diff too small (0.00 < 1.5)
+2025-05-05,TRADE,XAGUSD,long,2.8194,2.8194,diff too small (0.00 < 1.5)
+2025-05-06,TRADE,XAGUSD,long,-1.7576,-1.7576,diff too small (0.00 < 1.5)
+2025-05-07,TRADE,XAGUSD,long,-0.4703,-0.4703,diff too small (0.00 < 1.5)
+2025-05-08,TRADE,XAGUSD,long,0.9204,0.9204,diff too small (0.00 < 1.5)
+2025-05-09,TRADE,XAGUSD,long,-0.8814,-0.8814,diff too small (0.00 < 1.5)
+2025-05-12,TRADE,XAGUSD,long,1.482,1.482,diff too small (0.00 < 1.5)
+2025-05-13,TRADE,XAGJPY,long,-2.4702,-1.9533,"JPY weakening (diff=2.23, accel=-2.968)"
+2025-05-14,TRADE,XAGJPY,long,0.1914,0.7913,"JPY weakening (diff=1.67, accel=-3.176)"
+2025-05-15,TRADE,XAGUSD,long,-0.9944,-0.9944,diff too small (1.00 < 1.5)
+2025-05-16,TRADE,XAGUSD,long,0.482,0.482,diff too small (0.00 < 1.5)
+2025-05-19,TRADE,XAGUSD,long,2.0642,2.0642,diff too small (0.00 < 1.5)
+2025-05-20,TRADE,XAGUSD,long,1.4645,1.4645,diff too small (0.00 < 1.5)
+2025-05-21,TRADE,XAGUSD,long,-1.2432,-1.2432,diff too small (0.00 < 1.5)
+2025-05-22,TRADE,XAGUSD,long,1.1953,1.1953,diff too small (0.00 < 1.5)
+2025-05-23,TRADE,XAGUSD,long,0.0,0.0,diff too small (0.00 < 1.5)
+2025-05-27,TRADE,XAGUSD,long,-0.4405,-0.4405,diff too small (0.00 < 1.5)
+2025-05-28,TRADE,XAGUSD,long,0.8576,0.8576,diff too small (0.00 < 1.5)
+2025-05-29,TRADE,XAGUSD,long,-1.1748,-1.1748,diff too small (0.02 < 1.5)
+2025-05-30,TRADE,XAGUSD,long,5.0803,5.0803,diff too small (0.00 < 1.5)
+2025-06-02,TRADE,XAGUSD,long,-0.1736,-0.1736,diff too small (0.00 < 1.5)
+2025-06-03,TRADE,XAGUSD,long,0.0464,0.0464,diff too small (0.00 < 1.5)
+2025-06-04,TRADE,XAGUSD,long,3.3894,3.3894,diff too small (0.00 < 1.5)
+2025-06-05,TRADE,XAGUSD,long,0.9415,0.9415,diff too small (0.00 < 1.5)
+2025-06-06,TRADE,XAGUSD,long,1.8404,1.8404,diff too small (0.00 < 1.5)
+2025-06-09,TRADE,XAGUSD,long,-0.398,-0.398,diff too small (0.00 < 1.5)
+2025-06-10,TRADE,XAGUSD,long,-1.029,-1.029,diff too small (0.00 < 1.5)
+2025-06-11,TRADE,XAGUSD,long,0.13,0.13,diff too small (0.00 < 1.5)
+2025-06-12,TRADE,XAGUSD,long,0.1878,0.1878,diff too small (0.00 < 1.5)
+2025-06-13,TRADE,XAGUSD,long,0.2701,0.2701,diff too small (0.00 < 1.5)
+2025-06-16,TRADE,XAGUSD,long,1.9544,1.9544,diff too small (0.00 < 1.5)
+2025-06-17,TRADE,XAGUSD,long,-0.6039,-0.6039,diff too small (0.00 < 1.5)
+2025-06-18,TRADE,XAGUSD,long,0.0,0.0,diff too small (0.00 < 1.5)
+2025-06-20,TRADE,XAGUSD,long,0.492,0.492,diff too small (0.00 < 1.5)
+2025-06-23,TRADE,XAGUSD,long,-1.2502,-1.2502,diff too small (0.56 < 1.5)
+2025-06-24,TRADE,XAGUSD,long,1.0756,1.0756,diff too small (0.00 < 1.5)
+2025-06-25,TRADE,XAGUSD,long,1.3884,1.3884,diff too small (0.00 < 1.5)
+2025-06-26,TRADE,XAGUSD,long,-1.5006,-1.5006,diff too small (0.00 < 1.5)
+2025-06-27,TRADE,XAGUSD,long,-0.5134,-0.5134,diff too small (0.00 < 1.5)
+2025-06-30,TRADE,XAGUSD,long,0.6415,0.6415,diff too small (0.00 < 1.5)
+2025-07-01,TRADE,XAGUSD,long,0.9534,0.9534,diff too small (0.00 < 1.5)
+2025-07-02,TRADE,XAGUSD,long,0.9828,0.9828,diff too small (0.00 < 1.5)
+2025-07-03,TRADE,XAGUSD,long,-0.0245,-0.0245,diff too small (0.00 < 1.5)
+2025-07-04,TRADE,XAGUSD,long,-0.4351,-0.4351,diff too small (0.00 < 1.5)
+2025-07-07,TRADE,XAGUSD,long,-0.3906,-0.3906,diff too small (0.00 < 1.5)
+2025-07-08,TRADE,XAGUSD,long,-0.3318,-0.3318,diff too small (0.93 < 1.5)
+2025-07-09,TRADE,XAGJPY,long,1.3799,1.8899,"JPY weakening (diff=2.01, accel=-2.964)"
+2025-07-10,TRADE,XAGJPY,long,4.5468,4.4225,"JPY weakening (diff=1.55, accel=-2.589)"
+2025-07-11,TRADE,XAGUSD,long,-0.5533,-0.5533,diff too small (1.45 < 1.5)
+2025-07-14,TRADE,XAGJPY,long,-1.3009,-1.6328,"JPY weakening (diff=2.51, accel=-2.831)"
+2025-07-15,TRADE,XAGJPY,long,0.7062,0.0502,"JPY weakening (diff=2.60, accel=-0.961)"
+2025-07-16,TRADE,XAGJPY,long,0.024,0.5363,"JPY weakening (diff=2.47, accel=-0.144)"
+2025-07-17,TRADE,XAGJPY,long,0.7367,0.4388,"JPY weakening (diff=2.10, accel=-0.242)"
+2025-07-18,TRADE,XAGJPY,long,2.2895,2.2971,"JPY weakening (diff=2.67, accel=-0.544)"
+2025-07-21,TRADE,XAGUSD,long,0.5601,0.5601,accel not confirmed for JPY
+2025-07-22,TRADE,XAGUSD,long,-0.1068,-0.1068,diff too small (0.64 < 1.5)
+2025-07-23,TRADE,XAGUSD,long,-0.6543,-0.6543,diff too small (0.00 < 1.5)
+2025-07-24,TRADE,XAGUSD,long,-2.1886,-2.1886,diff too small (0.00 < 1.5)
+2025-07-25,TRADE,XAGUSD,long,-0.3694,-0.3694,diff too small (0.00 < 1.5)
+2025-07-28,TRADE,XAGUSD,long,0.1525,0.1525,diff too small (0.46 < 1.5)
+2025-07-29,TRADE,XAGJPY,long,-1.3847,-1.3601,"JPY weakening (diff=2.70, accel=-1.100)"
+2025-07-30,TRADE,XAGJPY,long,-2.1854,-2.6993,"JPY weakening (diff=3.60, accel=-2.030)"
+2025-07-31,TRADE,XAGJPY,long,1.6856,0.6429,"JPY weakening (diff=4.98, accel=-2.715)"
+2025-08-01,TRADE,XAGJPY,long,-1.1984,1.1009,"JPY weakening (diff=5.22, accel=-2.986)"
+2025-08-04,TRADE,XAGNZD,long,1.283,1.3309,"NZD weakening (diff=2.41, accel=-2.138)"
+2025-08-05,TRADE,XAGUSD,long,0.2096,0.2096,diff too small (0.84 < 1.5)
+2025-08-06,TRADE,XAGUSD,long,1.038,1.038,diff too small (1.09 < 1.5)
+2025-08-07,TRADE,XAGUSD,long,0.6788,0.6788,diff too small (0.00 < 1.5)
+2025-08-08,TRADE,XAGUSD,long,-1.9653,-1.9653,diff too small (0.00 < 1.5)
+2025-08-11,TRADE,XAGUSD,long,0.6293,0.6293,diff too small (0.21 < 1.5)
+2025-08-12,TRADE,XAGUSD,long,1.5832,1.5832,diff too small (0.86 < 1.5)
+2025-08-13,TRADE,XAGUSD,long,-1.3429,-1.3429,diff too small (0.00 < 1.5)
+2025-08-14,TRADE,XAGUSD,long,-0.2317,-0.2317,diff too small (0.00 < 1.5)
+2025-08-15,TRADE,XAGUSD,long,0.1504,0.1504,diff too small (0.66 < 1.5)
+2025-08-18,TRADE,XAGUSD,long,-1.8181,-1.8181,diff too small (0.43 < 1.5)
+2025-08-19,TRADE,XAGUSD,long,1.1916,1.1916,diff too small (0.91 < 1.5)
+2025-08-20,TRADE,XAGNZD,long,2.0567,0.854,"NZD weakening (diff=1.77, accel=-1.717)"
+2025-08-21,TRADE,XAGNZD,long,2.67,2.5666,"NZD weakening (diff=3.69, accel=-3.586)"
+2025-08-22,TRADE,XAGNZD,long,-1.5645,-0.8358,"NZD weakening (diff=3.44, accel=-1.976)"
+2025-08-25,TRADE,XAGNZD,long,0.0311,-0.2456,"NZD weakening (diff=1.93, accel=-1.154)"
+2025-08-26,TRADE,XAGNZD,long,0.1195,0.2773,"NZD weakening (diff=2.38, accel=-1.296)"
+2025-08-27,TRADE,XAGUSD,long,1.2949,1.2949,diff too small (1.28 < 1.5)
+2025-08-28,TRADE,XAGUSD,long,2.5772,2.5772,diff too small (0.07 < 1.5)
+2025-08-29,TRADE,XAGUSD,long,0.0,0.0,diff too small (0.00 < 1.5)
+2025-09-02,TRADE,XAGUSD,long,1.1468,1.1468,diff too small (0.00 < 1.5)
+2025-09-03,TRADE,XAGUSD,long,-1.5189,-1.5189,diff too small (1.24 < 1.5)
+2025-09-04,TRADE,XAGUSD,long,0.3984,0.3984,diff too small (1.04 < 1.5)
+2025-09-05,TRADE,XAGNZD,long,0.213,0.857,"NZD weakening (diff=2.27, accel=-1.593)"
+2025-09-08,TRADE,XAGUSD,long,-1.3228,-1.3228,diff too small (1.33 < 1.5)
+2025-09-09,TRADE,XAGUSD,long,0.6238,0.6238,diff too small (0.11 < 1.5)
+2025-09-10,TRADE,XAGUSD,long,1.3712,1.3712,diff too small (0.14 < 1.5)
+2025-09-11,TRADE,XAGUSD,long,1.6548,1.6548,diff too small (0.38 < 1.5)
+2025-09-12,TRADE,XAGUSD,long,0.3067,0.3067,diff too small (0.00 < 1.5)
+2025-09-15,TRADE,XAGUSD,long,-0.1082,-0.1082,diff too small (0.00 < 1.5)
+2025-09-16,TRADE,XAGUSD,long,-1.7636,-1.7636,diff too small (0.00 < 1.5)
+2025-09-17,TRADE,XAGUSD,long,-0.036,-0.036,diff too small (0.00 < 1.5)
+2025-09-18,TRADE,XAGUSD,long,1.9877,1.9877,diff too small (0.00 < 1.5)
+2025-09-19,TRADE,XAGUSD,long,2.9693,2.9693,diff too small (0.74 < 1.5)
+2025-09-22,TRADE,XAGNZD,long,0.5965,0.8973,"NZD weakening (diff=1.98, accel=-2.277)"
+2025-09-23,TRADE,XAGNZD,long,-0.7394,-0.9391,"NZD weakening (diff=1.71, accel=-1.818)"
+2025-09-24,TRADE,XAGNZD,long,2.8106,2.1016,"NZD weakening (diff=2.50, accel=-2.840)"
+2025-09-25,TRADE,XAGNZD,long,4.368,3.4096,"NZD weakening (diff=3.05, accel=-2.178)"
+2025-09-26,TRADE,XAGNZD,long,0.5838,0.8459,"NZD weakening (diff=4.18, accel=-1.829)"
+2025-09-29,TRADE,XAGNZD,long,-0.827,-0.7702,"NZD weakening (diff=3.05, accel=-0.500)"
+2025-09-30,TRADE,XAGNZD,long,1.9867,2.242,"NZD weakening (diff=2.88, accel=-0.657)"
+2025-10-01,TRADE,XAGUSD,long,-2.7279,-2.7279,accel not confirmed for NZD
+2025-10-02,TRADE,XAGUSD,long,3.4717,3.4717,diff too small (0.86 < 1.5)
+2025-10-03,TRADE,XAGUSD,long,1.019,1.019,diff too small (0.58 < 1.5)
+2025-10-06,TRADE,XAGUSD,long,-1.878,-1.878,diff too small (0.99 < 1.5)
+2025-10-07,TRADE,XAGJPY,long,4.3106,3.1306,"JPY weakening (diff=1.83, accel=-0.559)"
+2025-10-08,TRADE,XAGJPY,long,-3.3135,-3.7118,"JPY weakening (diff=3.54, accel=-2.585)"
+2025-10-09,TRADE,XAGJPY,long,0.3749,0.1878,"JPY weakening (diff=4.74, accel=-4.234)"
+2025-10-10,TRADE,XAGJPY,long,6.1658,6.8005,"JPY weakening (diff=5.36, accel=-4.789)"
+2025-10-13,TRADE,XAGNZD,long,0.5303,0.367,"NZD weakening (diff=4.11, accel=-2.211)"
+2025-10-14,TRADE,XAGNZD,long,1.5527,1.5085,"NZD weakening (diff=4.94, accel=-2.717)"
+2025-10-15,TRADE,XAGNZD,long,3.7978,3.8181,"NZD weakening (diff=4.70, accel=-1.877)"
+2025-10-16,TRADE,XAGNZD,long,-6.1368,-5.9578,"NZD weakening (diff=3.96, accel=-1.097)"
+2025-10-17,TRADE,XAGUSD,long,2.5168,2.5168,accel not confirmed for NZD
+2025-10-20,TRADE,XAGUSD,long,-7.1774,-7.1774,accel not confirmed for NZD
+2025-10-21,TRADE,XAGUSD,long,0.0232,0.0232,diff too small (1.40 < 1.5)
+2025-10-22,TRADE,XAGUSD,long,2.1512,2.1512,accel not confirmed for JPY
+2025-10-23,TRADE,XAGJPY,long,0.209,-0.2166,"JPY weakening (diff=1.75, accel=-0.429)"
+2025-10-24,TRADE,XAGJPY,long,-3.4623,-3.7518,"JPY weakening (diff=1.83, accel=-1.684)"
+2025-10-27,TRADE,XAGJPY,long,0.9651,1.2091,"JPY weakening (diff=2.69, accel=-1.621)"
+2025-10-28,TRADE,XAGJPY,long,0.6274,1.2647,"JPY weakening (diff=2.63, accel=-1.883)"
+2025-10-29,TRADE,XAGUSD,long,1.4815,1.4815,diff too small (1.31 < 1.5)
+2025-10-30,TRADE,XAGJPY,long,-0.1318,-0.8962,"JPY weakening (diff=2.76, accel=-0.818)"
+2025-10-31,TRADE,XAGJPY,long,-0.0296,-0.2209,"JPY weakening (diff=3.77, accel=-1.145)"
+2025-11-03,TRADE,XAGUSD,long,-1.5829,-1.5829,accel not confirmed for JPY
+2025-11-04,TRADE,XAGUSD,long,1.5553,1.5553,accel not confirmed for JPY
+2025-11-05,TRADE,XAGNZD,long,-0.6126,-0.1442,"NZD weakening (diff=4.97, accel=-2.950)"
+2025-11-06,TRADE,XAGNZD,long,1.0008,0.4666,"NZD weakening (diff=4.01, accel=-1.852)"
+2025-11-07,TRADE,XAGNZD,long,4.7176,4.4984,"NZD weakening (diff=3.40, accel=-1.250)"
+2025-11-10,TRADE,XAGNZD,long,0.5826,0.8789,"NZD weakening (diff=3.24, accel=-0.762)"
+2025-11-11,TRADE,XAGUSD,long,5.3617,5.3617,accel not confirmed for NZD
+2025-11-12,TRADE,XAGUSD,long,-0.4838,-0.4838,accel not confirmed for JPY
+2025-11-13,TRADE,XAGJPY,long,-4.7295,-4.6803,"JPY weakening (diff=2.22, accel=-0.293)"
+2025-11-14,TRADE,XAGJPY,long,0.0381,0.0692,"JPY weakening (diff=2.56, accel=-1.895)"
+2025-11-17,TRADE,XAGJPY,long,0.0978,-0.3457,"JPY weakening (diff=2.30, accel=-0.869)"
+2025-11-18,TRADE,XAGJPY,long,0.8522,0.6739,"JPY weakening (diff=2.92, accel=-1.108)"
+2025-11-19,TRADE,XAGJPY,long,-0.1507,-1.0691,"JPY weakening (diff=2.97, accel=-0.806)"
+2025-11-20,TRADE,XAGJPY,long,-0.506,-0.7443,"JPY weakening (diff=4.34, accel=-1.090)"
+2025-11-21,TRADE,XAGJPY,long,0.4097,0.8461,"JPY weakening (diff=4.88, accel=-0.968)"
+2025-11-24,TRADE,XAGJPY,long,1.4327,1.2705,"JPY weakening (diff=4.29, accel=-0.712)"
+2025-11-25,TRADE,XAGJPY,long,3.422,3.8913,"JPY weakening (diff=4.23, accel=-0.442)"
+2025-11-26,TRADE,XAGUSD,long,0.0,0.0,accel not confirmed for JPY
+2025-11-28,TRADE,XAGUSD,long,3.4936,3.4936,diff too small (1.09 < 1.5)
+2025-12-01,TRADE,XAGUSD,long,-0.7446,-0.7446,diff too small (0.88 < 1.5)
+2025-12-02,TRADE,XAGUSD,long,-0.1069,-0.1069,diff too small (0.85 < 1.5)
+2025-12-03,TRADE,XAGUSD,long,-1.8543,-1.8543,diff too small (1.10 < 1.5)
+2025-12-04,TRADE,XAGUSD,long,2.7706,2.7706,diff too small (0.44 < 1.5)
+2025-12-05,TRADE,XAGUSD,long,-1.1006,-1.1006,diff too small (1.02 < 1.5)
+2025-12-08,TRADE,XAGUSD,long,4.1364,4.1364,diff too small (0.86 < 1.5)
+2025-12-09,TRADE,XAGUSD,long,0.349,0.349,diff too small (1.47 < 1.5)
+2025-12-10,TRADE,XAGJPY,long,5.172,5.8795,"JPY weakening (diff=2.51, accel=-0.847)"
+2025-12-11,TRADE,XAGUSD,long,-4.0154,-4.0154,diff too small (1.40 < 1.5)
+2025-12-12,TRADE,XAGUSD,long,2.5716,2.5716,diff too small (0.82 < 1.5)
+2025-12-15,TRADE,XAGUSD,long,-0.3813,-0.3813,diff too small (1.12 < 1.5)
+2025-12-16,TRADE,XAGUSD,long,5.6411,5.6411,diff too small (0.15 < 1.5)
+2025-12-17,TRADE,XAGUSD,long,-2.4835,-2.4835,diff too small (0.00 < 1.5)
+2025-12-18,TRADE,XAGUSD,long,3.488,3.488,diff too small (0.18 < 1.5)
+2025-12-19,TRADE,XAGUSD,long,1.5872,1.5872,diff too small (0.00 < 1.5)
+2025-12-22,TRADE,XAGJPY,long,3.2719,3.7979,"JPY weakening (diff=1.68, accel=-0.388)"
+2025-12-23,TRADE,XAGUSD,long,0.7746,0.7746,diff too small (1.02 < 1.5)
+2025-12-24,TRADE,XAGUSD,long,7.6797,7.6797,diff too small (0.51 < 1.5)
+2025-12-26,TRADE,XAGUSD,long,-8.6682,-8.6682,diff too small (0.46 < 1.5)
+2025-12-29,TRADE,XAGUSD,long,10.7621,10.7621,diff too small (0.76 < 1.5)
+2025-12-30,TRADE,XAGUSD,long,-9.3571,-9.3571,diff too small (0.00 < 1.5)
+2025-12-31,TRADE,XAGUSD,long,0.6017,0.6017,diff too small (0.37 < 1.5)
+2026-01-02,TRADE,XAGUSD,long,7.9483,7.9483,diff too small (0.87 < 1.5)
+2026-01-05,TRADE,XAGUSD,long,5.7324,5.7324,diff too small (1.38 < 1.5)
+2026-01-06,TRADE,XAGUSD,long,-4.2158,-4.2158,diff too small (0.51 < 1.5)
+2026-01-07,TRADE,XAGUSD,long,-3.1361,-3.1361,diff too small (0.96 < 1.5)
+2026-01-08,TRADE,XAGUSD,long,5.5785,5.5785,diff too small (0.74 < 1.5)
+2026-01-09,TRADE,XAGUSD,long,7.2588,7.2588,diff too small (0.74 < 1.5)
+2026-01-12,TRADE,XAGJPY,long,1.3928,1.4975,"JPY weakening (diff=2.34, accel=-0.558)"
+2026-01-13,TRADE,XAGJPY,long,6.612,5.813,"JPY weakening (diff=2.33, accel=-1.131)"
+2026-01-14,TRADE,XAGJPY,long,0.6146,1.1082,"JPY weakening (diff=3.17, accel=-1.447)"
+2026-01-15,TRADE,XAGJPY,long,-4.0023,-4.1197,"JPY weakening (diff=2.65, accel=-1.364)"
+2026-01-16,TRADE,XAGJPY,long,0.0,0.0,"JPY weakening (diff=2.63, accel=-1.435)"
+2026-01-20,TRADE,XAGUSD,long,-2.1188,-2.1188,diff too small (1.35 < 1.5)
+2026-01-21,TRADE,XAGUSD,long,4.0842,4.0842,diff too small (0.00 < 1.5)
+2026-01-22,TRADE,XAGUSD,long,5.1565,5.1565,diff too small (0.83 < 1.5)
+2026-01-23,TRADE,XAGUSD,long,14.0253,14.0253,diff too small (0.42 < 1.5)
+2026-01-26,TRADE,XAGUSD,long,-8.3047,-8.3047,diff too small (0.00 < 1.5)
+2026-01-27,TRADE,XAGUSD,long,7.1908,7.1908,diff too small (0.00 < 1.5)
+2026-01-28,TRADE,XAGUSD,long,0.8187,0.8187,diff too small (0.00 < 1.5)
+2026-01-29,TRADE,XAGUSD,long,-31.3468,-31.3468,diff too small (0.00 < 1.5)
+2026-01-30,TRADE,XAGUSD,long,-1.9313,-1.9313,diff too small (0.00 < 1.5)
+2026-02-02,TRADE,XAGUSD,long,8.1586,8.1586,diff too small (0.00 < 1.5)
+2026-02-03,TRADE,XAGUSD,long,1.3523,1.3523,diff too small (0.00 < 1.5)
+2026-02-04,TRADE,XAGUSD,long,-9.0727,-9.0727,diff too small (0.17 < 1.5)
+2026-02-05,TRADE,XAGUSD,long,0.2692,0.2692,diff too small (1.05 < 1.5)
+2026-02-06,TRADE,XAGUSD,long,6.946,6.946,diff too small (1.44 < 1.5)
+2026-02-09,TRADE,XAGUSD,long,-2.2507,-2.2507,diff too small (0.00 < 1.5)
+2026-02-10,TRADE,XAGUSD,long,4.408,4.408,diff too small (0.00 < 1.5)
+2026-02-11,TRADE,XAGUSD,long,-9.8001,-9.8001,diff too small (0.00 < 1.5)
+2026-02-12,TRADE,XAGUSD,long,3.0511,3.0511,diff too small (0.00 < 1.5)
+2026-02-13,TRADE,XAGUSD,long,0.0,0.0,diff too small (0.00 < 1.5)
+2026-02-17,TRADE,XAGUSD,long,5.5305,5.5305,diff too small (0.00 < 1.5)
+2026-02-18,TRADE,XAGUSD,long,0.0722,0.0722,diff too small (0.00 < 1.5)
+2026-02-19,TRADE,XAGUSD,long,6.0826,6.0826,diff too small (0.00 < 1.5)
+2026-02-20,TRADE,XAGUSD,long,5.153,5.153,diff too small (0.00 < 1.5)
+2026-02-23,TRADE,XAGUSD,long,1.0795,1.0795,diff too small (0.00 < 1.5)
+2026-02-24,TRADE,XAGUSD,long,3.9814,3.9814,diff too small (0.15 < 1.5)
+2026-02-25,TRADE,XAGJPY,long,-4.1373,-4.3337,"JPY weakening (diff=1.74, accel=-3.394)"
+2026-02-26,TRADE,XAGUSD,long,8.491,8.491,diff too small (0.69 < 1.5)

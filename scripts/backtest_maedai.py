@@ -241,82 +241,6 @@ def make_notrail_atr_engine(sl_atr=1.5, rr=3.0, long_biased=True, risk_pct=0.03)
 
 
 # ──────────────────────────────────────────────
-# シグナルフィルターユーティリティ
-# ──────────────────────────────────────────────
-
-def seasonal_filter(sig_fn, skip_months=(6, 7)):
-    """
-    特定月のエントリーをスキップするフィルター。
-
-    分析結果:
-    - 6月: ゴールド横横相場 → DCブレイクが全てダマシ → WR=17%以下
-    - 7月: ゴールド微動 (+0.2%) → WR=0-22%
-    - 6+7月スキップで: PF 1.454→1.658, ROI 134%→168%, WR 33%→35.6%
-
-    Args:
-        sig_fn:      ラップするシグナル関数
-        skip_months: スキップする月のタプル (デフォルト: 6月と7月)
-    """
-    def wrapped(bars):
-        sigs = sig_fn(bars)
-        filtered = sigs.copy()
-        filtered[bars.index.month.isin(skip_months)] = None
-        return filtered
-    return wrapped
-
-
-def atr_limit_entry(sig_fn, atr_k=0.3, expire_bars=4, atr_period=14):
-    """
-    ATR指値エントリーフィルター (richmanbtcメソッド)。
-
-    richmanbtcの核心戦略: 「close - ATR×k の位置に指値注文」
-    → ブレイクアウト後に自然な押し目で入る (より有利な価格)
-    → WR改善、MaxDD低下の効果あり
-
-    Bar-levelシミュレーション:
-    - シグナル発生: bar_i で 'long' シグナル
-    - 指値設定: entry_limit = bar_i.close - ATR × atr_k
-    - bar_i+1 以降の expire_bars 本以内で low <= entry_limit なら約定
-    - 期限内に約定しなければキャンセル (トレードスキップ)
-
-    効果 (UNION2d38_RR3に適用、全期間2021-2026):
-    - atr_k=0.3, expire=4: WR 33%→35%, PF 1.454→1.574, MaxDD 23.5→22.0%
-    - atr_k=0.3, expire=8: WR 33%→36%, PF 1.454→1.625, MaxDD 23.5→25.1%
-    - DC2d + atr_k=0.3:    WR 32%→37%, PF 1.369→1.735 (大幅改善!)
-
-    Args:
-        sig_fn:      ラップするシグナル関数
-        atr_k:       指値距離のATR倍数 (デフォルト: 0.3)
-        expire_bars: 指値の有効期間 (バー本数、デフォルト: 4本=16時間)
-        atr_period:  ATR計算期間 (デフォルト: 14)
-    """
-    def _calc_atr(bars, period):
-        tr = pd.DataFrame({
-            'hl': bars['high'] - bars['low'],
-            'hc': (bars['high'] - bars['close'].shift()).abs(),
-            'lc': (bars['low'] - bars['close'].shift()).abs(),
-        }).max(axis=1)
-        return tr.rolling(period).mean()
-
-    def wrapped(bars):
-        sigs = sig_fn(bars)
-        atr = _calc_atr(bars, atr_period)
-        filtered = pd.Series([None] * len(bars), index=bars.index, dtype=object)
-        for i in range(len(bars)):
-            if sigs.iloc[i] != 'long':
-                continue
-            if pd.isna(atr.iloc[i]):
-                continue
-            limit = bars['close'].iloc[i] - atr.iloc[i] * atr_k
-            for j in range(1, min(expire_bars + 1, len(bars) - i)):
-                if bars['low'].iloc[i + j] <= limit:
-                    filtered.iloc[i + j] = 'long'
-                    break
-        return filtered
-    return wrapped
-
-
-# ──────────────────────────────────────────────
 # データ
 # ──────────────────────────────────────────────
 
@@ -690,43 +614,6 @@ def build_strategies():
         ('NT_1H_DC5d_RR3',    sig_dc_fast('1h', lookback_days=5, ema_filter=False, confirm_bars=0), '1h_nt3'),
         # ── 1H: DC3日ブレイク + RR3 (最大1H頻度) ──
         ('NT_1H_DC3d_RR3',    sig_dc_fast('1h', lookback_days=3, ema_filter=False, confirm_bars=0), '1h_nt3'),
-
-        # ══════════════════════════════════════════════════════════════
-        # ミッション5.1: 季節性フィルター追加 (6月・7月スキップ)
-        #
-        # 分析で判明: 6月・7月はゴールド横横相場 → DCブレイクがダマシ連発
-        # - 6月: Gold -0.3%、WR=17%以下 → 全4戦略で負け月
-        # - 7月: Gold +0.2%、WR=0-22% → 全4戦略で負け月
-        # 効果: PF 1.454→1.658 (+14%), ROI 134%→168% (+25%), WR 33%→35.6%
-        # 取引数: 64.5/yr → 55.3/yr (50/yr基準はクリア)
-        # ══════════════════════════════════════════════════════════════
-
-        # ── SEAS: DC2日 OR RSI38 + 季節フィルター (最良戦略の改善版) ──
-        ('SEAS_UNION2d38_RR3', seasonal_filter(sig_aggressive_union('4h', ema_days=21, lookback_days_dc=2, rsi_thresh=38)), '4h_nt3'),
-        # ── SEAS: DC2日ブレイク + 季節フィルター ──
-        ('SEAS_DC2d_RR3',      seasonal_filter(sig_dc_fast('4h', lookback_days=2, ema_filter=False, confirm_bars=0)),        '4h_nt3'),
-        # ── SEAS: DC3日 OR RSI45 + 季節フィルター ──
-        ('SEAS_UNION3d45_RR3', seasonal_filter(sig_aggressive_union('4h', ema_days=21, lookback_days_dc=3, rsi_thresh=45)), '4h_nt3'),
-        # ── SEAS: DC3日 OR RSI40 + 季節フィルター ──
-        ('SEAS_UNION3d40_RR3', seasonal_filter(sig_aggressive_union('4h', ema_days=21, lookback_days_dc=3, rsi_thresh=40)), '4h_nt3'),
-
-        # ══════════════════════════════════════════════════════════════
-        # ミッション5.2: ATR指値エントリー (richmanbtcメソッド)
-        #
-        # richmanbtcの核心: close - ATR×0.3 の指値でブレイク後の押し目を取る
-        # 検証結果:
-        # - LMT03_DC2d:      PF 1.369→1.735 (+27%), WR 32%→37% ★
-        # - SEAS_LMT03_UNION3d45: PF→1.665, MaxDD=18.9% ★
-        # - LMT03_UNION2d38_8B:   PF→1.625, T/yr=57.6 ★
-        # 原理: 押し目で入ることで実効エントリー価格が改善、SLまでの距離が短縮
-        # ══════════════════════════════════════════════════════════════
-
-        # ── ATR指値: DC2日ブレイク (季節なし) ──
-        ('LMT_DC2d_RR3',        atr_limit_entry(sig_dc_fast('4h', lookback_days=2, ema_filter=False, confirm_bars=0), atr_k=0.3, expire_bars=4), '4h_nt3'),
-        # ── ATR指値: DC2日 OR RSI38 (最積極 + 押し目) ──
-        ('LMT_UNION2d38_RR3',   atr_limit_entry(sig_aggressive_union('4h', ema_days=21, lookback_days_dc=2, rsi_thresh=38), atr_k=0.3, expire_bars=8), '4h_nt3'),
-        # ── ATR指値: 季節フィルター + DC3日 OR RSI45 (安定性最高) ──
-        ('SEAS_LMT_UNION3d45_RR3', seasonal_filter(atr_limit_entry(sig_aggressive_union('4h', ema_days=21, lookback_days_dc=3, rsi_thresh=45), atr_k=0.3, expire_bars=4)), '4h_nt3'),
     ]
 
 
@@ -943,17 +830,6 @@ def print_ranking(results, trade_start='2020-01-01'):
                   f"Trades={r.get('total_trades')}")
             pyr = r.get('pyramid_trade_rate_pct', 0)
             print(f"    Pyramid追加率={pyr:.1f}%  AvgDuration={r.get('avg_duration_hours')}h")
-            # richmanbtc p-mean法 安定性スコア
-            p_mean = r.get('p_mean')
-            p_err  = r.get('p_mean_error_rate')
-            wins_seg = r.get('winning_segments')
-            if p_mean is not None:
-                # スウィング向け評価: 全5区間プラスが理想
-                seg_ok = '★5/5完全安定' if wins_seg == 5 else (
-                         '★4/5安定' if wins_seg == 4 else f'△{wins_seg}/5')
-                print(f"    [p-mean法] 安定区間={seg_ok}  p_mean={p_mean:.4f}  "
-                      f"error_rate={p_err:.2e}  "
-                      f"(スウィング正常範囲: p_mean=0.10-0.25)")
         print()
 
 

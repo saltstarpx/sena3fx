@@ -1,0 +1,19 @@
+{
+  "generated_at": "2026-02-27T23:42:36.514873",
+  "daily": {
+    "dynamic_long_cumulative": 150.29,
+    "xagusd_fixed_cumulative": 154.97,
+    "dynamic_short_cumulative": -159.31,
+    "total_bars": 1279
+  },
+  "hourly": {
+    "dynamic_long_cumulative": 100.88,
+    "xagusd_fixed_cumulative": 122.68,
+    "dynamic_short_cumulative": -124.25,
+    "total_bars": 17075
+  },
+  "latest_recommendation": {
+    "long": "XAGNZD",
+    "short": "XAGUSD"
+  }
+}

@@ -1,16 +1,11 @@
 """
-改良版ティックレベルバックテストエンジン v4.1
+改良版ティックレベルバックテストエンジン v4.0
 =============================================
 v3.0からの追加:
   - ピラミッティング（含み益時に追加エントリー）
   - シーズナリティフィルター（allowed_months）
   - 月次PnL統計
   - 複利対応（資金比率リスク管理で自動スケール）
-
-v4.1からの追加 (richmanbtc methodology):
-  - p-mean法による安定性検証 (5区間分割t検定)
-    出典: richmanbtc note「ストラテジーの検証。p平均法」
-    基準: p_mean < 0.03, p_mean_error_rate < 0.00001
 """
 import numpy as np
 import pandas as pd
@@ -18,8 +13,6 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Callable
 import json
 import os
-import csv
-from math import factorial
 
 
 class BacktestEngine:
@@ -561,71 +554,6 @@ class BacktestEngine:
             years_active = 1.0
         trades_per_year = n / years_active
 
-        # ── Sharpe Ratio / Calmar Ratio (Task3: 評価軸多元化) ──
-        sharpe_ratio = None
-        calmar_ratio = None
-        try:
-            # 日次リターン系列から算出
-            pnl_list = [t['pnl'] for t in trades]
-            # トレードごとの pnl_pct を使って equity curve を構築
-            eq = [self.init_cash]
-            for t in trades:
-                eq.append(eq[-1] + t['pnl'])
-            eq = np.array(eq[1:])  # init_cash を除去
-            # 日次PnL → トレードPnLで近似 (トレード間隔が不均一のため)
-            trade_returns = np.array([t['pnl'] / max(eq[max(0, j - 1)], 1)
-                                      for j, t in enumerate(trades)])
-            if len(trade_returns) >= 2 and np.std(trade_returns) > 0:
-                # 年率換算: trades_per_year を使って annualize
-                avg_r = np.mean(trade_returns)
-                std_r = np.std(trade_returns, ddof=1)
-                ann_factor = np.sqrt(max(trades_per_year, 1))
-                sharpe_ratio = round(float(avg_r / std_r * ann_factor), 3)
-            # Calmar Ratio = 年率リターン / 最大DD
-            ann_return_pct = ret / max(years_active, 1 / 12)
-            if max_dd > 0:
-                calmar_ratio = round(float(ann_return_pct / (max_dd * 100)), 3)
-        except Exception:
-            pass
-
-        # ── richmanbtc p-mean法 (5区間安定性検証) ──
-        # 出典: note.com/btcml「ストラテジーの検証。p平均法」
-        # バックテスト期間を5等分し、各区間でt検定。
-        # 全区間で安定して勝てるか検証する。
-        # error_rate = (mean(p)*N)^N / N!
-        #
-        # 【スウィング戦略への適用注意】
-        # richmanbtcの基準(p_mean<0.03)はHFT用 (1区間1000+取引)。
-        # スウィング (1区間~26取引, WR=37%, RR=3) の理論値: p_mean≈0.10-0.25
-        # → 代わりに「全N区間でプラス」= winning_segments/N を使う。
-        # 全5区間プラス = 完全安定。4/5区間プラス = 許容範囲。
-        p_mean_val = None
-        p_mean_error_rate = None
-        winning_segments = None
-        p_mean_segments = 5
-        try:
-            from scipy import stats as _stats
-            pnl_series = [t['pnl'] for t in trades]
-            seg_size = max(1, len(pnl_series) // p_mean_segments)
-            p_values = []
-            seg_means = []
-            for seg_i in range(p_mean_segments):
-                seg = pnl_series[seg_i * seg_size:(seg_i + 1) * seg_size]
-                if len(seg) >= 3:
-                    t_stat, p_val = _stats.ttest_1samp(seg, 0)
-                    # 片側検定: 母平均>0 を検定
-                    p_one = p_val / 2 if t_stat > 0 else 1.0 - p_val / 2
-                    p_values.append(p_one)
-                    seg_means.append(np.mean(seg))
-            if p_values:
-                p_mean_val = float(np.mean(p_values))
-                N = len(p_values)
-                p_mean_error_rate = float((p_mean_val * N) ** N / factorial(N))
-                # スウィング向け安定指標: 勝ちセグメント数/全体
-                winning_segments = sum(1 for m in seg_means if m > 0)
-        except ImportError:
-            pass  # scipy未インストールの場合はスキップ
-
         # 合格判定（設定可能な基準）
         wr_min = self.target_min_wr
         dd_max = self.target_max_dd
@@ -642,7 +570,7 @@ class BacktestEngine:
         # 評価関数の主基準ではなく「付加情報」として提供
         hold_8_24h = (8.0 <= avg_dur <= 24.0)
 
-        result = {
+        return {
             'strategy': name,
             'engine': 'yagami_v4',
             'timeframe': freq,
@@ -665,47 +593,5 @@ class BacktestEngine:
             'passed': passed,
             'trades_per_year': round(trades_per_year, 1),
             'hold_8_24h': hold_8_24h,   # 8-24h保有ゾーン (ユーザー黄金ゾーン)
-            # richmanbtc p-mean法 (5区間安定性スコア)
-            # p_mean < 0.03 はHFT基準。スウィング向け基準: winning_segments=5/5
-            'p_mean': round(p_mean_val, 4) if p_mean_val is not None else None,
-            'p_mean_error_rate': float(f'{p_mean_error_rate:.2e}') if p_mean_error_rate is not None else None,
-            'winning_segments': winning_segments,  # 5区間中のプラス区間数 (5/5が最良)
-            # Sharpe / Calmar (Task3: 評価軸多元化)
-            'sharpe_ratio': sharpe_ratio,
-            'calmar_ratio': calmar_ratio,
             'trades': trades,
         }
-        # ── パフォーマンスログへ自動追記 (dashboard.html 用) ──
-        self._append_performance_log(result)
-        return result
-
-    def _append_performance_log(self, r):
-        """
-        バックテスト結果を results/performance_log.csv に自動追記。
-        ダッシュボード (dashboard.html) の時系列可視化に使用。
-        """
-        log_path = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-            'results', 'performance_log.csv',
-        )
-        os.makedirs(os.path.dirname(log_path), exist_ok=True)
-        header = ['timestamp', 'strategy_name', 'parameters', 'timeframe',
-                  'sharpe_ratio', 'profit_factor', 'max_drawdown',
-                  'win_rate', 'trades']
-        write_header = not os.path.exists(log_path)
-        with open(log_path, 'a', newline='', encoding='utf-8') as f:
-            w = csv.writer(f)
-            if write_header:
-                w.writerow(header)
-            w.writerow([
-                datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ'),
-                r.get('strategy', ''),
-                r.get('timeframe', ''),
-                r.get('timeframe', ''),
-                r.get('sharpe_ratio', ''),
-                r.get('profit_factor', ''),
-                r.get('max_drawdown_pct', ''),
-                r.get('win_rate_pct', ''),
-                r.get('total_trades', ''),
-            ])
-
