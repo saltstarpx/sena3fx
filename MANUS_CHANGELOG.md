@@ -5,6 +5,47 @@ Claude Codeとの連携において、何が変更されたかを把握するた
 
 ---
 
+## [2026-03-01] v8成果の検証と戦略確立
+
+**変更者:** Claude Code
+**変更種別:** v8成果の検証と戦略確立
+**指示書:** prompt_for_claude_code_v9.md
+
+### 変更内容
+
+- **v8成果物のプッシュ確認**: `strategies/`・`docs/` は `claude/add-trading-backtest-ePJat` ブランチ上に既にプッシュ済みを確認
+- **Union戦略の確立**: `strategies/union_strategy.py` として単独実行可能スクリプトを作成。`docs/strategy_union.md` にロジックと実績を記録。v9再現バックテストで Sharpe 2.817 (目標1.5超え) を確認
+- **USD強弱フィルター横展開**: DC30_EMA200 (Maedai) と YagamiFull_1H (Yagami) にフィルター適用。DC30はDonchianブレイクがUSD強時と重ならないためフィルター効果なし。YagamiFull_1H ではMDD 30.8%→29.0% (-1.8%) に微改善
+- **季節フィルターの戦略別最適化**: YagamiFull_1H は 7月+9月除外 (`SEASON_SKIP_JUL_SEP`) をデフォルト採用。YagamiA_4H は 9月がプラス月のため全月対象 (`SEASON_ALL`) を採用。`docs/filters_risk_manager.md` に記録
+
+### v9 主要バックテスト結果
+
+**Union戦略 (XAUUSD 2025 4H):**
+
+| 戦略 | PF | WR% | MDD% | Sharpe | Calmar |
+|------|:--:|:---:|:----:|:------:|:------:|
+| Union_4H (素) | 3.624 | 66.7% | 9.8% | **2.817** | 13.709 |
+| Union_4H+USD | 4.025 | 66.7% | 10.5% | 2.686 | 10.681 |
+
+**USD強弱フィルター横展開 (XAUUSD 2023-2026 4H/1H):**
+
+| 戦略 | PF | MDD% | Sharpe | Calmar | 変化 |
+|------|:--:|:----:|:------:|:------:|------|
+| DC30_EMA200 | 2.495 | 10.5% | 1.414 | 3.877 | — |
+| DC30_EMA200+USD | 2.495 | 10.5% | 1.414 | 3.877 | 変化なし |
+| YagamiFull_1H | 1.196 | 30.8% | 0.748 | 1.089 | — |
+| YagamiFull_1H+USD | 1.200 | 29.0% | 0.749 | 1.163 | MDD -1.8% |
+
+### 追加・変更ファイル
+
+| ファイル | 説明 |
+|:---|:---|
+| `strategies/union_strategy.py` | Union戦略 単独実行スクリプト |
+| `docs/strategy_union.md` | Union戦略ドキュメント (ロジック・パラメータ・実績) |
+| `docs/filters_risk_manager.md` | 戦略別季節フィルター決定事項 + USD横展開結果を追記 |
+
+---
+
 ## [2026-03-01] 開発フレームワークの刷新
 
 **変更者:** Claude Code
