@@ -1,0 +1,3 @@
+symbol,data_path,bars,period_start,period_end,sharpe_ratio,calmar_ratio,max_drawdown_pct,profit_factor,win_rate_pct,total_trades
+XAGUSD,XAGUSD_2025_4h.csv,1753,2025-01-02,2026-02-27,1.189,2.111,25.32,1.6112,57.58,33
+XAUUSD,XAUUSD_4h.csv,3714,2023-10-06,2026-02-27,1.718,5.971,23.51,1.8277,50.0,70

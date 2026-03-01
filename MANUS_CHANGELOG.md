@@ -31,6 +31,54 @@ git push origin main
 
 ---
 
+## [2026-03-01] v15: ユニバース拡張 + ADXフィルター検証
+
+**変更者:** Claude Code
+**変更種別:** Union戦略横展開 + シンプルレジームフィルター検証
+**指示書:** `prompt_for_claude_code_v15.md`
+
+### 新設ファイル
+- **`scripts/backtest_universe.py`** — Union_4H_Base を8商品に一括バックテスト（データなし商品は自動スキップ）
+- **`lib/approved_list.py`** — バックテスト結果から承認済み商品リストを生成（Sharpe>1.0 AND Trades>20）
+- **`scripts/backtest_adx_filter.py`** — XAGUSD に ADX(14)>25 フィルターを追加検証
+- **`results/universe_performance.csv`** — ユニバース全商品バックテスト結果
+- **`results/approved_universe.json`** — 承認済み商品リスト（JSON形式）
+
+### バックテスト結果: Task 1 ユニバース拡張
+
+利用可能データ: XAUUSD / XAGUSD (他6商品はデータなし → スキップ)
+
+| 商品 | Sharpe | Calmar | MDD% | PF | WR% | Trades | 期間 |
+|---|---|---|---|---|---|---|---|
+| XAUUSD | **1.718** | **5.971** | 23.5 | 1.828 | 50.0 | 70 | 2023-10〜2026-02 |
+| XAGUSD | 1.189 | 2.111 | 25.3 | 1.611 | 57.6 | 33 | 2025-01〜2026-02 |
+
+### Task 2: 承認リスト (`lib/approved_list.py`)
+- 承認条件: `Sharpe > 1.0` AND `Trades > 20`
+- 承認商品: **XAUUSD, XAGUSD** (2商品)
+- `python lib/approved_list.py` で標準出力、`--save` でJSON保存
+- 将来の実運用botが起動時に呼び出して取引対象を動的に決定
+
+### バックテスト結果: Task 3 ADXフィルター検証
+
+対象: XAGUSD | ADX(14)統計: mean=26.2, median=24.4, max=64.8
+
+| 戦略 | Sharpe | Calmar | MDD% | Trades | 判定 |
+|---|---|---|---|---|---|
+| Union_XAGUSD_Base | 1.189 | 2.111 | 25.3 | 33 | ベースライン |
+| Union+ADX(>25) | 1.008 | 1.535 | **21.8** | 21 | **非推奨** |
+
+- MDD: -3.5pt (改善) だがトレード数 33→21 (-36%)、Sharpe 1.189→1.008 (-0.181)
+- XAGUSD は ADX>25 が47.3%のバー — Union自体がトレンドフォロー設計のためフィルター効果が限定的
+- **結論: ADXフィルター非推奨。Union素のまま or HMM v3.0 が優位**
+
+### 考察
+- **XAUUSD > XAGUSD**: Union戦略はXAUUSDで Sharpe=1.718 > XAGUSD=1.189
+- **ADXフィルター**: シンプルさの反面、有効シグナルも排除。フィルターなしUnionが優位
+- **次期課題**: 他6商品のOHLCデータ取得後に本格的なユニバース評価を実施
+
+---
+
 ## [2026-03-01] v14: 5D HMM特徴量強化 + Union+Kellyモニター
 
 **変更者:** Claude Code
