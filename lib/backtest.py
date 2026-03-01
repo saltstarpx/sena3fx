@@ -560,6 +560,33 @@ class BacktestEngine:
             years_active = 1.0
         trades_per_year = n / years_active
 
+        # ── Sharpe Ratio / Calmar Ratio (Task3: 評価軸多元化) ──
+        sharpe_ratio = None
+        calmar_ratio = None
+        try:
+            # 日次リターン系列から算出
+            pnl_list = [t['pnl'] for t in trades]
+            # トレードごとの pnl_pct を使って equity curve を構築
+            eq = [self.init_cash]
+            for t in trades:
+                eq.append(eq[-1] + t['pnl'])
+            eq = np.array(eq[1:])  # init_cash を除去
+            # 日次PnL → トレードPnLで近似 (トレード間隔が不均一のため)
+            trade_returns = np.array([t['pnl'] / max(eq[max(0, j - 1)], 1)
+                                      for j, t in enumerate(trades)])
+            if len(trade_returns) >= 2 and np.std(trade_returns) > 0:
+                # 年率換算: trades_per_year を使って annualize
+                avg_r = np.mean(trade_returns)
+                std_r = np.std(trade_returns, ddof=1)
+                ann_factor = np.sqrt(max(trades_per_year, 1))
+                sharpe_ratio = round(float(avg_r / std_r * ann_factor), 3)
+            # Calmar Ratio = 年率リターン / 最大DD
+            ann_return_pct = ret / max(years_active, 1 / 12)
+            if max_dd > 0:
+                calmar_ratio = round(float(ann_return_pct / (max_dd * 100)), 3)
+        except Exception:
+            pass
+
         # ── richmanbtc p-mean法 (5区間安定性検証) ──
         # 出典: note.com/btcml「ストラテジーの検証。p平均法」
         # バックテスト期間を5等分し、各区間でt検定。
@@ -642,5 +669,8 @@ class BacktestEngine:
             'p_mean': round(p_mean_val, 4) if p_mean_val is not None else None,
             'p_mean_error_rate': float(f'{p_mean_error_rate:.2e}') if p_mean_error_rate is not None else None,
             'winning_segments': winning_segments,  # 5区間中のプラス区間数 (5/5が最良)
+            # Sharpe / Calmar (Task3: 評価軸多元化)
+            'sharpe_ratio': sharpe_ratio,
+            'calmar_ratio': calmar_ratio,
             'trades': trades,
         }
