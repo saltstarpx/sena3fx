@@ -31,6 +31,60 @@ git push origin main
 
 ---
 
+## [2026-03-01] v18: メイン戦略確定 + フォワードモニター刷新 + ダッシュボード更新
+
+**変更者:** Claude Code
+**変更種別:** 最終戦略定義・監視体制整備・実験スクリプト削除
+**指示書:** `prompt_for_claude_code_v18.md`
+
+### 新設ファイル
+- **`strategies/main_strategy.py`** — 最終確定戦略の定義 (XAUUSD+Kelly(f=0.25)+ADX(14)>25)
+  - `make_signal_func()`: ADXフィルター付きシグナル関数を返す
+  - `run_backtest()`: バックテスト実行 (CLIおよびモジュール利用可)
+  - `get_latest_signal()`: 最新バーのシグナル取得
+  - `print_results()`: 整形結果出力
+  - CLIから直接実行可能: `python strategies/main_strategy.py`
+- **`monitors/forward_main_strategy.py`** — フォワードテスト・シグナルモニター (v18刷新)
+  - `monitors/monitor_union_kelly.py` から置き換え
+  - `trade_logs/forward_signals.csv` にシグナルを自動記録 (datetime_utc, symbol, direction, price, adx)
+  - ADX値をログに含める (フィルター判定の透明化)
+
+### 削除ファイル (実験スクリプト)
+- ~~`scripts/grid_search_pyramid.py`~~ — Livermore GS (v17完了、不採用確定)
+- ~~`scripts/backtest_xau_final.py`~~ — Kelly+Pyramid統合テスト (v16完了)
+- ~~`scripts/backtest_xau_adx_filter.py`~~ — ADXフィルター検証 (v17完了、本番昇格済)
+
+### 修正ファイル
+- **`dashboard.html`** — メイン戦略セクション追加
+  - `XAUUSD+Kelly+ADX(>25)` を最上部に**最優秀戦略**として明示表示
+  - KPIカード: Sharpe=2.250, Calmar=11.534, MDD=16.1%, WR=61.0%, 最終資産¥27,175,560
+  - 比較チャート `chart-main-strategy`: Union_Base / +Kelly / +Pyramid / +ADX の4戦略比較
+
+### メイン戦略 確定パラメータ
+
+| 項目 | 値 |
+|---|---|
+| 銘柄 | XAUUSD |
+| 時間足 | 4H |
+| シグナル | Union_4H_Base (sig_maedai_yagami_union) |
+| フィルター | ADX(14) > 25 |
+| サイジング | KellyCriterionSizer(f=0.25) |
+| Kelly乗数 | 1.13x |
+| SL/TP | ATR x2.0 / ATR x4.0 |
+
+### 確定バックテスト結果 (2023-10-06 〜 2026-02-27)
+
+| 指標 | 値 | 目標 | 判定 |
+|---|---|---|---|
+| Sharpe Ratio | 2.250 | > 1.5 | ✅ |
+| Calmar Ratio | 11.534 | > 5.0 | ✅ |
+| Max Drawdown | 16.1% | ≤ 30% | ✅ |
+| Win Rate | 61.0% | ≥ 30% | ✅ |
+| Total Trades | 41 | ≥ 5 | ✅ |
+| 最終資産 | ¥27,175,560 | — | +443.5% |
+
+---
+
 ## [2026-03-01] v17: ピラミッドGS + ADXフィルター最終判定 + 承認リスト厳格化
 
 **変更者:** Claude Code
