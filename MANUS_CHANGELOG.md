@@ -31,6 +31,64 @@ git push origin main
 
 ---
 
+## [2026-03-01] v14: 5D HMM特徴量強化 + Union+Kellyモニター
+
+**変更者:** Claude Code
+**変更種別:** HMM特徴量拡張 + リアルタイム監視インフラ構築
+**指示書:** `prompt_for_claude_code_v14.md`
+
+### 新設ファイル
+- **`monitors/monitor_union_kelly.py`** — Union+Kelly シグナルモニター (OANDA v20 API, 発注なし)
+- **`deploy/union_kelly_monitor.service`** — systemd サービス定義テンプレート
+- **`scripts/backtest_v14.py`** — v14 MetaStrategy v2 vs v3 比較バックテスト
+- **`results/v14_equity_curves.csv`** — 3戦略の資産曲線データ
+- **`results/v14_hmm_regimes.csv`** — 5D HMM日次レジームデータ (ATR/ADX/RSI含む)
+
+### 修正ファイル
+- **`lib/regime.py`** — 5D HMM対応に全面改修 (v3.0)
+  - `fit(close, ohlc_df=None)` / `predict(close, ohlc_df=None)` — ohlc_df指定で5D特徴量
+  - 5D特徴量: `[log_return, abs_return, ATR(14), ADX(14), RSI(14)]` — z-score正規化
+  - 後方互換: ohlc_df=None で旧2D動作
+  - `feature_stats_by_regime()` 追加 — ダッシュボード表示用特徴量統計
+- **`lib/indicators.py`** — `Ind.adx()` 追加 (ADX計算、Wilder平滑化)
+- **`strategies/meta_strategy.py`** — v3.0追加
+  - `make_meta_signal_v3(daily_close, daily_ohlc, ...)` 5D HMMシグナル生成
+  - `grid_search_meta_v3()` グリッドサーチ
+- **`dashboard.html`** — v14セクション追加
+  - v2.0(2D) vs v3.0(5D) HMM円グラフ対比
+  - MetaStrategy v2 vs v3 Sharpe/Calmar/MDD比較棒グラフ
+  - 5D HMM特徴量統計テーブル (レジーム別 avg ATR/ADX/RSI)
+
+### バックテスト結果サマリー (v14)
+| 戦略 | Sharpe | Calmar | MDD% | PF | WR% | 備考 |
+|---|---|---|---|---|---|---|
+| Union_4H_Base | **2.817** | 13.7 | 9.8 | 3.624 | 66.7 | ベースライン |
+| MetaStrategy v2.0 (2D HMM) | 1.366 | 2.425 | 21.9 | 1.821 | 53.9 | v13実績 |
+| **MetaStrategy v3.0 (5D HMM)** | 1.359 | **3.158** | **14.4** | 1.938 | 55.0 | **MDD・Calmar改善** |
+
+### 5D HMM レジーム分布
+| レジーム | v2.0(2D) | v3.0(5D) | avg ATR | avg ADX | avg RSI |
+|---|---|---|---|---|---|
+| range | 49.3% | 45.2% | 38.7 | 26.6 | 64.5 |
+| low_trend | 49.0% | 48.3% | 68.1 | 28.1 | 60.8 |
+| **high_trend** | **1.7%** | **6.6%** | **172.3** | 29.9 | 55.5 |
+
+high_trend検出: 1.7% → 6.6% (+4.9pt) — ATR特徴量がボラ急騰期間を正確に分離
+
+### 考察・知見
+- **5D HMMの効果**: MDD 21.9%→14.4%, Calmar 2.425→3.158 — 目標(Calmar>3.0)達成
+- **high_trend分離**: ATR(14)がhigh_trend期間(ATR=172)を効果的に識別。その期間は日次リターン-0.14%と負のため、Union戦略(強トレンドフォロー)の選択が適切
+- **Sharpe横ばい**: 1.366→1.359 — Sharpeは変わらないがリスク指標が大幅改善
+- **Union+Kellyモニター**: OANDA v20 REST APIで4H足を取得、Union+Kelly(×2.4)シグナルをログ出力。`--once` オプションで単発実行も可能
+- **systemd**: `deploy/union_kelly_monitor.service` でデーモン化対応。30分ポーリング
+
+### 次期課題
+- MetaStrategy v3.0 のグリッドサーチ範囲拡大 (MAEDAI_GRID, UNION_GRID)
+- OANDA API実連携テスト (本番アカウント接続前にpractice環境で検証)
+- high_trend期間向けの短期戦略追加検討
+
+---
+
 ## [2026-03-01] v13: Kellyの最適化 + MetaStrategy再構築 (3状態HMM)
 
 **変更者:** Claude Code

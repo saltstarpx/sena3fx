@@ -1,0 +1,60 @@
+# Union + Kelly シグナルモニター — systemd サービス定義
+#
+# インストール方法:
+#   sudo cp deploy/union_kelly_monitor.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable union_kelly_monitor
+#   sudo systemctl start union_kelly_monitor
+#
+# ログ確認:
+#   sudo journalctl -u union_kelly_monitor -f
+#   tail -f /home/<user>/sena3fx/logs/union_kelly_monitor.log
+#
+# 停止:
+#   sudo systemctl stop union_kelly_monitor
+
+[Unit]
+Description=Union + Kelly Signal Monitor (XAUUSD / No Execution)
+Documentation=https://github.com/saltstarpx/sena3fx
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+# ── プロセス設定 ──────────────────────────────────────
+Type=simple
+Restart=on-failure
+RestartSec=60s
+TimeoutStartSec=30s
+
+# ── 実行ユーザー / 作業ディレクトリ ──────────────────
+# TODO: <user> を実際のサービス実行ユーザーに変更してください
+User=<user>
+WorkingDirectory=/home/<user>/sena3fx
+
+# ── 実行コマンド ─────────────────────────────────────
+# python のフルパスは `which python` で確認して置き換えてください
+ExecStart=/usr/bin/python3 monitors/monitor_union_kelly.py --interval 1800
+
+# ── 環境変数 ─────────────────────────────────────────
+# 本番環境: /etc/sysconfig/union_kelly または EnvironmentFile を使用
+# 環境変数ファイルを使う場合:
+#   EnvironmentFile=/etc/sysconfig/union_kelly_monitor
+# または直接記述:
+Environment=OANDA_ENV=practice
+Environment=OANDA_API_TOKEN=your_api_token_here
+Environment=OANDA_ACCOUNT_ID=your_account_id_here
+# 本番環境では 'live' に変更:
+# Environment=OANDA_ENV=live
+
+# ── ログ設定 (journalctl に加えてファイルにも出力) ───
+StandardOutput=append:/home/<user>/sena3fx/logs/union_kelly_monitor.log
+StandardError=append:/home/<user>/sena3fx/logs/union_kelly_monitor.log
+
+# ── セキュリティ強化 ─────────────────────────────────
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/home/<user>/sena3fx/logs
+
+[Install]
+WantedBy=multi-user.target

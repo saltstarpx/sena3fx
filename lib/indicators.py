@@ -32,6 +32,28 @@ class Ind:
     def atr(h, l, c, p=14):
         tr = pd.concat([h-l, abs(h-c.shift(1)), abs(l-c.shift(1))], axis=1).max(axis=1)
         return tr.rolling(p).mean()
+    @staticmethod
+    def adx(h, l, c, p=14):
+        """
+        Average Directional Index (ADX) — トレンド強度指標。
+        0〜100: 25以上でトレンド相場、20以下でレンジ相場。
+        """
+        up   = h.diff()
+        down = -l.diff()
+        dm_plus  = np.where((up > down) & (up > 0), up,  0.0)
+        dm_minus = np.where((down > up) & (down > 0), down, 0.0)
+
+        tr = pd.concat([h-l, abs(h-c.shift(1)), abs(l-c.shift(1))], axis=1).max(axis=1)
+        atr_s = tr.ewm(alpha=1/p, min_periods=p, adjust=False).mean()
+
+        di_plus  = 100 * pd.Series(dm_plus,  index=h.index).ewm(
+            alpha=1/p, min_periods=p, adjust=False).mean() / atr_s
+        di_minus = 100 * pd.Series(dm_minus, index=h.index).ewm(
+            alpha=1/p, min_periods=p, adjust=False).mean() / atr_s
+
+        dx = 100 * abs(di_plus - di_minus) / (di_plus + di_minus).replace(0, np.nan)
+        adx_s = dx.ewm(alpha=1/p, min_periods=p, adjust=False).mean()
+        return adx_s
 
 
 def sig_sma(fast=20, slow=50):
