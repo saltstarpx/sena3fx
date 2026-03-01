@@ -434,3 +434,30 @@ v13の結果、Union+Kelly(f=0.25)が最高効率戦略として確立された�
 ### Claude Codeへの指示
 
 `prompt_for_claude_code_v14.md`を読み、記載されたタスクを順次実行すること。
+
+---
+
+## [2026-03-02] Claude Code指示書v15追加：Union戦略ユニバース拡張とADXフィルター検証
+
+**変更者:** Manus AI
+**変更種別:** 指示書追加
+
+### 追加ファイル
+
+| ファイル | 説明 |
+|:---|:---|
+| `prompt_for_claude_code_v15.md` | Claude Code指示書v15（Union戦略ユニバース拡張とADXフィルター検証） |
+
+### 変更理由
+
+v14でMetaStrategy v3.0がUnion単体を超えられなかったため、複雑なHMMアプローチを一旦保留。v15では、最も強力なUnion戦略を複数商品に横展開し、有効な商品を網羅的に検証する方針に転換する。また、HMMの代替としてシンプルなADXフィルターの有効性をテストする。
+
+### 主なタスク指示
+
+1.  **Union戦略ユニバース拡張:** 8つの主要商品（金、銀、株価指数、FX）でUnion戦略のバックテストを一括実行し、結果を`universe_performance.csv`に保存。
+2.  **承認リスト自動生成:** バックテスト結果から`Sharpe > 1.0`かつ`Trades > 20`の商品を自動で抽出する`approved_list.py`を作成。
+3.  **ADXフィルター検証:** Union戦略に`ADX(14) > 25`の条件を追加し、フィルターの効果を評価。
+
+### Claude Codeへの指示
+
+`prompt_for_claude_code_v15.md`を読み、記載されたタスクを順次実行すること。
