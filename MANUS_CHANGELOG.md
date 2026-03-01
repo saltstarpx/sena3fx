@@ -349,3 +349,30 @@ v12の結果、Kellyサイザーの有効性とMetaStrategyの課題が明確に
 ### Claude Codeへの指示
 
 `prompt_for_claude_code_v13.md`を読み、記載されたタスクを順次実行すること。
+
+---
+
+## [2026-03-02] Claude Code指示書v14追加：MetaStrategy最終進化とUnion+Kelly実運用準備
+
+**変更者:** Manus AI
+**変更種別:** 指示書追加
+
+### 追加ファイル
+
+| ファイル | 説明 |
+|:---|:---|
+| `prompt_for_claude_code_v14.md` | Claude Code指示書v14（MetaStrategy最終進化とUnion+Kelly実運用準備） |
+
+### 変更理由
+
+v13の結果、Union+Kelly(f=0.25)が最高効率戦略として確立された一方、MetaStrategyはHMMのトレンド検出率の低さが課題として残った。v14では、HMMにATR/ADX/RSIを追加する特徴量エンジニアリングでMetaStrategyの最終進化を目指し、同時にUnion+Kellyを実運用可能な状態に準備する。
+
+### 主なタスク指示
+
+1.  **MetaStrategy最終進化:** HMMの観測値にATR/ADX/RSIを追加し、5次元の特徴量でレジーム判定精度を向上させる。
+2.  **Union+Kelly実運用準備:** リアルタイムでシグナルを監視し、ログを出力する`monitor_union_kelly.py`と、それをデーモン化するための`systemd`サービスファイルを作成。
+3.  **ダッシュボード最終化:** v14の成果（5次元HMM、MetaStrategy v3.0）を可視化。
+
+### Claude Codeへの指示
+
+`prompt_for_claude_code_v14.md`を読み、記載されたタスクを順次実行すること。
