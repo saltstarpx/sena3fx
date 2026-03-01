@@ -226,6 +226,9 @@ class BacktestEngine:
         if sizer is not None and hasattr(sizer, 'fit'):
             sizer.fit(atr)
 
+        # LivermorePyramidingSizer 検出: on_bar() を持つ場合はリバモア式ピラミッド使用
+        _use_livermore = sizer is not None and hasattr(sizer, 'on_bar')
+
         trades = []
         cash = self.init_cash
         peak = self.init_cash
@@ -243,8 +246,27 @@ class BacktestEngine:
             bar_atr = atr.iloc[i] if not np.isnan(atr.iloc[i]) else 2.0
 
             if in_pos:
-                # ===== ピラミッティング判定 =====
-                if self.pyramid_entries > 0 and pos['pyramid_count'] < self.pyramid_entries:
+                # ===== リバモア式ピラミッティング判定 (LivermorePyramidingSizer) =====
+                if _use_livermore:
+                    add_size = sizer.on_bar(pos['dir'], bar['close'])
+                    if add_size > 0:
+                        prev_entry = pos['layers'][-1]['entry']
+                        if pos['dir'] == 'long':
+                            new_entry = bar['close'] + self.slippage
+                            # SLを前レイヤー建値に引き上げ (ブレークイーブン管理)
+                            pos['sl'] = max(pos['sl'], prev_entry)
+                        else:
+                            new_entry = bar['close'] - self.slippage
+                            pos['sl'] = min(pos['sl'], prev_entry)
+                        pos['layers'].append({
+                            'entry': new_entry,
+                            'size': add_size,
+                            'entry_time': bar_time,
+                        })
+                        pos['pyramid_count'] += 1
+
+                # ===== ATRベース ピラミッティング判定 (built-in) =====
+                elif self.pyramid_entries > 0 and pos['pyramid_count'] < self.pyramid_entries:
                     trigger_dist = pos['atr'] * self.pyramid_atr * (pos['pyramid_count'] + 1)
                     first_entry = pos['layers'][0]['entry']
 
@@ -488,6 +510,10 @@ class BacktestEngine:
                 'pyramid_count': 0,
             }
             in_pos = True
+
+            # LivermorePyramidingSizer: 新規ポジション時に初期状態をリセット
+            if _use_livermore:
+                sizer.reset(entry_price, pos_size)
 
         # 残ポジクローズ（全レイヤー）
         if in_pos and len(bars) > 0:

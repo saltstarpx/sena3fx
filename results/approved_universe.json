@@ -1,0 +1,39 @@
+{
+  "generated_at": "2026-03-01 07:14:12.829573",
+  "criteria": {
+    "min_sharpe": 1.0,
+    "min_trades": 20
+  },
+  "approved_symbols": [
+    "XAUUSD",
+    "XAGUSD"
+  ],
+  "details": [
+    {
+      "symbol": "XAUUSD",
+      "data_path": "XAUUSD_4h.csv",
+      "bars": 3714,
+      "period_start": "2023-10-06",
+      "period_end": "2026-02-27",
+      "sharpe_ratio": 1.718,
+      "calmar_ratio": 5.971,
+      "max_drawdown_pct": 23.51,
+      "profit_factor": 1.8277,
+      "win_rate_pct": 50.0,
+      "total_trades": 70
+    },
+    {
+      "symbol": "XAGUSD",
+      "data_path": "XAGUSD_2025_4h.csv",
+      "bars": 1753,
+      "period_start": "2025-01-02",
+      "period_end": "2026-02-27",
+      "sharpe_ratio": 1.189,
+      "calmar_ratio": 2.111,
+      "max_drawdown_pct": 25.32,
+      "profit_factor": 1.6112,
+      "win_rate_pct": 57.58,
+      "total_trades": 33
+    }
+  ]
+}
