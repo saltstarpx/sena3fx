@@ -177,7 +177,7 @@ Claude Codeのv8実行結果（pasted_content_6.txt）を分析し、特に「Un
 
 ---
 
-## [2026-03-01] Claude Code指示書v10追加：mainブランチへのマージとUnion戦略のフォワードテスト準備
+## [2026-03-02] Claude Code指示書v10更新：戦略パフォーマンス・ダッシュボード構築タスク追加
 
 **変更者:** Manus AI
 **変更種別:** 指示書追加
@@ -186,7 +186,7 @@ Claude Codeのv8実行結果（pasted_content_6.txt）を分析し、特に「Un
 
 | ファイル | 説明 |
 |:---|:---|
-| `prompt_for_claude_code_v10.md` | Claude Code指示書v10（mainマージとフォワードテスト準備） |
+| `prompt_for_claude_code_v10.md` | Claude Code指示書v10（mainマージ、フォワードテスト準備、戦略ダッシュボード構築） |
 
 ### 変更理由
 
@@ -195,8 +195,9 @@ Claude Codeのv9実行結果を分析し、エース戦略候補「Union戦略�
 ### 主なタスク指示
 
 1.  **mainブランチへのマージ（最優先）:** 開発ブランチ`claude/add-trading-backtest-ePJat`を`main`にマージするよう指示。
-2.  **Union戦略のフォワードテスト準備:** トレード数が21件と少ないため、カーブフィッティングのリスクを検証すべく、シグナルを監視するだけの`monitors/forward_union.py`を作成するよう指示。
-3.  **USD強弱フィルターの知見をドキュメント化:** フィルターが逆張り要素のある戦略に有効であるという結論を`docs/filters_risk_manager.md`に記録するよう指示。
+2.  **Union戦略のフォワードテスト準備:** シグナル監視スクリプト`monitors/forward_union.py`を作成するよう指示。
+3.  **USD強弱フィルターの知見をドキュメント化:** フィルターの適用範囲に関する結論を`docs/filters_risk_manager.md`に記録するよう指示。
+4.  **戦略パフォーマンス・ダッシュボード構築:** Dinii社の記事に触発され、バックテスト結果を自動で`performance_log.csv`に記録し、`dashboard.html`で可視化する仕組みの構築を指示。
 
 ### Claude Codeへの指示
 
