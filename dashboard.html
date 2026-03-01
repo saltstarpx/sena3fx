@@ -110,6 +110,25 @@
     <p class="note">右上ほど優秀（高Sharpe・低MDD）。バブルサイズ = トレード数。</p>
   </div>
 
+  <!-- v12: 新エンジン比較セクション -->
+  <div class="section-title">⚙️ v12 新エンジン比較 — サイジング × レジーム転換</div>
+  <div class="card" style="margin-bottom:8px;padding:12px 18px;background:#161b22;border:1px solid #30363d;border-radius:8px;font-size:0.82rem;color:#8b949e;">
+    ベースライン: Union_4H (Sharpe 2.817) に対し、3つの新エンジンを比較 | 初期資金 500万円 | 期間 2025-01〜2026-02
+  </div>
+
+  <!-- 資産曲線比較 -->
+  <div class="chart-wrap">
+    <h2>資産曲線 — Union_Base vs VolSizer vs Kelly vs MetaStrategy</h2>
+    <div id="chart-equity" style="height:420px"></div>
+    <p class="note">Kelly(×2.4): 最大 3,518万 / VolSizer: DD抑制 / MetaStrategy: HMMレンジ判定で保守的に推移</p>
+  </div>
+
+  <!-- v12 Sharpe/Calmar 棒グラフ -->
+  <div class="chart-wrap">
+    <h2>v12 戦略別 Sharpe Ratio / Calmar Ratio 比較</h2>
+    <div id="chart-v12-sharpe" style="height:280px"></div>
+  </div>
+
   <!-- Real World Performance -->
   <div class="section-title">🌍 Real World Performance — 実績 vs バックテスト</div>
   <div class="card" style="margin-bottom:8px;padding:12px 18px;background:#161b22;border:1px solid #30363d;border-radius:8px;font-size:0.82rem;color:#8b949e;">
@@ -465,12 +484,108 @@ function renderRealWorld() {
 // ──────────────────────────────────────────────
 const rows = parseCSV(CSV_INLINE);
 render(rows);
+renderV12();
 renderRealWorld();
 
 // ──────────────────────────────────────────────
 // performance_log.csv を動的フェッチ (ローカルサーバー利用時)
 // python -m http.server 8080 で起動した場合のみ有効
 // ──────────────────────────────────────────────
+// ──────────────────────────────────────────────
+// v12 新エンジン比較データ
+// バックテスト: scripts/backtest_v12.py 実行結果
+// ──────────────────────────────────────────────
+const V12_RESULTS = [
+  { name: 'Union_4H_Base',     sharpe: 2.817, calmar: 13.709, mdd: 9.8,  pf: 3.624, wr: 66.7, trades: 21 },
+  { name: 'Union+VolSizer',    sharpe: 2.656, calmar:  9.617, mdd: 11.9, pf: 3.547, wr: 66.7, trades: 21 },
+  { name: 'Union+Kelly(×2.4)', sharpe: 2.798, calmar: 24.507, mdd: 22.8, pf: 3.566, wr: 66.7, trades: 21 },
+  { name: 'MetaStrategy(HMM)', sharpe: 0.581, calmar:  0.605, mdd: 26.0, pf: 1.264, wr: 43.5, trades: 23 },
+];
+
+// 資産曲線データ (scripts/backtest_v12.py 出力から抜粋)
+const EQUITY_DATA = {
+  'Union_4H_Base': [
+    ['2025-01', 5495960], ['2025-03', 6044583], ['2025-04', 6314179],
+    ['2025-05', 6596372], ['2025-06', 6833401], ['2025-07', 7515252],
+    ['2025-09', 9091286], ['2025-10', 9022932], ['2025-12', 10915664],
+    ['2026-01', 12005897], ['2026-02', 12258918],
+  ],
+  'Union+VolSizer': [
+    ['2025-01', 5486502], ['2025-03', 5886742], ['2025-04', 6465940],
+    ['2025-05', 6395756], ['2025-06', 6755558], ['2025-07', 7444493],
+    ['2025-09', 8693292], ['2025-10', 8880287], ['2025-12', 10275162],
+    ['2026-01', 11080669], ['2026-02', 11169803],
+  ],
+  'Union+Kelly': [
+    ['2025-01', 6197249], ['2025-03', 7690627], ['2025-04', 8387434],
+    ['2025-05', 9149070], ['2025-06', 9551726], ['2025-07', 11852509],
+    ['2025-09', 18256332], ['2025-10', 17511003], ['2025-12', 26974809],
+    ['2026-01', 33478603], ['2026-02', 35181819],
+  ],
+  'MetaStrategy': [
+    ['2025-01', 5494586], ['2025-02', 4841412], ['2025-04', 4557272],
+    ['2025-05', 5011023], ['2025-07', 4518846], ['2025-09', 4670347],
+    ['2025-11', 5888202], ['2025-12', 6351940], ['2026-01', 5726113],
+    ['2026-02', 5846795],
+  ],
+};
+
+function renderV12() {
+  // ── 資産曲線 ──
+  const colors = { 'Union_4H_Base': '#58a6ff', 'Union+VolSizer': '#3fb950',
+                   'Union+Kelly': '#d29922', 'MetaStrategy': '#bc8cff' };
+  const dashes  = { 'Union_4H_Base': 'solid', 'Union+VolSizer': 'dot',
+                    'Union+Kelly': 'solid', 'MetaStrategy': 'dash' };
+  const equityTraces = Object.entries(EQUITY_DATA).map(([name, pts]) => ({
+    x: pts.map(p => p[0]),
+    y: pts.map(p => p[1] / 10000),  // 万円
+    name, type: 'scatter', mode: 'lines+markers',
+    line: { color: colors[name] || '#8b949e', width: 2, dash: dashes[name] || 'solid' },
+    marker: { size: 5 },
+    hovertemplate: `<b>${name}</b><br>%{x}<br>%{y:,.0f}万円<extra></extra>`,
+  }));
+
+  Plotly.newPlot('chart-equity', equityTraces, {
+    ...plotLayout,
+    yaxis: { ...plotLayout.yaxis, title: '資産残高（万円）', tickformat: ',.0f' },
+    legend: { ...plotLayout.legend, orientation: 'h', x: 0, y: -0.15 },
+    shapes: [{
+      type: 'line', x0: '2025-01', x1: '2026-02', y0: 500, y1: 500,
+      line: { color: '#30363d', width: 1, dash: 'dot' },
+    }],
+    margin: { l: 70, r: 20, t: 10, b: 80 },
+  }, { responsive: true, displayModeBar: false });
+
+  // ── Sharpe / Calmar 棒グラフ ──
+  const names = V12_RESULTS.map(r => r.name);
+  Plotly.newPlot('chart-v12-sharpe', [
+    {
+      name: 'Sharpe Ratio', x: names, y: V12_RESULTS.map(r => r.sharpe),
+      type: 'bar', marker: { color: V12_RESULTS.map(r =>
+        r.sharpe >= 2.5 ? '#3fb950' : r.sharpe >= 1.5 ? '#d29922' : '#f85149') },
+      text: V12_RESULTS.map(r => r.sharpe.toFixed(3)), textposition: 'outside',
+      hovertemplate: '<b>%{x}</b><br>Sharpe: %{y:.3f}<extra></extra>',
+    },
+    {
+      name: 'Calmar Ratio', x: names, y: V12_RESULTS.map(r => Math.min(r.calmar, 30)),
+      type: 'bar', marker: { color: '#58a6ff', opacity: 0.6 },
+      yaxis: 'y2',
+      hovertemplate: '<b>%{x}</b><br>Calmar: %{y:.3f}<extra></extra>',
+    },
+  ], {
+    ...plotLayout,
+    barmode: 'group',
+    yaxis:  { ...plotLayout.yaxis, title: 'Sharpe Ratio' },
+    yaxis2: { title: 'Calmar Ratio (cap 30)', overlaying: 'y', side: 'right',
+              gridcolor: '#21262d' },
+    annotations: [
+      { x: 'Union_4H_Base', y: 2.817, text: 'ベースライン', showarrow: true,
+        arrowhead: 2, ax: 40, ay: -30, font: { color: '#8b949e', size: 10 } },
+    ],
+    margin: { l: 60, r: 80, t: 30, b: 80 },
+  }, { responsive: true, displayModeBar: false });
+}
+
 // ──────────────────────────────────────────────
 // v11 追記: Real World Performance 注釈
 // Task 1: 2026-01 Union戦略は FLAT (シグナル2件のみ) → 実トレーダー損失 -112万円を回避

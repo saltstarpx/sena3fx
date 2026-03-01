@@ -31,6 +31,40 @@ git push origin main
 
 ---
 
+## [2026-03-01] v12: 1000万→1億エンジン — VolSizer / Kelly / HMM MetaStrategy
+
+**変更者:** Claude Code
+**変更種別:** 新サイジングエンジン実装 + レジーム転換モデル
+**指示書:** `prompt_for_claude_code_v12.md`
+
+### 新設ファイル
+- **`lib/risk_manager.py`** — `VolatilityAdjustedSizer` + `KellyCriterionSizer`
+- **`lib/regime.py`** — `HiddenMarkovRegimeDetector` (hmmlearn GaussianHMM 2状態)
+- **`strategies/meta_strategy.py`** — `MetaStrategy` (HMM連動シグナル切替)
+- **`scripts/backtest_v12.py`** — v12統合バックテスト実行スクリプト
+- **`requirements.txt`** — 依存パッケージ一覧 (numpy, pandas, hmmlearn>=0.3.0)
+
+### 修正ファイル
+- **`lib/backtest.py`** — `run()` に `sizer=` パラメータ追加（VolSizer/Kellyを差し込み可能）
+- **`results/v12_equity_curves.csv`** — 4戦略の資産曲線データ
+- **`dashboard.html`** — v12セクション追加（資産曲線比較 + Sharpe/Calmar棒グラフ）
+
+### バックテスト結果 (期間: 2025-01〜2026-02, 初期資金500万)
+| 戦略 | Sharpe | Calmar | MDD% | PF | WR% |
+|---|---|---|---|---|---|
+| Union_4H_Base (ベースライン) | **2.817** | 13.7 | 9.8 | 3.624 | 66.7 |
+| Union+VolSizer | 2.656 | 9.6 | 11.9 | 3.547 | 66.7 |
+| Union+Kelly(×2.4) | 2.798 | **24.5** | 22.8 | 3.566 | 66.7 |
+| MetaStrategy(HMM) | 0.581 | 0.6 | 26.0 | 1.264 | 43.5 |
+
+### 考察・知見
+- **VolSizer**: ATR正規化でDD抑制を期待したが、既存のATRベースSL設計が既にボラ調整済みのため効果限定的
+- **Kelly(×2.4)**: 同じ21トレード・同方向だが複利効果で最大3,518万に到達。ただしMDD 22.8% — 高リスク高リターン
+- **MetaStrategy**: HMMがトレンド判定1.4%と保守的すぎ、ほぼYagamiAに切替→パフォーマンス低下。レジームしきい値の調整が必要
+- **次期課題**: HMMのn_states=3（レンジ/緩やかトレンド/強トレンド）や特徴量の見直しが有効か検討
+
+---
+
 ## [2026-03-01] v11: Reality Check — 実績データとバックテストの照合
 
 **変更者:** Claude Code
