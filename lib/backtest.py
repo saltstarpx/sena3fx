@@ -183,7 +183,8 @@ class BacktestEngine:
             allowed_months=None,
             htf_bars=None,
             trade_start=None,
-            sizer=None):
+            sizer=None,
+            disable_atr_sl=False):
         """
         バックテスト実行。
 
@@ -197,12 +198,21 @@ class BacktestEngine:
         sizer: VolatilityAdjustedSizer / KellyCriterionSizer など。
                get_multiplier(i) -> float を持つオブジェクト。
                risk_pct にこの乗数を掛けてポジションサイズを決定する。
+        disable_atr_sl: Trueの場合、ダイナミックATR-SLを無効化し、
+                        固定SL (default_sl_atr×ATR) を使用する。
+                        VolatilityAdjustedSizerとの重複解消に使用。
                      それ以前はウォームアップ期間としてエントリーしない。
         """
         if use_ticks and ticks is not None:
             bars = self._make_bars(ticks, freq)
         else:
             bars = data
+
+        # disable_atr_sl: ATR-SLを無効化 → 固定SL(default_sl_atr×ATR)を使用
+        # VolatilityAdjustedSizer使用時にスウィングSLとの重複を解消する
+        _use_dynamic_sl_orig = self.use_dynamic_sl
+        if disable_atr_sl:
+            self.use_dynamic_sl = False
 
         _trade_start_ts = pd.Timestamp(trade_start) if trade_start else None
 
@@ -508,6 +518,10 @@ class BacktestEngine:
                 'atr_at_entry': pos['atr'],
             })
             cash += total_pnl
+
+        # disable_atr_sl の一時変更を元に戻す
+        if disable_atr_sl:
+            self.use_dynamic_sl = _use_dynamic_sl_orig
 
         return self._report(name, trades, cash, max_dd, freq, len(bars),
                             trade_start=_trade_start_ts)
