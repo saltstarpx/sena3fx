@@ -31,6 +31,64 @@ git push origin main
 
 ---
 
+## [2026-03-01] v16: XAUUSDメイン化 + リバモア式ピラミッティング
+
+**変更者:** Claude Code
+**変更種別:** Kelly サイジング適用 + LivermorePyramidingSizer 実装・検証
+**指示書:** `prompt_for_claude_code_v16.md`
+
+### 新設ファイル
+- **`scripts/backtest_xau_kelly.py`** — XAUUSD + KellyCriterionSizer(f=0.25) バックテスト
+- **`scripts/backtest_xau_final.py`** — Union + Kelly + LivermorePyramiding 統合バックテスト
+
+### 修正ファイル
+- **`lib/risk_manager.py`** — `LivermorePyramidingSizer` 追加 (v3.0)
+  - `base_sizer`: 初期エントリーを担当する Sizer (KellyCriterionSizer 等)
+  - `step_pct`: ピラミッドトリガー価格変動率 (デフォルト 1%)
+  - `pyramid_ratios`: 追加ロット比率リスト `[0.5, 0.3, 0.2]` (減少型)
+  - `max_pyramids`: 最大追加回数 (デフォルト 3)
+  - `reset(entry_price, initial_size)`: 新規ポジション時に BacktestEngine から呼び出し
+  - `on_bar(direction, current_price)`: 毎バーチェック → 追加ロット数を返す
+- **`lib/backtest.py`** — LivermorePyramidingSizer 連携追加 (v4.2)
+  - `_use_livermore = sizer is not None and hasattr(sizer, 'on_bar')` 検出
+  - 新規エントリー時: `sizer.reset(entry_price, pos_size)` 呼び出し
+  - 毎バー: `sizer.on_bar(dir, close)` でピラミッド追加判定 (ATRベースと排他)
+
+### バックテスト結果 (期間: 2023-10〜2026-02, XAUUSD 3,714バー)
+
+#### Task 1: XAUUSD + Kelly(f=0.25)
+
+| 戦略 | Sharpe | Calmar | MDD% | Trades | 最終資産 | 備考 |
+|---|---|---|---|---|---|---|
+| Union_XAUUSD_Base | 1.718 | 5.971 | 23.5 | 70 | ¥21,795,420 | ベースライン |
+| **XAUUSD+Kelly(f=0.25)** | **1.717** | **6.574** | 26.3 | 70 | **¥25,701,780** | **+18%↑** |
+
+- Kelly乗数: WR=50%, PF=1.828 → f*=0.0566 → 乗数 **1.13x**
+- 最終資産: ¥21,795,420 → ¥25,701,780 (+18%改善) — Calmar 5.971→6.574 (+10%)
+- Sharpe はほぼ同値 (1.718→1.717)。Kelly で複利効果が出ている
+
+#### Task 3: XAUUSD + Kelly + Livermore ピラミッティング
+
+| 戦略 | Sharpe | Calmar | MDD% | Trades | 最終資産 | 備考 |
+|---|---|---|---|---|---|---|
+| Union_XAUUSD_Base | 1.718 | 5.971 | 23.5 | 70 | ¥21,795,420 | ベースライン |
+| XAUUSD+Kelly(f=0.25) | 1.717 | 6.574 | 26.3 | 70 | ¥25,701,780 | Task1 |
+| **XAUUSD+Kelly+Pyramid(LV)** | **0.030** | **-0.178** | **42.9** | **105** | **¥4,091,874** | **❌ 非推奨** |
+
+- ピラミッド発動率: 105トレード中56件 (53.3%)、平均レイヤー数: 2.5
+- MDD: 23.5% → 42.9% (+19.4pt)、PF: 1.828 → 0.932 (1.0を下回る)
+- WR: 50.0% → 35.2% (ピラミッド後ポジションがSLに当たる頻度が高い)
+
+### 考察・知見
+- **Kelly(f=0.25) は有効**: 複利効果で最終資産+18%、Calmar改善。XAUUSD でのメイン戦略として推奨
+- **Livermore式ピラミッティング (step_pct=1%) は非推奨**:
+  - 4H金相場では1%の動きが頻繁に起こるため、追加ポジションが高値圏で積まれる
+  - SL（前レイヤー建値）が遠くなり、逆行時の損失が増大
+  - **改善案**: step_pct を 2-3% に引上げ、max_pyramids=1〜2 に制限することで効果を出せる可能性あり
+- **次期課題**: step_pct / max_pyramids のグリッドサーチで最適パラメータ探索
+
+---
+
 ## [2026-03-01] v15: ユニバース拡張 + ADXフィルター検証
 
 **変更者:** Claude Code
