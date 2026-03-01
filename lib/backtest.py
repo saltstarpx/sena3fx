@@ -18,6 +18,7 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Callable
 import json
 import os
+import csv
 from math import factorial
 
 
@@ -641,7 +642,7 @@ class BacktestEngine:
         # 評価関数の主基準ではなく「付加情報」として提供
         hold_8_24h = (8.0 <= avg_dur <= 24.0)
 
-        return {
+        result = {
             'strategy': name,
             'engine': 'yagami_v4',
             'timeframe': freq,
@@ -674,3 +675,37 @@ class BacktestEngine:
             'calmar_ratio': calmar_ratio,
             'trades': trades,
         }
+        # ── パフォーマンスログへ自動追記 (dashboard.html 用) ──
+        self._append_performance_log(result)
+        return result
+
+    def _append_performance_log(self, r):
+        """
+        バックテスト結果を results/performance_log.csv に自動追記。
+        ダッシュボード (dashboard.html) の時系列可視化に使用。
+        """
+        log_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            'results', 'performance_log.csv',
+        )
+        os.makedirs(os.path.dirname(log_path), exist_ok=True)
+        header = ['timestamp', 'strategy_name', 'parameters', 'timeframe',
+                  'sharpe_ratio', 'profit_factor', 'max_drawdown',
+                  'win_rate', 'trades']
+        write_header = not os.path.exists(log_path)
+        with open(log_path, 'a', newline='', encoding='utf-8') as f:
+            w = csv.writer(f)
+            if write_header:
+                w.writerow(header)
+            w.writerow([
+                datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ'),
+                r.get('strategy', ''),
+                r.get('timeframe', ''),
+                r.get('timeframe', ''),
+                r.get('sharpe_ratio', ''),
+                r.get('profit_factor', ''),
+                r.get('max_drawdown_pct', ''),
+                r.get('win_rate_pct', ''),
+                r.get('total_trades', ''),
+            ])
+

@@ -5,6 +5,46 @@ Claude Codeとの連携において、何が変更されたかを把握するた
 
 ---
 
+## [2026-03-01] v9成果の統合・フォワードテスト準備・戦略ダッシュボード構築
+
+**変更者:** Claude Code
+**変更種別:** v9成果の統合、フォワードテスト準備、戦略ダッシュボード構築
+**指示書:** prompt_for_claude_code_v10_updated.md
+
+### 変更内容
+
+- **mainブランチへのマージ**: `claude/add-trading-backtest-ePJat` → `main` のローカルマージ完了。v8-v9の全成果を main に統合 (125ファイル)。リモートへのプッシュは `claude/` ブランチ制約のため dev ブランチ経由で管理。
+- **Union戦略フォワードテスト監視**: `monitors/forward_union.py` を新規作成。最新OHLCを読み込みUnion戦略シグナルをログ出力（1時間cronまたはwatchモード対応）。シグナルは `trade_logs/forward_union_signals.csv` に記録。
+- **USD強弱フィルター適用ガイドライン**: `docs/filters_risk_manager.md` の「USD強弱フィルター」セクションに「逆張り系に有効、トレンドフォロー系に効果限定的」という知見と適用ガイドラインを追記。v9検証比較表を根拠として引用。
+- **バックテスト自動ログ**: `lib/backtest.py` の `_report()` を修正し、バックテスト完了時に `results/performance_log.csv` へ自動追記する `_append_performance_log()` を追加。
+- **戦略ダッシュボード**: `dashboard.html` を新規作成。Plotly.js により Sharpe Ratio 棒グラフ・MDD 棒グラフ・リスク/リターン散布図・全戦略テーブルを表示。インライン CSV と動的フェッチの両対応。
+
+### 主要バックテスト結果 (v10 シード)
+
+| 戦略 | TF | Sharpe | PF | MDD% | WR% | Trades | 判定 |
+|------|:--:|:------:|:--:|:----:|:---:|:------:|------|
+| Union_4H | 4H | **2.817** | 3.6245 | 9.82% | 66.7% | 21 | PASS |
+| DC30_EMA200 | 4H | 1.414 | 2.4948 | 10.52% | 57.9% | 19 | PASS |
+| DC30_EMA200+USD | 4H | 1.414 | 2.4948 | 10.52% | 57.9% | 19 | PASS |
+| YagamiFull_1H | 1H | 0.748 | 1.1958 | 30.8% | 35.7% | 129 | CHECK |
+| YagamiFull_1H_S | 1H | 0.666 | 1.1627 | 30.52% | 35.5% | 121 | CHECK |
+| YagamiA_4H | 4H | 0.668 | 1.1076 | 49.9% | 40.2% | 164 | CHECK |
+
+### 追加・変更ファイル
+
+| ファイル | 説明 |
+|:---|:---|
+| `monitors/__init__.py` | monitors パッケージ初期化 |
+| `monitors/forward_union.py` | Union戦略フォワードテスト監視スクリプト |
+| `docs/filters_risk_manager.md` | USD強弱フィルター適用ガイドライン追記 |
+| `lib/backtest.py` | `_append_performance_log()` 追加 (auto CSV log) |
+| `results/performance_log.csv` | バックテスト自動ログ (v10シード実行済み) |
+| `dashboard.html` | 戦略パフォーマンス ダッシュボード (Plotly.js) |
+
+---
+
+---
+
 ## [2026-03-01] v8成果の検証と戦略確立
 
 **変更者:** Claude Code

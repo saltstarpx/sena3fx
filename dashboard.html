@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>sena3fx — 戦略パフォーマンス ダッシュボード</title>
+<script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: #0d1117;
+    color: #c9d1d9;
+    min-height: 100vh;
+  }
+  header {
+    background: #161b22;
+    border-bottom: 1px solid #30363d;
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  header h1 { font-size: 1.25rem; color: #f0f6fc; font-weight: 600; }
+  header span { font-size: 0.8rem; color: #8b949e; }
+  .badge {
+    background: #238636;
+    color: #fff;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.72rem;
+    font-weight: 600;
+  }
+  .container { max-width: 1280px; margin: 0 auto; padding: 24px; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  @media (max-width: 900px) {
+    .grid-2 { grid-template-columns: 1fr; }
+    .grid-3 { grid-template-columns: 1fr; }
+  }
+  .card {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 8px;
+    padding: 20px;
+  }
+  .card h2 { font-size: 0.95rem; color: #8b949e; text-transform: uppercase;
+             letter-spacing: .05em; margin-bottom: 12px; }
+  .kpi {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #f0f6fc;
+    line-height: 1;
+  }
+  .kpi-label { font-size: 0.8rem; color: #8b949e; margin-top: 4px; }
+  .kpi.green { color: #3fb950; }
+  .kpi.yellow { color: #d29922; }
+  .kpi.red { color: #f85149; }
+  .chart-wrap { background: #161b22; border: 1px solid #30363d; border-radius: 8px;
+                padding: 16px; margin-bottom: 20px; }
+  .chart-wrap h2 { font-size: 1rem; color: #f0f6fc; margin-bottom: 12px; }
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  th { text-align: left; padding: 8px 12px; background: #0d1117;
+       color: #8b949e; font-weight: 600; border-bottom: 1px solid #30363d; }
+  td { padding: 8px 12px; border-bottom: 1px solid #21262d; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #1c2128; }
+  .badge-pass { background: #238636; color: #fff; padding: 1px 8px; border-radius: 10px; font-size: 0.75rem; }
+  .badge-warn { background: #9e6a03; color: #fff; padding: 1px 8px; border-radius: 10px; font-size: 0.75rem; }
+  .badge-fail { background: #b91c1c; color: #fff; padding: 1px 8px; border-radius: 10px; font-size: 0.75rem; }
+  .section-title {
+    font-size: 1.1rem; font-weight: 600; color: #f0f6fc;
+    margin: 28px 0 14px; padding-bottom: 8px;
+    border-bottom: 1px solid #30363d;
+  }
+  .note { font-size: 0.78rem; color: #8b949e; margin-top: 8px; }
+  .ts { font-size: 0.75rem; color: #8b949e; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>sena3fx — 戦略パフォーマンス ダッシュボード</h1>
+  <span class="badge">XAUUSD</span>
+  <span id="last-updated" class="ts"></span>
+</header>
+
+<div class="container">
+
+  <!-- KPI サマリー -->
+  <div id="kpi-section" class="grid-3" style="margin-bottom:24px"></div>
+
+  <!-- Sharpe Ratio 比較チャート -->
+  <div class="chart-wrap">
+    <h2>Sharpe Ratio — 戦略比較</h2>
+    <div id="chart-sharpe" style="height:340px"></div>
+  </div>
+
+  <!-- Max Drawdown 比較チャート -->
+  <div class="chart-wrap">
+    <h2>Max Drawdown (%) — 戦略比較</h2>
+    <div id="chart-mdd" style="height:280px"></div>
+  </div>
+
+  <!-- Sharpe/MDD 散布図 -->
+  <div class="chart-wrap">
+    <h2>リスク vs リターン (Sharpe vs MDD)</h2>
+    <div id="chart-scatter" style="height:340px"></div>
+    <p class="note">右上ほど優秀（高Sharpe・低MDD）。バブルサイズ = トレード数。</p>
+  </div>
+
+  <!-- 全戦略テーブル -->
+  <div class="section-title">全戦略パフォーマンス一覧</div>
+  <div class="card table-wrap">
+    <table id="perf-table">
+      <thead>
+        <tr>
+          <th>戦略</th>
+          <th>TF</th>
+          <th>Sharpe</th>
+          <th>PF</th>
+          <th>MDD%</th>
+          <th>WR%</th>
+          <th>Trades</th>
+          <th>判定</th>
+          <th>実行時刻</th>
+        </tr>
+      </thead>
+      <tbody id="table-body"></tbody>
+    </table>
+  </div>
+
+</div>
+
+<script>
+// ──────────────────────────────────────────────
+// CSV をインライン埋め込み (ファイルサーバー不要)
+// バックテストの都度 scripts/update_dashboard.py で更新
+// ──────────────────────────────────────────────
+const CSV_INLINE = `timestamp,strategy_name,parameters,timeframe,sharpe_ratio,profit_factor,max_drawdown,win_rate,trades
+2026-03-01T05:11:39Z,YagamiA_4H,4h,4h,0.668,1.1076,49.9,40.24,164
+2026-03-01T05:11:43Z,YagamiB_4H,4h,4h,0.458,1.0138,65.17,43.48,529
+2026-03-01T05:12:00Z,YagamiFull_1H,1h,1h,0.748,1.1958,30.8,35.66,129
+2026-03-01T05:12:16Z,YagamiFull_1H_S,1h,1h,0.666,1.1627,30.52,35.54,121
+2026-03-01T05:12:16Z,DC30_EMA200,4h,4h,1.414,2.4948,10.52,57.89,19
+2026-03-01T05:12:17Z,DC30_EMA200+USD,4h,4h,1.414,2.4948,10.52,57.89,19
+2026-03-01T05:12:17Z,Union_4H,4h,4h,2.817,3.6245,9.82,66.67,21
+2026-03-01T05:12:21Z,YagamiB_4H+USD,4h,4h,0.154,0.9687,66.16,40.43,423`;
+
+// ──────────────────────────────────────────────
+// CSV パーサー
+// ──────────────────────────────────────────────
+function parseCSV(text) {
+  const lines = text.trim().split('\n');
+  const headers = lines[0].split(',');
+  return lines.slice(1).map(line => {
+    const vals = line.split(',');
+    const obj = {};
+    headers.forEach((h, i) => obj[h.trim()] = vals[i] ? vals[i].trim() : '');
+    return obj;
+  });
+}
+
+// ──────────────────────────────────────────────
+// 最新行のみ (strategy_name ごとに最新1件)
+// ──────────────────────────────────────────────
+function latestPerStrategy(rows) {
+  const map = {};
+  rows.forEach(r => {
+    if (!map[r.strategy_name] || r.timestamp > map[r.strategy_name].timestamp)
+      map[r.strategy_name] = r;
+  });
+  return Object.values(map).sort((a, b) => parseFloat(b.sharpe_ratio) - parseFloat(a.sharpe_ratio));
+}
+
+// ──────────────────────────────────────────────
+// プロット共通設定
+// ──────────────────────────────────────────────
+const plotLayout = {
+  paper_bgcolor: '#161b22',
+  plot_bgcolor: '#0d1117',
+  font: { color: '#c9d1d9', family: 'Segoe UI, system-ui, sans-serif', size: 12 },
+  xaxis: { gridcolor: '#21262d', zerolinecolor: '#30363d' },
+  yaxis: { gridcolor: '#21262d', zerolinecolor: '#30363d' },
+  margin: { l: 50, r: 20, t: 20, b: 80 },
+  legend: { bgcolor: '#161b22', bordercolor: '#30363d', borderwidth: 1 },
+};
+
+const PALETTE = [
+  '#58a6ff','#3fb950','#d29922','#f85149','#bc8cff',
+  '#39d353','#ffa657','#f78166','#a5d6ff','#7ee787',
+];
+
+// ──────────────────────────────────────────────
+// メイン描画
+// ──────────────────────────────────────────────
+function render(rows) {
+  const latest = latestPerStrategy(rows);
+
+  // KPI — エース戦略
+  const ace = latest[0];
+  document.getElementById('kpi-section').innerHTML = `
+    <div class="card">
+      <h2>エース戦略 — Sharpe</h2>
+      <div class="kpi green">${parseFloat(ace.sharpe_ratio).toFixed(3)}</div>
+      <div class="kpi-label">${ace.strategy_name} | ${ace.timeframe}</div>
+    </div>
+    <div class="card">
+      <h2>エース戦略 — PF</h2>
+      <div class="kpi green">${parseFloat(ace.profit_factor).toFixed(3)}</div>
+      <div class="kpi-label">プロフィットファクター</div>
+    </div>
+    <div class="card">
+      <h2>エース戦略 — MDD</h2>
+      <div class="kpi ${parseFloat(ace.max_drawdown) <= 15 ? 'green' : parseFloat(ace.max_drawdown) <= 30 ? 'yellow' : 'red'}">${parseFloat(ace.max_drawdown).toFixed(1)}%</div>
+      <div class="kpi-label">最大ドローダウン</div>
+    </div>
+  `;
+
+  // Sharpe 棒グラフ
+  Plotly.newPlot('chart-sharpe', [{
+    type: 'bar',
+    x: latest.map(r => r.strategy_name),
+    y: latest.map(r => parseFloat(r.sharpe_ratio)),
+    marker: {
+      color: latest.map((r, i) => PALETTE[i % PALETTE.length]),
+      opacity: 0.85,
+    },
+    text: latest.map(r => parseFloat(r.sharpe_ratio).toFixed(3)),
+    textposition: 'outside',
+    textfont: { color: '#c9d1d9', size: 11 },
+  }, {
+    type: 'scatter', mode: 'lines', name: '目標 (1.5)',
+    x: latest.map(r => r.strategy_name),
+    y: latest.map(() => 1.5),
+    line: { color: '#f85149', dash: 'dash', width: 1.5 },
+  }], {
+    ...plotLayout,
+    showlegend: false,
+    yaxis: { ...plotLayout.yaxis, title: 'Sharpe Ratio' },
+  }, { responsive: true, displayModeBar: false });
+
+  // MDD 棒グラフ
+  Plotly.newPlot('chart-mdd', [{
+    type: 'bar',
+    x: latest.map(r => r.strategy_name),
+    y: latest.map(r => parseFloat(r.max_drawdown)),
+    marker: {
+      color: latest.map(r => {
+        const v = parseFloat(r.max_drawdown);
+        return v <= 15 ? '#3fb950' : v <= 30 ? '#d29922' : '#f85149';
+      }),
+      opacity: 0.85,
+    },
+    text: latest.map(r => parseFloat(r.max_drawdown).toFixed(1) + '%'),
+    textposition: 'outside',
+    textfont: { color: '#c9d1d9', size: 11 },
+  }, {
+    type: 'scatter', mode: 'lines', name: '基準 (30%)',
+    x: latest.map(r => r.strategy_name),
+    y: latest.map(() => 30),
+    line: { color: '#d29922', dash: 'dot', width: 1.5 },
+  }], {
+    ...plotLayout,
+    showlegend: false,
+    yaxis: { ...plotLayout.yaxis, title: 'Max Drawdown (%)', autorange: 'reversed' },
+  }, { responsive: true, displayModeBar: false });
+
+  // Sharpe vs MDD 散布図
+  Plotly.newPlot('chart-scatter', [{
+    type: 'scatter', mode: 'markers+text',
+    x: latest.map(r => parseFloat(r.max_drawdown)),
+    y: latest.map(r => parseFloat(r.sharpe_ratio)),
+    text: latest.map(r => r.strategy_name),
+    textposition: 'top center',
+    textfont: { size: 10, color: '#c9d1d9' },
+    marker: {
+      size: latest.map(r => Math.max(12, Math.min(40, parseInt(r.trades) / 8))),
+      color: latest.map((_, i) => PALETTE[i % PALETTE.length]),
+      opacity: 0.8,
+      line: { color: '#30363d', width: 1 },
+    },
+    hovertemplate: '<b>%{text}</b><br>MDD: %{x:.1f}%<br>Sharpe: %{y:.3f}<extra></extra>',
+  }], {
+    ...plotLayout,
+    xaxis: { ...plotLayout.xaxis, title: 'Max Drawdown (%)', autorange: 'reversed' },
+    yaxis: { ...plotLayout.yaxis, title: 'Sharpe Ratio' },
+  }, { responsive: true, displayModeBar: false });
+
+  // テーブル
+  const tbody = document.getElementById('table-body');
+  tbody.innerHTML = latest.map((r, i) => {
+    const sh = parseFloat(r.sharpe_ratio);
+    const pf = parseFloat(r.profit_factor);
+    const mdd = parseFloat(r.max_drawdown);
+    let badge = '';
+    if (sh >= 1.5 && pf >= 1.5 && mdd <= 30)
+      badge = '<span class="badge-pass">PASS</span>';
+    else if (pf >= 1.0)
+      badge = '<span class="badge-warn">CHECK</span>';
+    else
+      badge = '<span class="badge-fail">FAIL</span>';
+    return `<tr>
+      <td><strong>${r.strategy_name}</strong></td>
+      <td>${r.timeframe}</td>
+      <td style="color:${sh >= 1.5 ? '#3fb950' : sh >= 0.5 ? '#d29922' : '#f85149'}">${sh.toFixed(3)}</td>
+      <td style="color:${pf >= 1.5 ? '#3fb950' : pf >= 1.0 ? '#d29922' : '#f85149'}">${pf.toFixed(4)}</td>
+      <td style="color:${mdd <= 15 ? '#3fb950' : mdd <= 30 ? '#d29922' : '#f85149'}">${mdd.toFixed(1)}%</td>
+      <td>${parseFloat(r.win_rate).toFixed(1)}%</td>
+      <td>${r.trades}</td>
+      <td>${badge}</td>
+      <td class="ts">${r.timestamp.replace('T', ' ').replace('Z', '')}</td>
+    </tr>`;
+  }).join('');
+
+  // 最終更新時刻
+  const lastTs = rows.reduce((a, b) => a.timestamp > b.timestamp ? a : b).timestamp;
+  document.getElementById('last-updated').textContent =
+    '最終更新: ' + lastTs.replace('T', ' ').replace('Z', ' UTC');
+}
+
+// ──────────────────────────────────────────────
+// 初期化: インライン CSV を解析して描画
+// ──────────────────────────────────────────────
+const rows = parseCSV(CSV_INLINE);
+render(rows);
+
+// ──────────────────────────────────────────────
+// performance_log.csv を動的フェッチ (ローカルサーバー利用時)
+// python -m http.server 8080 で起動した場合のみ有効
+// ──────────────────────────────────────────────
+fetch('results/performance_log.csv')
+  .then(r => r.ok ? r.text() : null)
+  .then(text => {
+    if (text) {
+      const fresh = parseCSV(text).filter(r => r.strategy_name && r.strategy_name !== 'Union_4H_test');
+      if (fresh.length > 0) render(fresh);
+    }
+  })
+  .catch(() => {/* ローカルファイルアクセス不可 — インラインデータを使用 */});
+</script>
+</body>
+</html>
