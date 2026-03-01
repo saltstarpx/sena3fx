@@ -1,11 +1,12 @@
 """
-リスク管理モジュール — ポジションサイジング v1.0
+リスク管理モジュール — ポジションサイジング v2.0
 =================================================
 VolatilityAdjustedSizer: ATRに基づく動的サイジング（DD抑制）
 KellyCriterionSizer    : フラクショナル・ケリー基準（リターン最大化）
+HybridKellySizer       : Kelly × VolSizer ハイブリッド（v13新設）
 
 使い方:
-    sizer = VolatilityAdjustedSizer(atr_lookback=100)
+    sizer = HybridKellySizer(kelly_fraction=0.5)
     engine.run(data=df, signal_func=sig, sizer=sizer, ...)
 """
 
@@ -190,3 +191,63 @@ class KellyCriterionSizer:
         return (f"KellyCriterionSizer("
                 f"WR={self._win_rate:.1%}, PF={self._profit_factor:.3f}, "
                 f"f*={self._kelly_f:.4f}, fraction={self.kelly_fraction})")
+
+
+class HybridKellySizer:
+    """
+    Kelly × VolatilityAdjusted ハイブリッドサイジング (v13)。
+
+    Kellyの爆発力（高リターン）とVolSizerのDD抑制能力を両立。
+    final_multiplier = kelly_multiplier × volatility_multiplier
+
+    Args:
+        kelly_fraction : フラクショナル係数（デフォルト0.5 — v12の0.25から引上げ）
+        vol_lookback   : VolSizer の avg_atr 計算期間
+        vol_clip_min   : VolSizer 乗数下限
+        vol_clip_max   : VolSizer 乗数上限（高ボラ時の暴走防止）
+        strategy_name  : performance_log.csv の参照戦略名
+        base_risk_pct  : ベースrisk_pct
+        global_clip_max: 最終乗数の上限（安全装置）
+    """
+
+    def __init__(self,
+                 kelly_fraction: float = 0.5,
+                 vol_lookback: int = 100,
+                 vol_clip_min: float = 0.3,
+                 vol_clip_max: float = 1.5,
+                 strategy_name: str = 'Union_4H',
+                 base_risk_pct: float = 0.05,
+                 global_clip_max: float = 5.0):
+        self.global_clip_max = global_clip_max
+
+        self._kelly = KellyCriterionSizer(
+            kelly_fraction=kelly_fraction,
+            strategy_name=strategy_name,
+            base_risk_pct=base_risk_pct,
+        )
+        self._vol = VolatilityAdjustedSizer(
+            atr_lookback=vol_lookback,
+            clip_min=vol_clip_min,
+            clip_max=vol_clip_max,
+        )
+
+    def fit(self, atr_series: pd.Series) -> None:
+        """BacktestEngine から呼び出し: VolSizer に ATR 系列を渡す。"""
+        self._vol.fit(atr_series)
+
+    def get_multiplier(self, i: int) -> float:
+        """
+        Kelly乗数 × VolSizer乗数 の積を返す。
+
+        Returns:
+            float: risk_pct に掛ける最終乗数
+        """
+        k_mult = self._kelly.get_multiplier(i)
+        v_mult = self._vol.get_multiplier(i)
+        return float(np.clip(k_mult * v_mult, 0.1, self.global_clip_max))
+
+    def __repr__(self):
+        return (f"HybridKellySizer("
+                f"kelly={self._kelly}, "
+                f"vol={self._vol}, "
+                f"global_clip_max={self.global_clip_max})")

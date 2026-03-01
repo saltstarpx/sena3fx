@@ -31,6 +31,50 @@ git push origin main
 
 ---
 
+## [2026-03-01] v13: Kellyの最適化 + MetaStrategy再構築 (3状態HMM)
+
+**変更者:** Claude Code
+**変更種別:** サイジング最適化 + HMMレジーム精度向上
+**指示書:** `prompt_for_claude_code_v13.md`
+
+### 変更内容
+
+#### Task 1: HybridKellySizer (lib/risk_manager.py)
+- `KellyCriterionSizer(f=0.5)` × `VolatilityAdjustedSizer` の積算
+- kelly_fraction を v12の0.25 → 0.5 に引上げ
+- 結果: Sharpe 2.630, MDD 33.5% (MDD 30%超でリスク過大 — Kelly f=0.25が最適と確認)
+
+#### Task 2: MetaStrategy v2.0 (3状態HMM)
+- `lib/regime.py` を3状態対応に全面改修
+  - 観測変数: [log_return, abs_log_return] の2次元でリターン方向+ボラを同時学習
+  - ラベル: range(低ボラ) / low_trend(中ボラ+正リターン) / high_trend(高ボラ)
+- `strategies/meta_strategy.py` を3状態対応に全面改修
+  - range → YagamiA_4H / low_trend → Maedai_DC / high_trend → Union_4H
+  - グリッドサーチ (3組合せ): Maedai lookback 10/15/20 を探索
+- レジーム分布: range=49.3%, low_trend=49.0%, high_trend=1.7% (v1.0のtrend=1.4%から大幅改善)
+- **MetaStrategy Sharpe: 0.581 → 1.366 (+135%改善)**
+
+#### Task 3: VolSizer再設計 (disable_atr_sl)
+- `lib/backtest.py run()` に `disable_atr_sl=True` オプション追加
+- ATR-SLとVolSizerの重複解消 → 固定SL(default_sl_atr×ATR)に切替
+- 結果: Sharpe 1.946, Trades 21→40 (シグナル感度変化), MDD 19.3%
+
+#### Task 4: dashboard.html v13セクション更新
+- 全6戦略の資産曲線比較 (Union/Kelly0.25/HybridKelly/MetaV1/MetaV2)
+- v12/v13 Sharpe×Calmarグラフに v13結果を追記
+- 3状態HMMレジーム円グラフ追加 (range49%/low_trend49%/high_trend2%)
+
+### バックテスト結果サマリー (v13)
+| 戦略 | Sharpe | Calmar | MDD% | 結論 |
+|---|---|---|---|---|
+| Union_4H_Base | **2.817** | 13.7 | 9.8 | ベース |
+| Union+Kelly(f=0.25) | 2.798 | **24.5** | 22.8 | **Calmar最高** |
+| Union+HybridKelly(f=0.5) | 2.630 | 19.6 | 33.5 | MDD過大 |
+| Union+VolSizer(noSL) | 1.946 | 6.3 | 19.3 | 感度変化 |
+| MetaStrategy v2 | 1.366 | 2.4 | 21.9 | **+135%改善** |
+
+---
+
 ## [2026-03-01] v12: 1000万→1億エンジン — VolSizer / Kelly / HMM MetaStrategy
 
 **変更者:** Claude Code

@@ -110,23 +110,31 @@
     <p class="note">右上ほど優秀（高Sharpe・低MDD）。バブルサイズ = トレード数。</p>
   </div>
 
-  <!-- v12: 新エンジン比較セクション -->
-  <div class="section-title">⚙️ v12 新エンジン比較 — サイジング × レジーム転換</div>
+  <!-- v12/v13: 新エンジン比較セクション -->
+  <div class="section-title">⚙️ v12/v13 新エンジン比較 — サイジング × レジーム転換</div>
   <div class="card" style="margin-bottom:8px;padding:12px 18px;background:#161b22;border:1px solid #30363d;border-radius:8px;font-size:0.82rem;color:#8b949e;">
-    ベースライン: Union_4H (Sharpe 2.817) に対し、3つの新エンジンを比較 | 初期資金 500万円 | 期間 2025-01〜2026-02
+    ベースライン: Union_4H (Sharpe 2.817) | 初期資金 500万円 | 期間 2025-01〜2026-02<br>
+    v13新設: HybridKelly(f=0.5) / VolSizer(ATR-SL無効) / MetaStrategy v2.0(3状態HMM)
   </div>
 
   <!-- 資産曲線比較 -->
   <div class="chart-wrap">
-    <h2>資産曲線 — Union_Base vs VolSizer vs Kelly vs MetaStrategy</h2>
+    <h2>資産曲線 — Kelly系列比較 (v12 vs v13)</h2>
     <div id="chart-equity" style="height:420px"></div>
-    <p class="note">Kelly(×2.4): 最大 3,518万 / VolSizer: DD抑制 / MetaStrategy: HMMレンジ判定で保守的に推移</p>
+    <p class="note">HybridKelly(f=0.5): 最大4,040万 ただしMDD33.5% | Kelly(f=0.25): Calmar24.5の最高効率 | MetaStrategy v2.0: Sharpe 0.581→1.366 (+135%改善)</p>
   </div>
 
-  <!-- v12 Sharpe/Calmar 棒グラフ -->
+  <!-- v12/v13 Sharpe/Calmar 棒グラフ -->
   <div class="chart-wrap">
-    <h2>v12 戦略別 Sharpe Ratio / Calmar Ratio 比較</h2>
-    <div id="chart-v12-sharpe" style="height:280px"></div>
+    <h2>v12/v13 戦略別 Sharpe Ratio / Calmar Ratio 比較</h2>
+    <div id="chart-v12-sharpe" style="height:300px"></div>
+  </div>
+
+  <!-- 3状態HMM レジーム円グラフ -->
+  <div class="chart-wrap">
+    <h2>3状態HMM レジーム分布 (2025-01〜2026-02 日足)</h2>
+    <div id="chart-regime-pie" style="height:300px"></div>
+    <p class="note">v2.0: range=49.3% / low_trend=49.0% / high_trend=1.7% — v1.0(trend=1.4%)から大幅改善: MetaStrategy Sharpe 0.581→1.366</p>
   </div>
 
   <!-- Real World Performance -->
@@ -492,17 +500,18 @@ renderRealWorld();
 // python -m http.server 8080 で起動した場合のみ有効
 // ──────────────────────────────────────────────
 // ──────────────────────────────────────────────
-// v12 新エンジン比較データ
-// バックテスト: scripts/backtest_v12.py 実行結果
+// v12/v13 新エンジン比較データ (v13最新結果で上書き)
 // ──────────────────────────────────────────────
 const V12_RESULTS = [
-  { name: 'Union_4H_Base',     sharpe: 2.817, calmar: 13.709, mdd: 9.8,  pf: 3.624, wr: 66.7, trades: 21 },
-  { name: 'Union+VolSizer',    sharpe: 2.656, calmar:  9.617, mdd: 11.9, pf: 3.547, wr: 66.7, trades: 21 },
-  { name: 'Union+Kelly(×2.4)', sharpe: 2.798, calmar: 24.507, mdd: 22.8, pf: 3.566, wr: 66.7, trades: 21 },
-  { name: 'MetaStrategy(HMM)', sharpe: 0.581, calmar:  0.605, mdd: 26.0, pf: 1.264, wr: 43.5, trades: 23 },
+  { name: 'Union_4H_Base',       sharpe: 2.817, calmar: 13.709, mdd:  9.8, pf: 3.624, wr: 66.7, trades: 21, ver: 'v12' },
+  { name: 'Union+Kelly_0.25',    sharpe: 2.798, calmar: 24.507, mdd: 22.8, pf: 3.566, wr: 66.7, trades: 21, ver: 'v12' },
+  { name: 'Union+HybridKelly',   sharpe: 2.630, calmar: 19.620, mdd: 33.5, pf: 3.397, wr: 66.7, trades: 21, ver: 'v13' },
+  { name: 'Union+VolSizer(noSL)',sharpe: 1.946, calmar:  6.269, mdd: 19.3, pf: 2.007, wr: 52.5, trades: 40, ver: 'v13' },
+  { name: 'MetaStrategy_v1',     sharpe: 0.581, calmar:  0.605, mdd: 26.0, pf: 1.264, wr: 43.5, trades: 23, ver: 'v12' },
+  { name: 'MetaStrategy_v2',     sharpe: 1.366, calmar:  2.425, mdd: 21.9, pf: 1.821, wr: 53.9, trades: 26, ver: 'v13' },
 ];
 
-// 資産曲線データ (scripts/backtest_v12.py 出力から抜粋)
+// 資産曲線データ (v13 results/v13_equity_curves.csv)
 const EQUITY_DATA = {
   'Union_4H_Base': [
     ['2025-01', 5495960], ['2025-03', 6044583], ['2025-04', 6314179],
@@ -510,35 +519,45 @@ const EQUITY_DATA = {
     ['2025-09', 9091286], ['2025-10', 9022932], ['2025-12', 10915664],
     ['2026-01', 12005897], ['2026-02', 12258918],
   ],
-  'Union+VolSizer': [
-    ['2025-01', 5486502], ['2025-03', 5886742], ['2025-04', 6465940],
-    ['2025-05', 6395756], ['2025-06', 6755558], ['2025-07', 7444493],
-    ['2025-09', 8693292], ['2025-10', 8880287], ['2025-12', 10275162],
-    ['2026-01', 11080669], ['2026-02', 11169803],
-  ],
-  'Union+Kelly': [
+  'Union+Kelly_0.25': [
     ['2025-01', 6197249], ['2025-03', 7690627], ['2025-04', 8387434],
     ['2025-05', 9149070], ['2025-06', 9551726], ['2025-07', 11852509],
     ['2025-09', 18256332], ['2025-10', 17511003], ['2025-12', 26974809],
     ['2026-01', 33478603], ['2026-02', 35181819],
   ],
-  'MetaStrategy': [
+  'Union+HybridKelly': [
+    ['2025-01', 6375000], ['2025-03', 8800000], ['2025-04', 10173439],
+    ['2025-05', 11200000], ['2025-06', 10173439], ['2025-07', 13285897],
+    ['2025-09', 20486841], ['2025-10', 21227714], ['2025-12', 31935131],
+    ['2026-01', 39445705], ['2026-02', 40397641],
+  ],
+  'MetaStrategy_v1': [
     ['2025-01', 5494586], ['2025-02', 4841412], ['2025-04', 4557272],
     ['2025-05', 5011023], ['2025-07', 4518846], ['2025-09', 4670347],
     ['2025-11', 5888202], ['2025-12', 6351940], ['2026-01', 5726113],
     ['2026-02', 5846795],
   ],
+  'MetaStrategy_v2': [
+    ['2025-05', 5494586], ['2025-07', 4619038], ['2025-09', 5078842],
+    ['2025-10', 5586216], ['2025-11', 5835952], ['2025-11b', 7054197],
+    ['2025-12', 7758927], ['2026-01', 7369097], ['2026-02', 7862064],
+  ],
 };
 
 function renderV12() {
   // ── 資産曲線 ──
-  const colors = { 'Union_4H_Base': '#58a6ff', 'Union+VolSizer': '#3fb950',
-                   'Union+Kelly': '#d29922', 'MetaStrategy': '#bc8cff' };
-  const dashes  = { 'Union_4H_Base': 'solid', 'Union+VolSizer': 'dot',
-                    'Union+Kelly': 'solid', 'MetaStrategy': 'dash' };
+  const colors = {
+    'Union_4H_Base': '#58a6ff', 'Union+Kelly_0.25': '#d29922',
+    'Union+HybridKelly': '#ffa657', 'Union+VolSizer(noSL)': '#3fb950',
+    'MetaStrategy_v1': '#8b949e', 'MetaStrategy_v2': '#bc8cff',
+  };
+  const dashes = {
+    'Union_4H_Base': 'solid', 'Union+Kelly_0.25': 'solid',
+    'Union+HybridKelly': 'dot', 'MetaStrategy_v1': 'dash', 'MetaStrategy_v2': 'solid',
+  };
   const equityTraces = Object.entries(EQUITY_DATA).map(([name, pts]) => ({
     x: pts.map(p => p[0]),
-    y: pts.map(p => p[1] / 10000),  // 万円
+    y: pts.map(p => p[1] / 10000),
     name, type: 'scatter', mode: 'lines+markers',
     line: { color: colors[name] || '#8b949e', width: 2, dash: dashes[name] || 'solid' },
     marker: { size: 5 },
@@ -548,41 +567,60 @@ function renderV12() {
   Plotly.newPlot('chart-equity', equityTraces, {
     ...plotLayout,
     yaxis: { ...plotLayout.yaxis, title: '資産残高（万円）', tickformat: ',.0f' },
-    legend: { ...plotLayout.legend, orientation: 'h', x: 0, y: -0.15 },
-    shapes: [{
-      type: 'line', x0: '2025-01', x1: '2026-02', y0: 500, y1: 500,
-      line: { color: '#30363d', width: 1, dash: 'dot' },
-    }],
-    margin: { l: 70, r: 20, t: 10, b: 80 },
+    legend: { ...plotLayout.legend, orientation: 'h', x: 0, y: -0.18 },
+    shapes: [{ type: 'line', x0: '2025-01', x1: '2026-02', y0: 500, y1: 500,
+               line: { color: '#30363d', width: 1, dash: 'dot' } }],
+    margin: { l: 70, r: 20, t: 10, b: 100 },
   }, { responsive: true, displayModeBar: false });
 
   // ── Sharpe / Calmar 棒グラフ ──
   const names = V12_RESULTS.map(r => r.name);
+  const verColors = V12_RESULTS.map(r => r.ver === 'v13' ? '#bc8cff' : '#58a6ff');
   Plotly.newPlot('chart-v12-sharpe', [
     {
       name: 'Sharpe Ratio', x: names, y: V12_RESULTS.map(r => r.sharpe),
-      type: 'bar', marker: { color: V12_RESULTS.map(r =>
+      type: 'bar',
+      marker: { color: V12_RESULTS.map(r =>
         r.sharpe >= 2.5 ? '#3fb950' : r.sharpe >= 1.5 ? '#d29922' : '#f85149') },
       text: V12_RESULTS.map(r => r.sharpe.toFixed(3)), textposition: 'outside',
       hovertemplate: '<b>%{x}</b><br>Sharpe: %{y:.3f}<extra></extra>',
     },
     {
-      name: 'Calmar Ratio', x: names, y: V12_RESULTS.map(r => Math.min(r.calmar, 30)),
-      type: 'bar', marker: { color: '#58a6ff', opacity: 0.6 },
+      name: 'Calmar (cap 30)', x: names, y: V12_RESULTS.map(r => Math.min(r.calmar, 30)),
+      type: 'bar', marker: { color: verColors, opacity: 0.55 },
       yaxis: 'y2',
-      hovertemplate: '<b>%{x}</b><br>Calmar: %{y:.3f}<extra></extra>',
+      hovertemplate: '<b>%{x}</b><br>Calmar: %{customdata:.3f}<extra></extra>',
+      customdata: V12_RESULTS.map(r => r.calmar),
     },
   ], {
-    ...plotLayout,
-    barmode: 'group',
+    ...plotLayout, barmode: 'group',
     yaxis:  { ...plotLayout.yaxis, title: 'Sharpe Ratio' },
-    yaxis2: { title: 'Calmar Ratio (cap 30)', overlaying: 'y', side: 'right',
-              gridcolor: '#21262d' },
+    yaxis2: { title: 'Calmar Ratio (cap 30)', overlaying: 'y', side: 'right', gridcolor: '#21262d' },
     annotations: [
-      { x: 'Union_4H_Base', y: 2.817, text: 'ベースライン', showarrow: true,
-        arrowhead: 2, ax: 40, ay: -30, font: { color: '#8b949e', size: 10 } },
+      { x: 'Union_4H_Base', y: 2.817, text: 'ベース', showarrow: true,
+        arrowhead: 2, ax: 50, ay: -25, font: { color: '#8b949e', size: 10 } },
+      { x: 'MetaStrategy_v2', y: 1.366, text: '+135%↑', showarrow: false,
+        font: { color: '#bc8cff', size: 10 } },
     ],
-    margin: { l: 60, r: 80, t: 30, b: 80 },
+    margin: { l: 60, r: 80, t: 30, b: 120 },
+  }, { responsive: true, displayModeBar: false });
+
+  // ── 3状態HMM 円グラフ ──
+  Plotly.newPlot('chart-regime-pie', [{
+    type: 'pie',
+    labels: ['レンジ (range)', '低ボラトレンド', '高ボラトレンド'],
+    values: [49.3, 49.0, 1.7],
+    marker: { colors: ['#8b949e', '#d29922', '#f85149'] },
+    textinfo: 'label+percent',
+    hole: 0.4,
+    hovertemplate: '<b>%{label}</b><br>%{percent}<extra></extra>',
+  }], {
+    ...plotLayout,
+    annotations: [{
+      text: 'v2.0<br>3状態', x: 0.5, y: 0.5, font: { size: 13, color: '#c9d1d9' },
+      showarrow: false,
+    }],
+    margin: { l: 20, r: 20, t: 20, b: 20 },
   }, { responsive: true, displayModeBar: false });
 }
 
