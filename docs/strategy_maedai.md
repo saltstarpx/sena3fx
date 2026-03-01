@@ -1,50 +1,122 @@
-# Teammate B: Maedai — 高RRトレンドフォロー
+# Teammate B: Maedai Strategy Documentation
 
 ## 概要
 
-低勝率・高リスクリワードのトレンドフォロー戦略。
-「背を近くして何度も挑戦し、大きな値動きを取る」思想。
+低勝率・高リスクリワード (RR) のトレンドフォロー戦略。
+「背を近くして何度も挑戦し、大きな値動きを取る」思想を追求する。
 
 **評価基準**: Sharpe Ratio > 1.5, Calmar Ratio > 3.0, 年間トレード数 > 50
 
-## コア戦略: Donchian ブレイクアウト
+## 「背を近く、大きく取る」思想
 
-- Donchian チャネル (N日間の高値/安値) のブレイクでエントリー
-- EMA(200) フィルターでトレンド方向のみ許可
-- ATR ベースのトレーリングストップで利益追従
+マエダイ式トレンドフォローの核心は以下の通り:
 
-## パラメータグリッド (Task 3 結果)
+1. **タイトなストップ** (SL = ATR x 0.8) で損失を最小化
+2. **大きなテイクプロフィット** (TP = ATR x 10+) で利益を最大化
+3. **何度でも挑戦**: 損切りされても同方向のトレンドが続く限り再エントリー
+4. **大きな時間軸のブレイクを捕捉**: Donchian Channel で明確なブレイクアウトを検知
 
-| DC期間 | EMA | Sharpe | Calmar | PF | DD |
-|--------|-----|--------|--------|----|----|
-| DC30 | 200 | **1.060** | **3.558** | 1.731 | 3.0% |
-| DC30 | 100 | **1.060** | **3.558** | 1.731 | 3.0% |
-| DC40 | 200 | 0.941 | 3.045 | 1.628 | 3.0% |
-| DC20 | 200 | 0.734 | 0.961 | 1.432 | 8.8% |
-| Union | - | **1.859** | **4.153** | 2.061 | 12.7% |
+勝率は低くなるが (30-40%)、1回の勝ちトレードで複数回の負けを補い、
+RR比率 3:1 以上を目指す。
 
-**最適パラメータ**: DC30 + EMA200 (Calmar 3.558, DD 3.0%)
+## Donchian ブレイクアウト戦略
 
-## シグナル関数
+### 基本ロジック
 
-| 関数 | 説明 | ファイル |
-|------|------|----------|
-| `sig_maedai_dc_ema_tf` | DC+EMA (推奨) | `lib/yagami.py` |
-| `sig_maedai_yagami_union` | DC+やがみ統合 | `lib/yagami.py` |
-| `sig_maedai_best` | 最適化済み | `lib/yagami.py` |
-| `sig_maedai_dc_usd` | DC + USD強弱フィルター | `strategies/maedai_breakout.py` |
+```
+ロングシグナル: 終値 > 直近N本の高値 (Donchian上限)
+ショートシグナル: 終値 < 直近N本の安値 (Donchian下限)
+```
 
-## エンジン設定 (Maedai専用)
+- Donchian Channel は `shift(1)` で現在バーを含まない
+- アジア時間のブレイクアウトはデフォルトで除外 (`session_filter_on=True`)
+- EMAフィルターでトレンド方向に順張りのみ許可
+
+### パラメータグリッド
+
+`strategies/maedai_breakout.py` の `DC_PARAM_GRID`:
+
+| DC期間 (lookback_days) | EMA期間 (ema_days) | 説明 |
+|------------------------|-------------------|------|
+| 10 | 200 | 短期ブレイク + 長期トレンド |
+| 15 | 200 | 中短期ブレイク + 長期トレンド |
+| 20 | 200 | 標準ブレイク + 長期トレンド |
+| 30 | 200 | 中長期ブレイク + 長期トレンド |
+| 40 | 200 | 長期ブレイク + 長期トレンド |
+| 15 | 100 | 中短期ブレイク + 中期トレンド |
+| 20 | 100 | 標準ブレイク + 中期トレンド |
+| 30 | 100 | 中長期ブレイク + 中期トレンド |
+
+各パラメータセットに対してUSD強弱フィルター付きバリアントも自動生成される。
+
+## シグナル関数一覧
+
+コア実装は `lib/yagami.py`、戦略ハブは `strategies/maedai_breakout.py`。
+
+### 基本シグナル
+
+| 関数 | 説明 |
+|------|------|
+| `sig_maedai_breakout(freq, lookback, ...)` | 基本Donchianブレイクアウト |
+| `sig_maedai_breakout_v2(freq, ...)` | 改良版 (ATR確認フィルター付き) |
+| `sig_maedai_best(freq)` | 最良パラメータのプリセット |
+| `sig_maedai_htf_breakout(lookback_htf, ...)` | MTFブレイクアウト (4H方向 + 1H精密エントリー) |
+| `sig_maedai_htf_pullback(lookback_htf, ...)` | MTFプルバック (4Hトレンド + 1H押し目買い) |
+| `sig_maedai_d1_dc30(lookback, ema_period)` | 日足DC30ブレイクアウト |
+| `sig_maedai_d1_dc_multi(lookback, ...)` | 日足マルチパラメータ |
+
+### 統合シグナル
+
+| 関数 | 説明 |
+|------|------|
+| `sig_maedai_dc_ema_tf(freq, lookback_days, ema_days)` | DC + EMA + 時間足の統合シグナル |
+| `sig_maedai_yagami_union(freq, lookback_days, ema_days)` | Maedai + Yagami のユニオン (どちらかで発火) |
+
+### USD強弱フィルター付きバリアント (`strategies/maedai_breakout.py`)
+
+| 変数名 | ベース |
+|--------|--------|
+| `sig_maedai_dc_usd` | `sig_maedai_dc_ema_tf` + USD threshold=75 |
+| `sig_maedai_union_usd` | `sig_maedai_yagami_union` + USD threshold=75 |
+| `sig_maedai_best_usd` | `sig_maedai_best` + USD threshold=75 |
+
+## ATR トレーリングストップ
+
+Maedai戦略のストップロスはATRベースで管理される:
+
+- **エントリー時SL**: ATR x 0.8 (タイト)
+- **テイクプロフィット**: ATR x 10.0 (大きく)
+- **トレーリング**: `BacktestEngine` の `trailing_stop_atr` パラメータで制御
+
+ATRトレーリングストップの動作:
+1. エントリー後、価格が有利方向に動くとストップが追従
+2. ストップ幅は ATR x トレーリング倍数で固定
+3. 利益が伸びるほどストップも引き上がり、反転時に利益を確保
+
+## バックテスト実行例
 
 ```python
-BacktestEngine(
-    risk_pct=0.03,          # 控えめリスク (3%)
-    default_sl_atr=1.5,     # タイトSL
-    default_tp_atr=6.0,     # 大きなTP
-    dynamic_rr=3.0,         # 高RR狙い
-    trail_start_atr=3.0,    # 3ATR利益で追従開始
-    trail_dist_atr=1.5,     # 追従距離
-    target_min_wr=0.25,     # 低WR許容
-    target_rr_threshold=3.0,
-)
+from strategies.maedai_breakout import maedai_dc_variants, maedai_full_variants
+
+# Donchianパラメータ探索
+for name, sig_func in maedai_dc_variants(freq='4h'):
+    result = engine.run(
+        data=df,
+        signal_func=sig_func,
+        name=name,
+        default_sl_atr=0.8,
+        default_tp_atr=10.0,
+    )
+
+# 全バリアント実行
+for name, sig_func in maedai_full_variants(freq='4h'):
+    result = engine.run(data=df, signal_func=sig_func, name=name)
 ```
+
+## 評価指標の計算
+
+`lib/backtest.py` の `_report()` メソッドで以下が自動計算される:
+
+- **Sharpe Ratio**: `mean(trade_returns) / std(trade_returns) * sqrt(trades_per_year)`
+- **Calmar Ratio**: `annualized_return% / max_drawdown%`
+- **Trades per Year**: `total_trades / years_active`
