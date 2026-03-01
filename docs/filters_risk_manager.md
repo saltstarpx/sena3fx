@@ -1,63 +1,173 @@
-# Teammate C: Risk Manager — 市場環境フィルター
+# Teammate C: Filters & Risk Manager Documentation
 
 ## 概要
 
-個別エントリーシグナルではなく、ポートフォリオ全体のリスクを調整する
-市場環境フィルターを開発・評価する。
+ポートフォリオ全体のリスクを調整する市場環境フィルターの開発・評価。
+Teammate A (Yagami) と Teammate B (Maedai) のシグナルに対して
+市場環境に応じたフィルタリングを適用し、不利な環境でのトレードを回避する。
 
-**評価基準**: MDD低減率, ボラティリティ低減率, Sharpe Ratio改善率
+**評価基準**:
+- ポートフォリオ全体の最大ドローダウン (MDD) 低減率
+- ボラティリティ低減率
+- Sharpe Ratio 改善率
 
-## フィルター一覧
+実装: `strategies/market_filters.py`
 
-### 1. USD 強弱フィルター (新規)
+## 1. USD強弱フィルター
 
-**ファイル**: `strategies/market_filters.py`
+### 概要
 
-- XAUUSD の逆モメンタムから USD 強弱をプロキシ算出
-- `calc_usd_strength(bars, lookback=20, rank_window=100)` → 0-100
-- USD ≥ 75 (上位25%) → ロングエントリー回避
-- `make_usd_filtered_signal()` で既存シグナルにラップ適用
+XAUUSDの逆モメンタムからUSD強弱のプロキシを算出し、
+USDが強い期間のロングシグナルを除去する。
 
-**Task 1 バックテスト結果**:
-- 平均PF: 素 1.790 → +USD 1.881 (+0.091)
-- 平均DD: 素 29.7% → +USD 27.5% (-2.3%)
-- 平均Sharpe: 素 1.164 → +USD 1.212 (+0.048)
+### 関数
 
-### 2. 季節フィルター
+| 関数 | 説明 |
+|------|------|
+| `calc_usd_strength(bars, lookback=20, rank_window=100)` | USD強弱スコア (0-100) を算出 |
+| `usd_strength_filter(bars, threshold=75.0)` | `True` = USD強 → ロング回避 |
+| `wrap_signal_with_usd_filter(sig_func, bars, threshold)` | 既存シグナルにフィルター適用 |
+| `make_usd_filtered_signal(sig_factory, threshold=75)` | シグナルファクトリへのフィルター組込み |
 
-**実装**: `BacktestEngine.run(allowed_months=...)`
+### ロジック
 
-| プリセット | 月 | 用途 |
-|---|---|---|
-| `SEASON_ALL` | 全月 | ベースライン |
-| `SEASON_SKIP_JUL_SEP` | 7月+9月除外 | Task 2 検証 |
-| `SEASON_ACTIVE` | 1-3, 10-12月 | 冬季+秋季のみ |
+```
+1. XAUUSD の lookback 本リターンを算出
+2. ローリングパーセンタイルランク (rank_window 本) に変換
+3. USD強弱 = 100 - gold_momentum_percentile
+   (金が下落 = USD強、金が上昇 = USD弱)
+4. USD強弱 >= threshold のとき、ロングシグナルを除去
+   (ショートシグナルは影響を受けない)
+```
 
-**Task 2 結果**: YagamiFull_1H で 7+9月除外 → DD 40.2% → 29.9% (-10.3%), Sharpe 1.545 → 1.581
+### パラメータ
 
-### 3. ボラティリティレジーム
+| パラメータ | デフォルト | 説明 |
+|-----------|-----------|------|
+| `threshold` | 75 | USD強弱の閾値 (上位25%でフィルター発動) |
+| `lookback` | 20 | モメンタム計算の振り返り本数 |
+| `rank_window` | 100 | パーセンタイルランクの窓幅 |
 
-**ファイル**: `lib/filters.py`
+### 使用例
 
-- ATR(14) / MA(ATR, 50) で正規化
-- 0.6 未満: 静かすぎ → スキップ
-- 2.2 超: 荒れすぎ → スキップ
+```python
+from strategies.market_filters import make_usd_filtered_signal
+from lib.yagami import sig_yagami_A
 
-### 4. トレンドレジーム
+# ファクトリにフィルターを組み込む
+filtered_sig = make_usd_filtered_signal(sig_yagami_A, threshold=75)
+result = engine.run(data=df, signal_func=filtered_sig(freq='4h'))
+```
 
-- EMA(50/200) の傾き + クロスで判定
-- +1: ロング優勢 / -1: ショート優勢 / 0: 中立
+## 2. 季節フィルター
 
-### 5. 時刻アノマリー
+### 概要
 
-- プライム時間帯: UTC 6-9h (ロンドン), 13-15h (NY)
-- 回避時間帯: UTC 1-4h, 22-23h (アジア深夜)
+特定の月を除外することで、季節性に基づく不利な期間のトレードを回避する。
+`BacktestEngine.run()` の `allowed_months` パラメータで制御。
 
-### 6. 複合スコア
+### 定義済みプリセット
 
-`composite_filter_score()` → 0-5 のスコア (ボラ+トレンド+モメンタム+時刻)
+| 定数 | 許可月 | 説明 |
+|------|--------|------|
+| `SEASON_ALL` | `None` (全月) | フィルターなし |
+| `SEASON_SKIP_JUL` | 7月除外 | 夏枯れ対策 (7月) |
+| `SEASON_SKIP_JUL_SEP` | 7月+9月除外 | 夏枯れ + 9月の不安定さ回避 |
+| `SEASON_ACTIVE` | 1-3月, 10-12月 | 冬季+秋季のみ (活発な時期) |
+| `SEASON_SKIP_SUMMER` | 6-9月除外 | 夏季全般を除外 |
 
-## 通貨強弱分析の結論
+### 有効性評価
 
-Manus AI の分析により「通貨強弱による動的ペア切替は XAGUSD 固定に勝てない」
-→ ペア切替は不採用。USD 強弱はフィルターとしてのみ活用。
+```python
+from strategies.market_filters import seasonal_effectiveness
+
+result = seasonal_effectiveness(trades, skip_months=(7, 9))
+# result['included_months_pnl']  → 除外月以外のPnL合計
+# result['excluded_months_pnl']  → 除外月のPnL合計
+# result['monthly_breakdown']    → 月別のcount/pnl/wins
+```
+
+## 3. ボラティリティレジーム
+
+### 概要
+
+ATR比率 (現在ATR / 長期ATR) に基づいてボラティリティレジームを判定し、
+極端なボラ環境でのトレードを回避する。
+
+`sig_yagami_filtered()` および `sig_yagami_vol_regime()` で使用。
+
+### ロジック
+
+```
+ATR比率 = ATR(14) / ATR(14).rolling(100).mean()
+
+- ATR比率 < 0.6 → 低ボラ環境 → シグナル除去
+- ATR比率 > 2.2 → 高ボラ環境 → シグナル除去
+- 0.6 <= ATR比率 <= 2.2 → 通常環境 → シグナル通過
+```
+
+出典: botter Advent Calendar 2024 #22「消えたエッジの話」
+
+## 4. トレンドレジーム
+
+### 概要
+
+EMA200の方向でトレンドレジームを判定し、逆トレンド方向のシグナルを除去する。
+
+`sig_yagami_filtered()` および `sig_yagami_trend_regime()` で使用。
+
+### ロジック
+
+```
+EMA200 の傾き (直近値 vs 5本前) で方向判定:
+- EMA200 上昇中 → ショートシグナル除去
+- EMA200 下降中 → ロングシグナル除去
+```
+
+出典: ラリーウィリアムズ式 x botter コミュニティ知見
+
+## 5. 時刻アノマリー
+
+### 概要
+
+ロンドンオープン (08:00 UTC) / NYオープン (13:00-14:00 UTC) の
+時間帯に限定したエントリーフィルター。
+
+`sig_yagami_prime_time()` で使用。
+
+### ロジック
+
+- アジア時間 (00:00-07:00 UTC) のブレイクアウトは除外
+- ロンドン/NYセッション時間のみシグナルを通過
+
+出典: botter Advent Calendar 2024 時刻アノマリー記事
+
+## フィルター統合
+
+`sig_yagami_full_filter()` は上記すべてのフィルターを統合:
+
+```python
+sig_yagami_filtered(
+    freq='1h',
+    min_grade='B',
+    use_vol_regime=True,    # ボラティリティレジーム
+    use_trend_regime=True,  # トレンドレジーム
+    use_time_filter=True,   # 時刻アノマリー
+    use_momentum=True,      # MTFモメンタム
+)
+```
+
+さらに `make_usd_filtered_signal()` でUSD強弱フィルターを追加可能。
+
+## 評価方法
+
+フィルターの効果は以下の指標で測定する:
+
+| 指標 | 計算方法 | 目標 |
+|------|----------|------|
+| MDD低減率 | `1 - (filtered_MDD / unfiltered_MDD)` | > 20% |
+| Sharpe改善率 | `filtered_Sharpe / unfiltered_Sharpe - 1` | > 15% |
+| ボラ低減率 | `1 - (filtered_vol / unfiltered_vol)` | > 10% |
+
+フィルター適用前後のバックテスト結果を比較し、
+過度なトレード数減少なく上記指標が改善されていれば採用する。
