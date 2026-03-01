@@ -1,0 +1,7 @@
+step_pct,max_pyramids,pyramid_ratios,sharpe_ratio,calmar_ratio,max_drawdown_pct,profit_factor,win_rate_pct,total_trades,end_value,pyramid_trade_pct,strategy_name
+0.02,1,"[0.5, 0.3, 0.2]",1.418,4.138,34.17,1.5933,40.91,88,21841531,42.0,"XAUUSD+Kelly+LV(step=2%,pyr=1)"
+0.02,2,"[0.5, 0.3, 0.2]",1.425,3.566,39.56,1.6483,44.32,88,21804829,40.9,"XAUUSD+Kelly+LV(step=2%,pyr=2)"
+0.03,1,"[0.5, 0.3, 0.2]",1.52,4.35,35.61,1.6353,44.05,84,23450220,28.6,"XAUUSD+Kelly+LV(step=3%,pyr=1)"
+0.03,2,"[0.5, 0.3, 0.2]",1.526,4.399,35.61,1.6413,44.05,84,23658682,28.6,"XAUUSD+Kelly+LV(step=3%,pyr=2)"
+0.04,1,"[0.5, 0.3, 0.2]",1.636,6.191,26.03,1.7079,47.3,74,24190041,24.3,"XAUUSD+Kelly+LV(step=4%,pyr=1)"
+0.04,2,"[0.5, 0.3, 0.2]",1.635,6.173,26.03,1.7061,47.3,74,24133580,24.3,"XAUUSD+Kelly+LV(step=4%,pyr=2)"
