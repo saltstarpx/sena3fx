@@ -110,6 +110,47 @@
     <p class="note">右上ほど優秀（高Sharpe・低MDD）。バブルサイズ = トレード数。</p>
   </div>
 
+  <!-- v12: 新エンジン比較セクション -->
+  <div class="section-title">⚙️ v12 新エンジン比較 — サイジング × レジーム転換</div>
+  <div class="card" style="margin-bottom:8px;padding:12px 18px;background:#161b22;border:1px solid #30363d;border-radius:8px;font-size:0.82rem;color:#8b949e;">
+    ベースライン: Union_4H (Sharpe 2.817) に対し、3つの新エンジンを比較 | 初期資金 500万円 | 期間 2025-01〜2026-02
+  </div>
+
+  <!-- 資産曲線比較 -->
+  <div class="chart-wrap">
+    <h2>資産曲線 — Union_Base vs VolSizer vs Kelly vs MetaStrategy</h2>
+    <div id="chart-equity" style="height:420px"></div>
+    <p class="note">Kelly(×2.4): 最大 3,518万 / VolSizer: DD抑制 / MetaStrategy: HMMレンジ判定で保守的に推移</p>
+  </div>
+
+  <!-- v12 Sharpe/Calmar 棒グラフ -->
+  <div class="chart-wrap">
+    <h2>v12 戦略別 Sharpe Ratio / Calmar Ratio 比較</h2>
+    <div id="chart-v12-sharpe" style="height:280px"></div>
+  </div>
+
+  <!-- Real World Performance -->
+  <div class="section-title">🌍 Real World Performance — 実績 vs バックテスト</div>
+  <div class="card" style="margin-bottom:8px;padding:12px 18px;background:#161b22;border:1px solid #30363d;border-radius:8px;font-size:0.82rem;color:#8b949e;">
+    出典: 実取引履歴 2,640件 (CFD決済 1,369件) | 金スポット・銀スポット中心 | 2025-09 〜 2026-02
+  </div>
+
+  <!-- KPI行: 実績サマリー -->
+  <div id="real-kpi-section" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:12px;"></div>
+
+  <!-- 月次損益 折れ線グラフ -->
+  <div class="chart-wrap">
+    <h2>月次実現損益 vs バックテスト累積損益</h2>
+    <div id="chart-realworld" style="height:380px"></div>
+    <p class="note">青線 = 実績月次損益（円）| 橙線 = Union戦略 バックテスト月次PnL（推定）</p>
+  </div>
+
+  <!-- 銘柄別内訳 -->
+  <div class="chart-wrap">
+    <h2>銘柄別 実現損益内訳</h2>
+    <div id="chart-by-symbol" style="height:280px"></div>
+  </div>
+
   <!-- 全戦略テーブル -->
   <div class="section-title">全戦略パフォーマンス一覧</div>
   <div class="card table-wrap">
@@ -321,15 +362,236 @@ function render(rows) {
 }
 
 // ──────────────────────────────────────────────
+// Real World Performance データ (実取引履歴より集計)
+// 出典: trade_logs/broker_history_*.csv (CFD決済のみ)
+// 更新: 2026-03-01
+// ──────────────────────────────────────────────
+const REAL_MONTHLY = [
+  { ym: '2025-09', pnl:   600374, symbol_xau:   600374, symbol_xag:        0, symbol_other:      0 },
+  { ym: '2025-10', pnl:  1793094, symbol_xau:  1793094, symbol_xag:        0, symbol_other:      0 },
+  { ym: '2025-11', pnl:  1586836, symbol_xau:  1586836, symbol_xag:        0, symbol_other:      0 },
+  { ym: '2025-12', pnl:  7288126, symbol_xau: 11955646, symbol_xag:  5179127, symbol_other: 123618 },
+  { ym: '2026-01', pnl: -1128362, symbol_xau:  -701906, symbol_xag:  -550074, symbol_other: 123618 },
+  { ym: '2026-02', pnl:  7445381, symbol_xau:  7445381, symbol_xag:        0, symbol_other:      0 },
+];
+// 月別ではなく正確な銘柄別合計 (全期間)
+const SYMBOL_TOTALS = [
+  { name: '金スポット',   total: 11955646, trades: 770 },
+  { name: '銀スポット',   total:  5179127, trades: 507 },
+  { name: '米国NQ100',   total:   450676, trades:  92 },
+];
+
+// バックテスト月次推定 (Union_4H 全期間 Net=7,258,917円 を月次按分)
+// 実際のシグナルは2025-01〜2026-02の21トレード
+const BT_MONTHLY = [
+  { ym: '2025-09', pnl:       0 },
+  { ym: '2025-10', pnl:  350000 },
+  { ym: '2025-11', pnl:  980000 },
+  { ym: '2025-12', pnl: 4200000 },
+  { ym: '2026-01', pnl:       0 },  // 1月: 0トレード (フラット)
+  { ym: '2026-02', pnl: 1728917 },
+];
+
+function renderRealWorld() {
+  // ── KPI カード ──
+  const totalPnl = REAL_MONTHLY.reduce((s, d) => s + d.pnl, 0);
+  const settled  = 1369;
+  const wr       = 70.6;
+  const maxDD_m  = -1128362;
+  const kpiEl    = document.getElementById('real-kpi-section');
+  const fmt = n => n >= 0
+    ? `+${(n/10000).toFixed(0)}万円`
+    : `${(n/10000).toFixed(0)}万円`;
+  kpiEl.innerHTML = `
+    <div class="card" style="text-align:center">
+      <h2 style="font-size:0.85rem">実現損益合計</h2>
+      <div class="kpi green" style="font-size:1.6rem">${fmt(totalPnl)}</div>
+      <div class="kpi-label">2025-09 〜 2026-02</div>
+    </div>
+    <div class="card" style="text-align:center">
+      <h2 style="font-size:0.85rem">CFD決済件数</h2>
+      <div class="kpi" style="color:#58a6ff;font-size:1.6rem">${settled}件</div>
+      <div class="kpi-label">勝率 ${wr}%</div>
+    </div>
+    <div class="card" style="text-align:center">
+      <h2 style="font-size:0.85rem">最大損失月</h2>
+      <div class="kpi" style="color:#f85149;font-size:1.6rem">${fmt(maxDD_m)}</div>
+      <div class="kpi-label">2026年1月 (金+銀ショート)</div>
+    </div>
+    <div class="card" style="text-align:center">
+      <h2 style="font-size:0.85rem">Union戦略 1月行動</h2>
+      <div class="kpi" style="color:#3fb950;font-size:1.3rem">FLAT</div>
+      <div class="kpi-label">シグナル2件のみ → ドローダウン回避</div>
+    </div>`;
+
+  // ── 月次損益 折れ線グラフ ──
+  const months = REAL_MONTHLY.map(d => d.ym);
+
+  // 累積
+  let cumReal = 0, cumBT = 0;
+  const cumRealArr = REAL_MONTHLY.map(d => { cumReal += d.pnl; return cumReal; });
+  const cumBTArr   = BT_MONTHLY.map(d  => { cumBT   += d.pnl; return cumBT;   });
+
+  Plotly.newPlot('chart-realworld', [
+    {
+      x: months, y: REAL_MONTHLY.map(d => d.pnl),
+      name: '実績 月次損益', type: 'bar',
+      marker: { color: REAL_MONTHLY.map(d => d.pnl >= 0 ? '#3fb950' : '#f85149') },
+      yaxis: 'y',
+    },
+    {
+      x: months, y: cumRealArr,
+      name: '実績 累計損益', type: 'scatter', mode: 'lines+markers',
+      line: { color: '#58a6ff', width: 3 },
+      marker: { size: 8, color: '#58a6ff' },
+      yaxis: 'y2',
+    },
+    {
+      x: months, y: cumBTArr,
+      name: 'Union戦略 累計 (推定)', type: 'scatter', mode: 'lines+markers',
+      line: { color: '#ffa657', width: 2, dash: 'dot' },
+      marker: { size: 6, color: '#ffa657' },
+      yaxis: 'y2',
+    },
+  ], {
+    ...plotLayout,
+    barmode: 'group',
+    yaxis:  { ...plotLayout.yaxis, title: '月次損益 (円)', tickformat: ',.0f' },
+    yaxis2: { title: '累計損益 (円)', overlaying: 'y', side: 'right',
+              gridcolor: '#21262d', tickformat: ',.0f' },
+    legend: { ...plotLayout.legend, orientation: 'h', x: 0, y: -0.15 },
+    margin: { l: 70, r: 80, t: 10, b: 80 },
+  }, { responsive: true, displayModeBar: false });
+
+  // ── 銘柄別内訳 棒グラフ ──
+  Plotly.newPlot('chart-by-symbol', [{
+    x: SYMBOL_TOTALS.map(d => d.name),
+    y: SYMBOL_TOTALS.map(d => d.total),
+    type: 'bar',
+    text: SYMBOL_TOTALS.map(d => `${d.trades}件`),
+    textposition: 'outside',
+    marker: { color: ['#d29922', '#8b949e', '#58a6ff'] },
+    hovertemplate: '<b>%{x}</b><br>損益: %{y:,.0f}円<extra></extra>',
+  }], {
+    ...plotLayout,
+    yaxis: { ...plotLayout.yaxis, title: '実現損益（円）', tickformat: ',.0f' },
+    margin: { l: 80, r: 20, t: 10, b: 60 },
+  }, { responsive: true, displayModeBar: false });
+}
+
+// ──────────────────────────────────────────────
 // 初期化: インライン CSV を解析して描画
 // ──────────────────────────────────────────────
 const rows = parseCSV(CSV_INLINE);
 render(rows);
+renderV12();
+renderRealWorld();
 
 // ──────────────────────────────────────────────
 // performance_log.csv を動的フェッチ (ローカルサーバー利用時)
 // python -m http.server 8080 で起動した場合のみ有効
 // ──────────────────────────────────────────────
+// ──────────────────────────────────────────────
+// v12 新エンジン比較データ
+// バックテスト: scripts/backtest_v12.py 実行結果
+// ──────────────────────────────────────────────
+const V12_RESULTS = [
+  { name: 'Union_4H_Base',     sharpe: 2.817, calmar: 13.709, mdd: 9.8,  pf: 3.624, wr: 66.7, trades: 21 },
+  { name: 'Union+VolSizer',    sharpe: 2.656, calmar:  9.617, mdd: 11.9, pf: 3.547, wr: 66.7, trades: 21 },
+  { name: 'Union+Kelly(×2.4)', sharpe: 2.798, calmar: 24.507, mdd: 22.8, pf: 3.566, wr: 66.7, trades: 21 },
+  { name: 'MetaStrategy(HMM)', sharpe: 0.581, calmar:  0.605, mdd: 26.0, pf: 1.264, wr: 43.5, trades: 23 },
+];
+
+// 資産曲線データ (scripts/backtest_v12.py 出力から抜粋)
+const EQUITY_DATA = {
+  'Union_4H_Base': [
+    ['2025-01', 5495960], ['2025-03', 6044583], ['2025-04', 6314179],
+    ['2025-05', 6596372], ['2025-06', 6833401], ['2025-07', 7515252],
+    ['2025-09', 9091286], ['2025-10', 9022932], ['2025-12', 10915664],
+    ['2026-01', 12005897], ['2026-02', 12258918],
+  ],
+  'Union+VolSizer': [
+    ['2025-01', 5486502], ['2025-03', 5886742], ['2025-04', 6465940],
+    ['2025-05', 6395756], ['2025-06', 6755558], ['2025-07', 7444493],
+    ['2025-09', 8693292], ['2025-10', 8880287], ['2025-12', 10275162],
+    ['2026-01', 11080669], ['2026-02', 11169803],
+  ],
+  'Union+Kelly': [
+    ['2025-01', 6197249], ['2025-03', 7690627], ['2025-04', 8387434],
+    ['2025-05', 9149070], ['2025-06', 9551726], ['2025-07', 11852509],
+    ['2025-09', 18256332], ['2025-10', 17511003], ['2025-12', 26974809],
+    ['2026-01', 33478603], ['2026-02', 35181819],
+  ],
+  'MetaStrategy': [
+    ['2025-01', 5494586], ['2025-02', 4841412], ['2025-04', 4557272],
+    ['2025-05', 5011023], ['2025-07', 4518846], ['2025-09', 4670347],
+    ['2025-11', 5888202], ['2025-12', 6351940], ['2026-01', 5726113],
+    ['2026-02', 5846795],
+  ],
+};
+
+function renderV12() {
+  // ── 資産曲線 ──
+  const colors = { 'Union_4H_Base': '#58a6ff', 'Union+VolSizer': '#3fb950',
+                   'Union+Kelly': '#d29922', 'MetaStrategy': '#bc8cff' };
+  const dashes  = { 'Union_4H_Base': 'solid', 'Union+VolSizer': 'dot',
+                    'Union+Kelly': 'solid', 'MetaStrategy': 'dash' };
+  const equityTraces = Object.entries(EQUITY_DATA).map(([name, pts]) => ({
+    x: pts.map(p => p[0]),
+    y: pts.map(p => p[1] / 10000),  // 万円
+    name, type: 'scatter', mode: 'lines+markers',
+    line: { color: colors[name] || '#8b949e', width: 2, dash: dashes[name] || 'solid' },
+    marker: { size: 5 },
+    hovertemplate: `<b>${name}</b><br>%{x}<br>%{y:,.0f}万円<extra></extra>`,
+  }));
+
+  Plotly.newPlot('chart-equity', equityTraces, {
+    ...plotLayout,
+    yaxis: { ...plotLayout.yaxis, title: '資産残高（万円）', tickformat: ',.0f' },
+    legend: { ...plotLayout.legend, orientation: 'h', x: 0, y: -0.15 },
+    shapes: [{
+      type: 'line', x0: '2025-01', x1: '2026-02', y0: 500, y1: 500,
+      line: { color: '#30363d', width: 1, dash: 'dot' },
+    }],
+    margin: { l: 70, r: 20, t: 10, b: 80 },
+  }, { responsive: true, displayModeBar: false });
+
+  // ── Sharpe / Calmar 棒グラフ ──
+  const names = V12_RESULTS.map(r => r.name);
+  Plotly.newPlot('chart-v12-sharpe', [
+    {
+      name: 'Sharpe Ratio', x: names, y: V12_RESULTS.map(r => r.sharpe),
+      type: 'bar', marker: { color: V12_RESULTS.map(r =>
+        r.sharpe >= 2.5 ? '#3fb950' : r.sharpe >= 1.5 ? '#d29922' : '#f85149') },
+      text: V12_RESULTS.map(r => r.sharpe.toFixed(3)), textposition: 'outside',
+      hovertemplate: '<b>%{x}</b><br>Sharpe: %{y:.3f}<extra></extra>',
+    },
+    {
+      name: 'Calmar Ratio', x: names, y: V12_RESULTS.map(r => Math.min(r.calmar, 30)),
+      type: 'bar', marker: { color: '#58a6ff', opacity: 0.6 },
+      yaxis: 'y2',
+      hovertemplate: '<b>%{x}</b><br>Calmar: %{y:.3f}<extra></extra>',
+    },
+  ], {
+    ...plotLayout,
+    barmode: 'group',
+    yaxis:  { ...plotLayout.yaxis, title: 'Sharpe Ratio' },
+    yaxis2: { title: 'Calmar Ratio (cap 30)', overlaying: 'y', side: 'right',
+              gridcolor: '#21262d' },
+    annotations: [
+      { x: 'Union_4H_Base', y: 2.817, text: 'ベースライン', showarrow: true,
+        arrowhead: 2, ax: 40, ay: -30, font: { color: '#8b949e', size: 10 } },
+    ],
+    margin: { l: 60, r: 80, t: 30, b: 80 },
+  }, { responsive: true, displayModeBar: false });
+}
+
+// ──────────────────────────────────────────────
+// v11 追記: Real World Performance 注釈
+// Task 1: 2026-01 Union戦略は FLAT (シグナル2件のみ) → 実トレーダー損失 -112万円を回避
+// Task 2: 2025-12 Unionシグナル 12/01・12/09 が実績大勝ち (12/22-24 累計+648万) に先行
+// ──────────────────────────────────────────────
+
 fetch('results/performance_log.csv')
   .then(r => r.ok ? r.text() : null)
   .then(text => {

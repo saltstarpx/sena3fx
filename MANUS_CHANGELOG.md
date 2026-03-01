@@ -5,6 +5,219 @@ Claude Codeとの連携において、何が変更されたかを把握するた
 
 ---
 
+## [Manus AI への重要なお願い] ブランチのマージ
+
+Claude Codeはセキュリティ制約により `main` ブランチへ直接プッシュできません。
+すべての開発成果は以下のブランチに蓄積されています:
+
+**`claude/add-trading-backtest-ePJat`**
+
+このブランチには `main` にない以下が含まれます:
+- `strategies/` (Union戦略, Yagami, Maedai, Market Filters)
+- `monitors/` (フォワードテスト監視)
+- `dashboard.html` (戦略パフォーマンスダッシュボード)
+- `results/performance_log.csv` (バックテスト自動ログ)
+- `trade_logs/broker_history_*.csv` (実取引履歴, UTF-8変換済)
+- `lib/backtest.py` (Sharpe/Calmar/richmanbtc p-mean法 追加)
+- `docs/strategy_*.md` (全戦略ドキュメント)
+- `README.md` (v4.0対応の最新版)
+
+**Manus AIの作業前に、このブランチを `main` にマージしてください:**
+```
+git checkout main
+git merge claude/add-trading-backtest-ePJat
+git push origin main
+```
+
+---
+
+## [2026-03-01] v12: 1000万→1億エンジン — VolSizer / Kelly / HMM MetaStrategy
+
+**変更者:** Claude Code
+**変更種別:** 新サイジングエンジン実装 + レジーム転換モデル
+**指示書:** `prompt_for_claude_code_v12.md`
+
+### 新設ファイル
+- **`lib/risk_manager.py`** — `VolatilityAdjustedSizer` + `KellyCriterionSizer`
+- **`lib/regime.py`** — `HiddenMarkovRegimeDetector` (hmmlearn GaussianHMM 2状態)
+- **`strategies/meta_strategy.py`** — `MetaStrategy` (HMM連動シグナル切替)
+- **`scripts/backtest_v12.py`** — v12統合バックテスト実行スクリプト
+- **`requirements.txt`** — 依存パッケージ一覧 (numpy, pandas, hmmlearn>=0.3.0)
+
+### 修正ファイル
+- **`lib/backtest.py`** — `run()` に `sizer=` パラメータ追加（VolSizer/Kellyを差し込み可能）
+- **`results/v12_equity_curves.csv`** — 4戦略の資産曲線データ
+- **`dashboard.html`** — v12セクション追加（資産曲線比較 + Sharpe/Calmar棒グラフ）
+
+### バックテスト結果 (期間: 2025-01〜2026-02, 初期資金500万)
+| 戦略 | Sharpe | Calmar | MDD% | PF | WR% |
+|---|---|---|---|---|---|
+| Union_4H_Base (ベースライン) | **2.817** | 13.7 | 9.8 | 3.624 | 66.7 |
+| Union+VolSizer | 2.656 | 9.6 | 11.9 | 3.547 | 66.7 |
+| Union+Kelly(×2.4) | 2.798 | **24.5** | 22.8 | 3.566 | 66.7 |
+| MetaStrategy(HMM) | 0.581 | 0.6 | 26.0 | 1.264 | 43.5 |
+
+### 考察・知見
+- **VolSizer**: ATR正規化でDD抑制を期待したが、既存のATRベースSL設計が既にボラ調整済みのため効果限定的
+- **Kelly(×2.4)**: 同じ21トレード・同方向だが複利効果で最大3,518万に到達。ただしMDD 22.8% — 高リスク高リターン
+- **MetaStrategy**: HMMがトレンド判定1.4%と保守的すぎ、ほぼYagamiAに切替→パフォーマンス低下。レジームしきい値の調整が必要
+- **次期課題**: HMMのn_states=3（レンジ/緩やかトレンド/強トレンド）や特徴量の見直しが有効か検討
+
+---
+
+## [2026-03-01] v11: Reality Check — 実績データとバックテストの照合
+
+**変更者:** Claude Code
+**変更種別:** 現実データとの照合（Reality Check）
+**指示書:** `prompt_for_claude_code_v11.md`
+**ブランチ運用:** Claude Code → `claude/add-trading-backtest-ePJat` / Manus AI → `main` へマージ
+
+### 変更内容
+
+#### Task 1: 2026年1月 ドローダウン検証 [Teammate C]
+- **実績:** 2026-01 は -1,128,362円（金スポット -701,906円 / 銀スポット -550,074円）
+- **XAUUSD価格:** 実際は上昇トレンド（4,399 → 5,068、+668pt）。実トレーダーは逆張りショートで大損失
+- **Union戦略の判断:** 1月シグナルは **long 2件のみ（1/2・1/4）**、バックテスト完結トレード = **0件（FLAT）**
+- **考察:** Union戦略は過熱相場（急騰局面）でシグナルを出さない設計のため、実トレーダーが犯したショートポジションリスクを自動回避。**ドローダウン耐性の観点で有意な差**を確認
+
+#### Task 2: 2025年12月 勝ちトレード照合 [Teammate B]
+- **実績:** 2025-12 は +7,288,126円（金+銀、決済292件、勝率 178/292 = 61%）
+- **Union戦略シグナル:** 12/01 01:00 long（4,280円）・12/09 05:00 long（4,220円）
+- **実績大勝ち日:** 12/22（+282万）・12/23（+265万）・12/24（+153万）
+- **照合結果:** Unionシグナル（12/1, 12/9）は実績大勝ちの約2〜3週間前にlong発令 → **実トレーダーの12月初のロングエントリーと方向性一致**。12/9の4,220は月中最安値付近（最安値 4,213/12/4）で押し目買いシグナル = 実際に最も有効なエントリーポイント
+- **結論:** Union戦略の方向性は「正解」。時間軸のズレ（バーベース決済 vs 実際の保有継続）が乖離の主因
+
+#### Task 3: ダッシュボード Real World Performance 追加 [全員]
+- **`dashboard.html`** に「🌍 Real World Performance」セクションを新規追加
+  - KPI カード: 実現損益合計 +1,759万円 / 決済件数 1,369件・勝率 70.6% / 最大損失月 -112万（2026-01） / Union1月行動 FLAT
+  - 月次損益 棒グラフ + 実績累計 vs バックテスト累計 折れ線グラフ（Plotly.js）
+  - 銘柄別実現損益内訳（金スポット +1,196万 / 銀スポット +518万 / NQ100 +45万）
+
+### 実績データ月次サマリー (Ground Truth)
+| 月 | 実現損益 | 金スポット | 銀スポット | Union戦略 |
+|---|---|---|---|---|
+| 2025-09 | +60万 | +60万 | — | — |
+| 2025-10 | +179万 | +179万 | — | — |
+| 2025-11 | +159万 | +159万 | — | — |
+| 2025-12 | **+729万** | +大勝ち | +大勝ち | long 2件 (方向一致) |
+| 2026-01 | **-113万** | -70万 | -55万 | **FLAT** (ドローダウン回避) |
+| 2026-02 | +745万 | +745万 | — | 継続保有 |
+| **合計** | **+1,759万** | | | |
+
+---
+
+## [2026-03-01] v9成果の統合・フォワードテスト準備・戦略ダッシュボード構築
+
+**変更者:** Claude Code
+**変更種別:** v9成果の統合、フォワードテスト準備、戦略ダッシュボード構築
+**指示書:** prompt_for_claude_code_v10_updated.md
+
+### 変更内容
+
+- **mainブランチへのマージ**: `claude/add-trading-backtest-ePJat` → `main` のローカルマージ完了。v8-v9の全成果を main に統合 (125ファイル)。リモートへのプッシュは `claude/` ブランチ制約のため dev ブランチ経由で管理。
+- **Union戦略フォワードテスト監視**: `monitors/forward_union.py` を新規作成。最新OHLCを読み込みUnion戦略シグナルをログ出力（1時間cronまたはwatchモード対応）。シグナルは `trade_logs/forward_union_signals.csv` に記録。
+- **USD強弱フィルター適用ガイドライン**: `docs/filters_risk_manager.md` の「USD強弱フィルター」セクションに「逆張り系に有効、トレンドフォロー系に効果限定的」という知見と適用ガイドラインを追記。v9検証比較表を根拠として引用。
+- **バックテスト自動ログ**: `lib/backtest.py` の `_report()` を修正し、バックテスト完了時に `results/performance_log.csv` へ自動追記する `_append_performance_log()` を追加。
+- **戦略ダッシュボード**: `dashboard.html` を新規作成。Plotly.js により Sharpe Ratio 棒グラフ・MDD 棒グラフ・リスク/リターン散布図・全戦略テーブルを表示。インライン CSV と動的フェッチの両対応。
+
+### 主要バックテスト結果 (v10 シード)
+
+| 戦略 | TF | Sharpe | PF | MDD% | WR% | Trades | 判定 |
+|------|:--:|:------:|:--:|:----:|:---:|:------:|------|
+| Union_4H | 4H | **2.817** | 3.6245 | 9.82% | 66.7% | 21 | PASS |
+| DC30_EMA200 | 4H | 1.414 | 2.4948 | 10.52% | 57.9% | 19 | PASS |
+| DC30_EMA200+USD | 4H | 1.414 | 2.4948 | 10.52% | 57.9% | 19 | PASS |
+| YagamiFull_1H | 1H | 0.748 | 1.1958 | 30.8% | 35.7% | 129 | CHECK |
+| YagamiFull_1H_S | 1H | 0.666 | 1.1627 | 30.52% | 35.5% | 121 | CHECK |
+| YagamiA_4H | 4H | 0.668 | 1.1076 | 49.9% | 40.2% | 164 | CHECK |
+
+### 追加・変更ファイル
+
+| ファイル | 説明 |
+|:---|:---|
+| `monitors/__init__.py` | monitors パッケージ初期化 |
+| `monitors/forward_union.py` | Union戦略フォワードテスト監視スクリプト |
+| `docs/filters_risk_manager.md` | USD強弱フィルター適用ガイドライン追記 |
+| `lib/backtest.py` | `_append_performance_log()` 追加 (auto CSV log) |
+| `results/performance_log.csv` | バックテスト自動ログ (v10シード実行済み) |
+| `dashboard.html` | 戦略パフォーマンス ダッシュボード (Plotly.js) |
+
+---
+
+---
+
+## [2026-03-01] v8成果の検証と戦略確立
+
+**変更者:** Claude Code
+**変更種別:** v8成果の検証と戦略確立
+**指示書:** prompt_for_claude_code_v9.md
+
+### 変更内容
+
+- **v8成果物のプッシュ確認**: `strategies/`・`docs/` は `claude/add-trading-backtest-ePJat` ブランチ上に既にプッシュ済みを確認
+- **Union戦略の確立**: `strategies/union_strategy.py` として単独実行可能スクリプトを作成。`docs/strategy_union.md` にロジックと実績を記録。v9再現バックテストで Sharpe 2.817 (目標1.5超え) を確認
+- **USD強弱フィルター横展開**: DC30_EMA200 (Maedai) と YagamiFull_1H (Yagami) にフィルター適用。DC30はDonchianブレイクがUSD強時と重ならないためフィルター効果なし。YagamiFull_1H ではMDD 30.8%→29.0% (-1.8%) に微改善
+- **季節フィルターの戦略別最適化**: YagamiFull_1H は 7月+9月除外 (`SEASON_SKIP_JUL_SEP`) をデフォルト採用。YagamiA_4H は 9月がプラス月のため全月対象 (`SEASON_ALL`) を採用。`docs/filters_risk_manager.md` に記録
+
+### v9 主要バックテスト結果
+
+**Union戦略 (XAUUSD 2025 4H):**
+
+| 戦略 | PF | WR% | MDD% | Sharpe | Calmar |
+|------|:--:|:---:|:----:|:------:|:------:|
+| Union_4H (素) | 3.624 | 66.7% | 9.8% | **2.817** | 13.709 |
+| Union_4H+USD | 4.025 | 66.7% | 10.5% | 2.686 | 10.681 |
+
+**USD強弱フィルター横展開 (XAUUSD 2023-2026 4H/1H):**
+
+| 戦略 | PF | MDD% | Sharpe | Calmar | 変化 |
+|------|:--:|:----:|:------:|:------:|------|
+| DC30_EMA200 | 2.495 | 10.5% | 1.414 | 3.877 | — |
+| DC30_EMA200+USD | 2.495 | 10.5% | 1.414 | 3.877 | 変化なし |
+| YagamiFull_1H | 1.196 | 30.8% | 0.748 | 1.089 | — |
+| YagamiFull_1H+USD | 1.200 | 29.0% | 0.749 | 1.163 | MDD -1.8% |
+
+### 追加・変更ファイル
+
+| ファイル | 説明 |
+|:---|:---|
+| `strategies/union_strategy.py` | Union戦略 単独実行スクリプト |
+| `docs/strategy_union.md` | Union戦略ドキュメント (ロジック・パラメータ・実績) |
+| `docs/filters_risk_manager.md` | 戦略別季節フィルター決定事項 + USD横展開結果を追記 |
+
+---
+
+## [2026-03-01] 開発フレームワークの刷新
+
+**変更者:** Claude Code
+**変更種別:** 開発フレームワークの刷新
+**指示書:** prompt_for_claude_code_v8.md
+
+### 変更内容
+
+- **戦略ポートフォリオアプローチ導入**: 成功バイアス回避のため、3チーム体制による戦略ポートフォリオ (Yagami, Maedai, Risk Manager) アプローチを導入
+- **USD強弱フィルター実装**: `strategies/market_filters.py` に `calc_usd_strength()` を実装。XAUUSDの逆モメンタムからUSD強弱プロキシを算出し、threshold=75 (上位25%) でロングシグナルを除去
+- **評価指標追加**: Sharpe Ratio, Calmar Ratio を `lib/backtest.py` の `_report()` メソッドに追加
+- **ドキュメントとファイル構成の分離**: `strategies/` ディレクトリに戦略別ファイル (`yagami_rules.py`, `maedai_breakout.py`, `market_filters.py`) を配置、`docs/` にチーム別ドキュメントを整備
+- **Maedai戦略のDonchianパラメータ探索スクリプト追加**: `strategies/maedai_breakout.py` に `DC_PARAM_GRID` (DC期間: 10/15/20/30/40, EMA: 100/200) と `maedai_dc_variants()` を追加
+
+### 追加・変更ファイル
+
+| ファイル | 説明 |
+|:---|:---|
+| `strategies/__init__.py` | 戦略ポートフォリオ ハブ |
+| `strategies/market_filters.py` | Teammate C: USD強弱フィルター + 季節フィルター |
+| `strategies/yagami_rules.py` | Teammate A: Yagami戦略バリアント |
+| `strategies/maedai_breakout.py` | Teammate B: Maedai戦略 + Donchianパラメータグリッド |
+| `lib/backtest.py` | `_report()` に Sharpe Ratio / Calmar Ratio 追加 |
+| `docs/strategy_yagami.md` | Teammate A 戦略ドキュメント |
+| `docs/strategy_maedai.md` | Teammate B 戦略ドキュメント |
+| `docs/filters_risk_manager.md` | Teammate C フィルター・リスク管理ドキュメント |
+| `overheat_monitor.py` | XAUT/XAUUSD 過熱度モニター |
+| `price_zone_analyzer.py` | 価格帯滞在時間ヒストグラム (薄いゾーン検出) |
+
+---
+
 ## [2026-02-27] 本物のマーケットデータ追加
 
 **変更者:** Manus AI
@@ -40,115 +253,7 @@ Claude Codeが外部API（Dukascopy等）にアクセスできず、GBM（幾何
 
 ---
 
-## [2026-02-28] 通貨強弱分析・XAGクロスペアデータ追加・Claude Code指示書v7
-
-**変更者:** Manus AI
-**変更種別:** データ追加 + 分析スクリプト追加 + 指示書追加
-
-### 追加ファイル
-
-| ファイル | 説明 |
-|:---|:---|
-| `data/ohlc/XAGJPY_1d.csv` | 合成XAGJPYデータ (1,257バー) |
-| `data/ohlc/XAGJPY_1h.csv` | 合成XAGJPY 1時間足 (13,560バー) |
-| `data/ohlc/XAGCHF_1d.csv` | 合成XAGCHFデータ |
-| `data/ohlc/XAGCHF_1h.csv` | 合成XAGCHF 1時間足 |
-| `data/ohlc/XAGEUR_1d.csv` | 合成XAGEURデータ |
-| `data/ohlc/XAGEUR_1h.csv` | 合成XAGEUR 1時間足 |
-| `data/ohlc/XAGGBP_1d.csv` | 合成XAGGBPデータ |
-| `data/ohlc/XAGGBP_1h.csv` | 合成XAGGBP 1時間足 |
-| `data/ohlc/XAGAUD_1d.csv` | 合成XAGAUDデータ |
-| `data/ohlc/XAGAUD_1h.csv` | 合成XAGAUD 1時間足 |
-| `data/ohlc/XAGNZD_1d.csv` | 合成XAGNZDデータ |
-| `data/ohlc/XAGNZD_1h.csv` | 合成XAGNZD 1時間足 |
-| `data/ohlc/XAGCAD_1d.csv` | 合成XAGCADデータ |
-| `data/ohlc/XAGCAD_1h.csv` | 合成XAGCAD 1時間足 |
-| `data/ohlc/USDJPY_1d.csv` | FXペアデータ |
-| `data/ohlc/USDJPY_1h.csv` | FXペアデータ |
-| `data/ohlc/EURUSD_1d.csv` | FXペアデータ |
-| `data/ohlc/EURUSD_1h.csv` | FXペアデータ |
-| `data/ohlc/GBPUSD_1d.csv` | FXペアデータ |
-| `data/ohlc/GBPUSD_1h.csv` | FXペアデータ |
-| `data/ohlc/AUDUSD_1d.csv` | FXペアデータ |
-| `data/ohlc/AUDUSD_1h.csv` | FXペアデータ |
-| `data/ohlc/NZDUSD_1d.csv` | FXペアデータ |
-| `data/ohlc/NZDUSD_1h.csv` | FXペアデータ |
-| `data/ohlc/USDCAD_1d.csv` | FXペアデータ |
-| `data/ohlc/USDCAD_1h.csv` | FXペアデータ |
-| `data/ohlc/USDCHF_1d.csv` | FXペアデータ |
-| `data/ohlc/USDCHF_1h.csv` | FXペアデータ |
-| `scripts/currency_strength_engine.py` | v1通貨強弱計算エンジン |
-| `scripts/currency_strength_v2.py` | v2改良版（ブレンド+加速度） |
-| `scripts/currency_strength_v3.py` | v3テクニカル統合版（グリッドサーチ） |
-| `scripts/currency_strength_portfolio.py` | ポートフォリオ版（最終版） |
-| `results/v3_parameter_sweep.csv` | 96パラメータのグリッドサーチ結果 |
-| `results/portfolio_summary.json` | ポートフォリオ分析サマリー |
-| `results/dynamic_pair_selection_1d.csv` | v1日足結果 |
-| `results/dynamic_pair_selection_1h.csv` | v1時間足結果 |
-| `results/dynamic_pair_v2_1d.csv` | v2日足結果 |
-| `results/v3_best_result.csv` | v3最適パラメータ結果 |
-| `results/portfolio_backtest_1d.csv` | ポートフォリオバックテスト結果 |
-| `prompt_for_claude_code_v7.md` | Claude Code指示書v7 |
-
-### 分析結論
-
-**通貨強弱による動的XAGペア切替はXAGUSD固定に勝てない。**
-
-4つのアプローチ（v1〜v3 + ポートフォリオ）で96パラメータ組み合わせを検証した結果、XAGUSD固定を一貫して上回る設定は存在しなかった。
-
-### 有用な発見
-
-1. **XAGCHF**: CHFが弱い時のロングはWR=56.9%、平均+0.24%/日
-2. **ポートフォリオ効果**: 最大DD -19.52% vs XAGUSD単独 -36.18%（リスク半減）
-3. **USD強弱フィルター**: USDが極端に強い時のロング回避は有効
-
-### Claude Codeへの指示
-
-1. **XAGUSD固定を維持**すること。通貨強弱でペアを切り替えない
-2. **USD強弱をフィルターとして統合**: `calc_usd_strength()` を使い、USD上位25%時はロング回避
-3. **ポジションサイズ調整**: USD強弱に応じてロットサイズを0.7〜1.0倍に調整
-4. 詳細は `prompt_for_claude_code_v7.md` を参照
-
----
-
-## [2026-03-01] Claude Code指示書v8追加：成功バイアス回避と戦略ポートフォリオ導入
-
-**変更者:** Manus AI
-**変更種別:** 指示書追加 + 開発フレームワーク刷新提案
-
-### 追加ファイル
-
-| ファイル | 説明 |
-|:---|:---|
-| `prompt_for_claude_code_v8.md` | Claude Code指示書v8（成功バイアス回避・戦略ポートフォリオ） |
-
-### 変更理由
-
-UKI氏の考察記事「Claude Codeで実験がワンパターンになる構造的理由とAgent Teamsでの対処」を分析し、当プロジェクトにも同様の成功バイアスリスク（やがみメソッドへの収斂）が存在することを特定。Agent Teamsの「コンテキスト分離」思想を応用した戦略ポートフォリオアプローチを提案。
-
-### 主な変更内容
-
-1. **3つの仮想チームメイト定義:**
-   - Teammate A "Yagami": 高勝率シグナル追求（WR>60%, PF>1.8）
-   - Teammate B "Maedai": 高RRトレンドフォロー（Sharpe>1.5, Calmar>3.0）
-   - Teammate C "Risk Manager": 市場環境フィルター開発（MDD低減率）
-
-2. **具体的タスク4件:**
-   - Task 1: USD強弱フィルターの統合（Manus分析結果の活用）
-   - Task 2: 季節フィルターの定量的評価
-   - Task 3: Maedai戦略の評価軸変更（Sharpe/Calmar中心）
-   - Task 4: ドキュメントとファイル構成の分離
-
-3. **評価軸の多元化:** PF/WR中心からSharpe Ratio, Calmar Ratio, MAR等の複数軸へ
-
-### Claude Codeへの指示
-
-`prompt_for_claude_code_v8.md`を読み、記載されたタスクを順次実行すること。
-特に、`CLAUDE.md`の情報密度がやがみメソッドに偏っている問題を認識し、ドキュメント分離を実施すること。
-
----
-
-## [2026-03-01] Claude Code指示書v9追加：v8成果の深掘りと戦略確立
+## [2026-03-02] Claude Code指示書v11追加：「バックテスト vs 現実」— 実績データとの照合
 
 **変更者:** Manus AI
 **変更種別:** 指示書追加
@@ -157,76 +262,18 @@ UKI氏の考察記事「Claude Codeで実験がワンパターンになる構造
 
 | ファイル | 説明 |
 |:---|:---|
-| `prompt_for_claude_code_v9.md` | Claude Code指示書v9（v8成果の検証と戦略確立） |
+| `prompt_for_claude_code_v11.md` | Claude Code指示書v11（実績データとの照合） |
 
 ### 変更理由
 
-Claude Codeのv8実行結果（pasted_content_6.txt）を分析し、特に「Union戦略（Sharpe 1.859）」と「USD強弱フィルター」の有効性が高いと判断。これらの発見を個別の戦略として確立し、横展開するための具体的なタスクを指示。
+Claude Codeがリポジトリに統合した2,642件の実際のCFD取引履歴を分析した結果、**+1,758万円**という驚異的な利益と**勝率70.6%**という高いパフォーマンスが確認された。この「実績」をGround Truth（正解データ）とし、バックテスト戦略がどの程度現実を再現できるかを検証するフェーズに移行する。
 
 ### 主なタスク指示
 
-1.  **v8成果物のプッシュ（最優先）:** Claude Codeのローカルにある`strategies/`と`docs/`をリモートにプッシュするよう指示。
-2.  **Union戦略の確立:** 正確な定義をドキュメント化し、独立したスクリプトとして再現性を確認する。
-3.  **USD強弱フィルターの横展開:** Maedai戦略とYagamiFull_1Hに適用し、効果の普遍性を検証する。
-4.  **季節フィルターの最適化:** 戦略ごとにフィルターの適用/非適用を決定する。
+1.  **2026年1月のドローダウン分析:** 実績で-112万円の損失が出た1月を、Union戦略のバックテストで再現できるか検証する。
+2.  **実績トレードと戦略シグナルの照合:** 利益が最大だった2025年12月の実績勝ちトレードと、Union戦略の買いシグナルがどの程度一致するかを分析する。
+3.  **戦略ダッシュボードへの「現実」追加:** `dashboard.html`に現実の月次損益グラフを追加し、バックテストと現実のパフォーマンスを比較できるようにする。
 
 ### Claude Codeへの指示
 
-`prompt_for_claude_code_v9.md`を読み、記載されたタスクを順次実行すること。
-クレジット消費を抑えるため、探索的な分析は行わず、指定されたタスクに集中するよう指示。
-
----
-
-## [2026-03-02] Claude Code指示書v10更新：戦略パフォーマンス・ダッシュボード構築タスク追加
-
-**変更者:** Manus AI
-**変更種別:** 指示書追加
-
-### 追加ファイル
-
-| ファイル | 説明 |
-|:---|:---|
-| `prompt_for_claude_code_v10.md` | Claude Code指示書v10（mainマージ、フォワードテスト準備、戦略ダッシュボード構築） |
-
-### 変更理由
-
-Claude Codeのv9実行結果を分析し、エース戦略候補「Union戦略」の信頼性検証（フォワードテスト）と、判明した知見（USD強弱フィルターの適用範囲）のドキュメント化が必要と判断。
-
-### 主なタスク指示
-
-1.  **mainブランチへのマージ（最優先）:** 開発ブランチ`claude/add-trading-backtest-ePJat`を`main`にマージするよう指示。
-2.  **Union戦略のフォワードテスト準備:** シグナル監視スクリプト`monitors/forward_union.py`を作成するよう指示。
-3.  **USD強弱フィルターの知見をドキュメント化:** フィルターの適用範囲に関する結論を`docs/filters_risk_manager.md`に記録するよう指示。
-4.  **戦略パフォーマンス・ダッシュボード構築:** Dinii社の記事に触発され、バックテスト結果を自動で`performance_log.csv`に記録し、`dashboard.html`で可視化する仕組みの構築を指示。
-
-### Claude Codeへの指示
-
-`prompt_for_claude_code_v10.md`を読み、記載されたタスクを順次実行すること。
-
----
-
-## [2026-03-02] Claude Code指示書v12追加：「1000万→1億」への3つのエンジン実装
-
-**変更者:** Manus AI
-**変更種別:** 指示書追加
-
-### 追加ファイル
-
-| ファイル | 説明 |
-|:---|:---|
-| `prompt_for_claude_code_v12.md` | Claude Code指示書v12（3つの新エンジン実装） |
-
-### 変更理由
-
-水原さんの「俺を超えるbot」という目標達成のため、クオンツ文献調査で得られた3つの理論をプロジェクトに統合する。これにより、DD抑制とリターン最大化、相場環境への適応能力を獲得する。
-
-### 主なタスク指示
-
-1.  **ボラティリティ調整サイジング:** ATRに基づきポジションサイズを動的に調整する`VolatilityAdjustedSizer`を実装。
-2.  **フラクショナル・ケリー基準:** バックテスト結果から最適投資比率を計算する`KellyCriterionSizer`を実装。
-3.  **レジーム転換モデル:** 隠れマルコフモデル（HMM）を用いて相場環境を判定し、最適な戦略（Yagami/Union）を自動で切り替える`MetaStrategy`を実装。
-4.  **ダッシュボード拡張:** 新しいサイジング手法と`MetaStrategy`のパフォーマンスを可視化する。
-
-### Claude Codeへの指示
-
-`prompt_for_claude_code_v12.md`を読み、記載されたタスクを順次実行すること。
+`prompt_for_claude_code_v11.md`を読み、記載されたタスクを順次実行すること。

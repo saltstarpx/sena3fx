@@ -182,7 +182,8 @@ class BacktestEngine:
             use_ticks=False, ticks=None,
             allowed_months=None,
             htf_bars=None,
-            trade_start=None):
+            trade_start=None,
+            sizer=None):
         """
         バックテスト実行。
 
@@ -193,6 +194,9 @@ class BacktestEngine:
         htf_bars: 1H/4H 上位足バー。SLのスウィングピボット検出に使用。
                   指定なしの場合は同一時間足のバーで検出。
         trade_start: エントリー開始日 (例: '2020-01-01')。
+        sizer: VolatilityAdjustedSizer / KellyCriterionSizer など。
+               get_multiplier(i) -> float を持つオブジェクト。
+               risk_pct にこの乗数を掛けてポジションサイズを決定する。
                      それ以前はウォームアップ期間としてエントリーしない。
         """
         if use_ticks and ticks is not None:
@@ -207,6 +211,10 @@ class BacktestEngine:
 
         atr = self._calc_atr(bars)
         signals = signal_func(bars)
+
+        # sizer に ATR 系列を渡してウォームアップ
+        if sizer is not None and hasattr(sizer, 'fit'):
+            sizer.fit(atr)
 
         trades = []
         cash = self.init_cash
@@ -454,7 +462,9 @@ class BacktestEngine:
 
             # 複利ロット計算（現在の資金 × risk_pct がリスク額）
             # symbol_risk_mult: 銘柄別リスク係数 (例: 銀スポット=0.5 → ロット半減)
-            risk_amount = cash * self.risk_pct * self.symbol_risk_mult
+            # sizer: VolatilityAdjustedSizer / KellyCriterionSizer による動的乗数
+            sizer_mult = sizer.get_multiplier(i) if sizer is not None else 1.0
+            risk_amount = cash * self.risk_pct * self.symbol_risk_mult * sizer_mult
             sl_pips = sl_dist / self.pip
             pos_size = max(0.01, round(risk_amount / sl_pips, 2)) if sl_pips > 0 else 0.01
 
