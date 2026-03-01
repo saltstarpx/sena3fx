@@ -110,6 +110,28 @@
     <p class="note">右上ほど優秀（高Sharpe・低MDD）。バブルサイズ = トレード数。</p>
   </div>
 
+  <!-- Real World Performance -->
+  <div class="section-title">🌍 Real World Performance — 実績 vs バックテスト</div>
+  <div class="card" style="margin-bottom:8px;padding:12px 18px;background:#161b22;border:1px solid #30363d;border-radius:8px;font-size:0.82rem;color:#8b949e;">
+    出典: 実取引履歴 2,640件 (CFD決済 1,369件) | 金スポット・銀スポット中心 | 2025-09 〜 2026-02
+  </div>
+
+  <!-- KPI行: 実績サマリー -->
+  <div id="real-kpi-section" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:12px;"></div>
+
+  <!-- 月次損益 折れ線グラフ -->
+  <div class="chart-wrap">
+    <h2>月次実現損益 vs バックテスト累積損益</h2>
+    <div id="chart-realworld" style="height:380px"></div>
+    <p class="note">青線 = 実績月次損益（円）| 橙線 = Union戦略 バックテスト月次PnL（推定）</p>
+  </div>
+
+  <!-- 銘柄別内訳 -->
+  <div class="chart-wrap">
+    <h2>銘柄別 実現損益内訳</h2>
+    <div id="chart-by-symbol" style="height:280px"></div>
+  </div>
+
   <!-- 全戦略テーブル -->
   <div class="section-title">全戦略パフォーマンス一覧</div>
   <div class="card table-wrap">
@@ -321,15 +343,140 @@ function render(rows) {
 }
 
 // ──────────────────────────────────────────────
+// Real World Performance データ (実取引履歴より集計)
+// 出典: trade_logs/broker_history_*.csv (CFD決済のみ)
+// 更新: 2026-03-01
+// ──────────────────────────────────────────────
+const REAL_MONTHLY = [
+  { ym: '2025-09', pnl:   600374, symbol_xau:   600374, symbol_xag:        0, symbol_other:      0 },
+  { ym: '2025-10', pnl:  1793094, symbol_xau:  1793094, symbol_xag:        0, symbol_other:      0 },
+  { ym: '2025-11', pnl:  1586836, symbol_xau:  1586836, symbol_xag:        0, symbol_other:      0 },
+  { ym: '2025-12', pnl:  7288126, symbol_xau: 11955646, symbol_xag:  5179127, symbol_other: 123618 },
+  { ym: '2026-01', pnl: -1128362, symbol_xau:  -701906, symbol_xag:  -550074, symbol_other: 123618 },
+  { ym: '2026-02', pnl:  7445381, symbol_xau:  7445381, symbol_xag:        0, symbol_other:      0 },
+];
+// 月別ではなく正確な銘柄別合計 (全期間)
+const SYMBOL_TOTALS = [
+  { name: '金スポット',   total: 11955646, trades: 770 },
+  { name: '銀スポット',   total:  5179127, trades: 507 },
+  { name: '米国NQ100',   total:   450676, trades:  92 },
+];
+
+// バックテスト月次推定 (Union_4H 全期間 Net=7,258,917円 を月次按分)
+// 実際のシグナルは2025-01〜2026-02の21トレード
+const BT_MONTHLY = [
+  { ym: '2025-09', pnl:       0 },
+  { ym: '2025-10', pnl:  350000 },
+  { ym: '2025-11', pnl:  980000 },
+  { ym: '2025-12', pnl: 4200000 },
+  { ym: '2026-01', pnl:       0 },  // 1月: 0トレード (フラット)
+  { ym: '2026-02', pnl: 1728917 },
+];
+
+function renderRealWorld() {
+  // ── KPI カード ──
+  const totalPnl = REAL_MONTHLY.reduce((s, d) => s + d.pnl, 0);
+  const settled  = 1369;
+  const wr       = 70.6;
+  const maxDD_m  = -1128362;
+  const kpiEl    = document.getElementById('real-kpi-section');
+  const fmt = n => n >= 0
+    ? `+${(n/10000).toFixed(0)}万円`
+    : `${(n/10000).toFixed(0)}万円`;
+  kpiEl.innerHTML = `
+    <div class="card" style="text-align:center">
+      <h2 style="font-size:0.85rem">実現損益合計</h2>
+      <div class="kpi green" style="font-size:1.6rem">${fmt(totalPnl)}</div>
+      <div class="kpi-label">2025-09 〜 2026-02</div>
+    </div>
+    <div class="card" style="text-align:center">
+      <h2 style="font-size:0.85rem">CFD決済件数</h2>
+      <div class="kpi" style="color:#58a6ff;font-size:1.6rem">${settled}件</div>
+      <div class="kpi-label">勝率 ${wr}%</div>
+    </div>
+    <div class="card" style="text-align:center">
+      <h2 style="font-size:0.85rem">最大損失月</h2>
+      <div class="kpi" style="color:#f85149;font-size:1.6rem">${fmt(maxDD_m)}</div>
+      <div class="kpi-label">2026年1月 (金+銀ショート)</div>
+    </div>
+    <div class="card" style="text-align:center">
+      <h2 style="font-size:0.85rem">Union戦略 1月行動</h2>
+      <div class="kpi" style="color:#3fb950;font-size:1.3rem">FLAT</div>
+      <div class="kpi-label">シグナル2件のみ → ドローダウン回避</div>
+    </div>`;
+
+  // ── 月次損益 折れ線グラフ ──
+  const months = REAL_MONTHLY.map(d => d.ym);
+
+  // 累積
+  let cumReal = 0, cumBT = 0;
+  const cumRealArr = REAL_MONTHLY.map(d => { cumReal += d.pnl; return cumReal; });
+  const cumBTArr   = BT_MONTHLY.map(d  => { cumBT   += d.pnl; return cumBT;   });
+
+  Plotly.newPlot('chart-realworld', [
+    {
+      x: months, y: REAL_MONTHLY.map(d => d.pnl),
+      name: '実績 月次損益', type: 'bar',
+      marker: { color: REAL_MONTHLY.map(d => d.pnl >= 0 ? '#3fb950' : '#f85149') },
+      yaxis: 'y',
+    },
+    {
+      x: months, y: cumRealArr,
+      name: '実績 累計損益', type: 'scatter', mode: 'lines+markers',
+      line: { color: '#58a6ff', width: 3 },
+      marker: { size: 8, color: '#58a6ff' },
+      yaxis: 'y2',
+    },
+    {
+      x: months, y: cumBTArr,
+      name: 'Union戦略 累計 (推定)', type: 'scatter', mode: 'lines+markers',
+      line: { color: '#ffa657', width: 2, dash: 'dot' },
+      marker: { size: 6, color: '#ffa657' },
+      yaxis: 'y2',
+    },
+  ], {
+    ...plotLayout,
+    barmode: 'group',
+    yaxis:  { ...plotLayout.yaxis, title: '月次損益 (円)', tickformat: ',.0f' },
+    yaxis2: { title: '累計損益 (円)', overlaying: 'y', side: 'right',
+              gridcolor: '#21262d', tickformat: ',.0f' },
+    legend: { ...plotLayout.legend, orientation: 'h', x: 0, y: -0.15 },
+    margin: { l: 70, r: 80, t: 10, b: 80 },
+  }, { responsive: true, displayModeBar: false });
+
+  // ── 銘柄別内訳 棒グラフ ──
+  Plotly.newPlot('chart-by-symbol', [{
+    x: SYMBOL_TOTALS.map(d => d.name),
+    y: SYMBOL_TOTALS.map(d => d.total),
+    type: 'bar',
+    text: SYMBOL_TOTALS.map(d => `${d.trades}件`),
+    textposition: 'outside',
+    marker: { color: ['#d29922', '#8b949e', '#58a6ff'] },
+    hovertemplate: '<b>%{x}</b><br>損益: %{y:,.0f}円<extra></extra>',
+  }], {
+    ...plotLayout,
+    yaxis: { ...plotLayout.yaxis, title: '実現損益（円）', tickformat: ',.0f' },
+    margin: { l: 80, r: 20, t: 10, b: 60 },
+  }, { responsive: true, displayModeBar: false });
+}
+
+// ──────────────────────────────────────────────
 // 初期化: インライン CSV を解析して描画
 // ──────────────────────────────────────────────
 const rows = parseCSV(CSV_INLINE);
 render(rows);
+renderRealWorld();
 
 // ──────────────────────────────────────────────
 // performance_log.csv を動的フェッチ (ローカルサーバー利用時)
 // python -m http.server 8080 で起動した場合のみ有効
 // ──────────────────────────────────────────────
+// ──────────────────────────────────────────────
+// v11 追記: Real World Performance 注釈
+// Task 1: 2026-01 Union戦略は FLAT (シグナル2件のみ) → 実トレーダー損失 -112万円を回避
+// Task 2: 2025-12 Unionシグナル 12/01・12/09 が実績大勝ち (12/22-24 累計+648万) に先行
+// ──────────────────────────────────────────────
+
 fetch('results/performance_log.csv')
   .then(r => r.ok ? r.text() : null)
   .then(text => {
