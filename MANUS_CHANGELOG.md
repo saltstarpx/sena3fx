@@ -277,3 +277,31 @@ Claude Codeがリポジトリに統合した2,642件の実際のCFD取引履歴�
 ### Claude Codeへの指示
 
 `prompt_for_claude_code_v11.md`を読み、記載されたタスクを順次実行すること。
+
+---
+
+## [2026-03-02] Claude Code指示書v13追加：Kellyの最適化とMetaStrategyの再構築
+
+**変更者:** Manus AI
+**変更種別:** 指示書追加
+
+### 追加ファイル
+
+| ファイル | 説明 |
+|:---|:---|
+| `prompt_for_claude_code_v13.md` | Claude Code指示書v13（Kelly最適化とMetaStrategy再構築） |
+
+### 変更理由
+
+v12の結果、Kellyサイザーの有効性とMetaStrategyの課題が明確になった。v13では、Kellyの爆発力とDD抑制を両立させる`HybridKellySizer`を開発し、HMMを3状態に拡張してMetaStrategyを再構築することで、プロジェクトを次のレベルへ引き上げる。
+
+### 主なタスク指示
+
+1.  **Kelly-Volハイブリッドサイザー:** KellyとVolatility Sizerを掛け合わせる`HybridKellySizer`を実装。
+2.  **MetaStrategy再構築:** HMMを3状態（高ボラトレンド、低ボラトレンド、レンジ）に拡張し、レジームごとに戦略とパラメータを動的に切り替える。
+3.  **VolSizer再設計:** バックテストエンジンを改造し、ATR-SLとの重複を解消。
+4.  **ダッシュボード更新:** v13の成果（ハイブリッドサイザー、新MetaStrategy）を可視化。
+
+### Claude Codeへの指示
+
+`prompt_for_claude_code_v13.md`を読み、記載されたタスクを順次実行すること。
