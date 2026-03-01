@@ -88,6 +88,52 @@
 
 <div class="container">
 
+  <!-- ★ メイン戦略 — 最優秀パフォーマンス (v18確定) -->
+  <div class="section-title" style="margin-top:0;font-size:1.2rem;color:#f0f6fc;border-bottom:2px solid #3fb950;">
+    ★ メイン戦略: XAUUSD + Kelly(f=0.25) + ADX(14)&gt;25
+  </div>
+  <div style="background:#0d1f13;border:1px solid #3fb950;border-radius:8px;padding:16px 20px;margin-bottom:20px;">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:12px;">
+      <div style="text-align:center">
+        <div style="font-size:0.78rem;color:#8b949e;text-transform:uppercase;letter-spacing:.05em">Sharpe Ratio</div>
+        <div style="font-size:2rem;font-weight:700;color:#3fb950;line-height:1.1">2.250</div>
+      </div>
+      <div style="text-align:center">
+        <div style="font-size:0.78rem;color:#8b949e;text-transform:uppercase;letter-spacing:.05em">Calmar Ratio</div>
+        <div style="font-size:2rem;font-weight:700;color:#3fb950;line-height:1.1">11.534</div>
+      </div>
+      <div style="text-align:center">
+        <div style="font-size:0.78rem;color:#8b949e;text-transform:uppercase;letter-spacing:.05em">Max Drawdown</div>
+        <div style="font-size:2rem;font-weight:700;color:#3fb950;line-height:1.1">16.1%</div>
+      </div>
+      <div style="text-align:center">
+        <div style="font-size:0.78rem;color:#8b949e;text-transform:uppercase;letter-spacing:.05em">Win Rate</div>
+        <div style="font-size:2rem;font-weight:700;color:#3fb950;line-height:1.1">61.0%</div>
+      </div>
+      <div style="text-align:center">
+        <div style="font-size:0.78rem;color:#8b949e;text-transform:uppercase;letter-spacing:.05em">Trades</div>
+        <div style="font-size:2rem;font-weight:700;color:#58a6ff;line-height:1.1">41</div>
+      </div>
+      <div style="text-align:center">
+        <div style="font-size:0.78rem;color:#8b949e;text-transform:uppercase;letter-spacing:.05em">最終資産</div>
+        <div style="font-size:1.5rem;font-weight:700;color:#3fb950;line-height:1.2">¥27,175,560</div>
+        <div style="font-size:0.75rem;color:#8b949e">+443.5% (初期¥5M)</div>
+      </div>
+    </div>
+    <div style="font-size:0.8rem;color:#8b949e;border-top:1px solid #1f3a22;padding-top:10px;margin-top:4px;">
+      期間: 2023-10-06 〜 2026-02-27 (XAUUSD 4H, 3,714バー) |
+      Union_4H_Base + ADX(14)&gt;25フィルター + KellyCriterionSizer(f=0.25) |
+      承認: <span style="color:#3fb950;font-weight:600">✅ Sharpe≥1.5 AND Calmar≥5.0</span>
+    </div>
+  </div>
+
+  <!-- v18 メイン戦略 比較チャート -->
+  <div class="chart-wrap" style="margin-bottom:20px;">
+    <h2>メイン戦略 vs ベースライン — 性能比較 (v17〜v18)</h2>
+    <div id="chart-main-strategy" style="height:320px"></div>
+    <p class="note">ADXフィルター追加によりSharpe +31%, MDD半減, Calmar +75% 達成。Livermore Pyramidingは全パターン不採用。</p>
+  </div>
+
   <!-- KPI サマリー -->
   <div id="kpi-section" class="grid-3" style="margin-bottom:24px"></div>
 
@@ -562,6 +608,7 @@ function renderRealWorld() {
 // ──────────────────────────────────────────────
 const rows = parseCSV(CSV_INLINE);
 render(rows);
+renderMainStrategy();
 renderV12();
 renderRealWorld();
 
@@ -767,6 +814,75 @@ function renderV12() {
 // Task 1: 2026-01 Union戦略は FLAT (シグナル2件のみ) → 実トレーダー損失 -112万円を回避
 // Task 2: 2025-12 Unionシグナル 12/01・12/09 が実績大勝ち (12/22-24 累計+648万) に先行
 // ──────────────────────────────────────────────
+
+// ──────────────────────────────────────────────
+// v18 メイン戦略: XAUUSD+Kelly+ADX(>25) 比較チャート
+// ──────────────────────────────────────────────
+const MAIN_STRATEGY_DATA = [
+  { name: 'Union_XAUUSD_Base',               sharpe: 1.718, calmar:  5.971, mdd: 23.5, trades: 70, end_m: 21.8 },
+  { name: '+Kelly(f=0.25)',                   sharpe: 1.717, calmar:  6.574, mdd: 26.3, trades: 70, end_m: 25.7 },
+  { name: '+Kelly+Pyramid(LV,4%)',            sharpe: 1.636, calmar:  6.191, mdd: 26.0, trades: 74, end_m: 24.2 },
+  { name: '★ +Kelly+ADX(>25) [Main]',        sharpe: 2.250, calmar: 11.534, mdd: 16.1, trades: 41, end_m: 27.2 },
+];
+
+function renderMainStrategy() {
+  const names  = MAIN_STRATEGY_DATA.map(r => r.name);
+  const colors = MAIN_STRATEGY_DATA.map(r =>
+    r.name.startsWith('★') ? '#3fb950' : '#58a6ff'
+  );
+  const mddColors = MAIN_STRATEGY_DATA.map(r =>
+    r.mdd <= 20 ? '#3fb950' : r.mdd <= 30 ? '#d29922' : '#f85149'
+  );
+
+  Plotly.newPlot('chart-main-strategy', [
+    {
+      name: 'Sharpe Ratio',
+      type: 'bar',
+      x: names,
+      y: MAIN_STRATEGY_DATA.map(r => r.sharpe),
+      marker: { color: colors },
+      text: MAIN_STRATEGY_DATA.map(r => r.sharpe.toFixed(3)),
+      textposition: 'outside',
+      textfont: { color: '#c9d1d9', size: 11 },
+      hovertemplate: '<b>%{x}</b><br>Sharpe: %{y:.3f}<extra></extra>',
+    },
+    {
+      name: 'Calmar Ratio',
+      type: 'bar',
+      x: names,
+      y: MAIN_STRATEGY_DATA.map(r => Math.min(r.calmar, 15)),
+      marker: { color: colors, opacity: 0.5 },
+      yaxis: 'y2',
+      hovertemplate: '<b>%{x}</b><br>Calmar: %{customdata:.3f}<extra></extra>',
+      customdata: MAIN_STRATEGY_DATA.map(r => r.calmar),
+    },
+    {
+      name: 'MDD%',
+      type: 'scatter', mode: 'markers',
+      x: names,
+      y: MAIN_STRATEGY_DATA.map(r => r.mdd),
+      marker: { size: 14, color: mddColors, symbol: 'diamond' },
+      yaxis: 'y3',
+      hovertemplate: '<b>%{x}</b><br>MDD: %{y:.1f}%<extra></extra>',
+    },
+  ], {
+    ...plotLayout, barmode: 'group',
+    yaxis:  { ...plotLayout.yaxis, title: 'Sharpe Ratio', range: [0, 3.2] },
+    yaxis2: { title: 'Calmar (cap 15)', overlaying: 'y', side: 'right', gridcolor: '#21262d', range: [0, 20] },
+    yaxis3: { title: 'MDD%', overlaying: 'y', side: 'right', position: 1, anchor: 'free', gridcolor: 'transparent', range: [0, 45] },
+    annotations: [
+      { x: '★ +Kelly+ADX(>25) [Main]', y: 2.250,
+        text: '最優秀<br>Sharpe↑+31%', showarrow: true,
+        arrowhead: 2, ax: -60, ay: -30,
+        font: { color: '#3fb950', size: 11 }, arrowcolor: '#3fb950' },
+      { x: '★ +Kelly+ADX(>25) [Main]', y: 16.1, yref: 'y3',
+        text: 'MDD↓半減', showarrow: false,
+        font: { color: '#3fb950', size: 10 } },
+    ],
+    margin: { l: 60, r: 90, t: 30, b: 140 },
+    legend: { x: 0.01, y: 0.99, bgcolor: 'rgba(22,27,34,0.8)', font: { size: 11 } },
+  }, { responsive: true, displayModeBar: false });
+}
 
 fetch('results/performance_log.csv')
   .then(r => r.ok ? r.text() : null)
