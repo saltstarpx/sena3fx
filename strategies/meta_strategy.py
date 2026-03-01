@@ -1,8 +1,9 @@
 """
-MetaStrategy v2.0 — 3状態HMMレジーム連動型戦略セレクター
+MetaStrategy v3.0 — 5D HMMレジーム連動型戦略セレクター
 =========================================================
 v1.0: 2状態 (range→YagamiA / trend→Union)
 v2.0: 3状態 + レジーム別パラメータ最適化 — v13新設
+v3.0: 5D HMM (log_return, abs_return, ATR, ADX, RSI) — v14新設
 
 レジーム → 戦略マッピング:
   0: range      → YagamiA_4H  (RSI逆張り、閾値を厳しく)
@@ -170,6 +171,115 @@ def grid_search_meta(df_4h: pd.DataFrame, df_1d: pd.DataFrame,
                 f"_m{mp.get('lookback_days',15)}"
                 f"_u{up.get('rsi_oversold',45)}")
         sig = make_meta_signal_v2(df_1d['close'], yp, mp, up)
+        r = engine.run(data=df_4h, signal_func=sig, freq='4h', name=name)
+        sh = r.get('sharpe_ratio') or -9999
+        all_results.append((name, r, yp, mp, up))
+
+        if verbose:
+            pf  = f"{r.get('profit_factor', 0):.3f}" if r.get('profit_factor') else 'N/A'
+            mdd = f"{r.get('max_drawdown_pct', 0):.1f}" if r.get('max_drawdown_pct') else 'N/A'
+            print(f"  [{i+1}/{len(combos)}] {name:<40} "
+                  f"Sharpe={sh:.3f}, PF={pf}, MDD={mdd}%, "
+                  f"Trades={r.get('total_trades',0)}")
+
+        if sh > best_sharpe:
+            best_sharpe = sh
+            best_params = (yp, mp, up)
+            best_result = r
+
+    return best_params, best_result, all_results
+
+
+# ──────────────────────────────────────────────────────
+#  MetaStrategy v3.0 — 5D HMM シグナル生成
+# ──────────────────────────────────────────────────────
+
+def make_meta_signal_v3(daily_close: pd.Series,
+                        daily_ohlc: pd.DataFrame,
+                        yagami_params: dict | None = None,
+                        maedai_params: dict | None = None,
+                        union_params:  dict | None = None) -> callable:
+    """
+    5D HMM (log_return, abs_return, ATR, ADX, RSI) レジームに基づく
+    シグナル生成関数を返す。
+
+    Args:
+        daily_close : 日足終値 (HMM学習用)
+        daily_ohlc  : 日足OHLC DataFrame (ATR/ADX/RSI計算用)
+        yagami_params: レンジ時の YagamiA パラメータ
+        maedai_params: 低ボラトレンド時の Maedai パラメータ
+        union_params : 高ボラトレンド時の Union パラメータ
+    """
+    yp = yagami_params or YAGAMI_GRID[0]
+    mp = maedai_params or MAEDAI_GRID[0]
+    up = union_params  or UNION_GRID[0]
+
+    detector = HiddenMarkovRegimeDetector(n_states=3)
+
+    def _signal(bars: pd.DataFrame) -> pd.Series:
+        try:
+            detector.fit(daily_close, ohlc_df=daily_ohlc)
+            regimes = detector.predict(daily_close, ohlc_df=daily_ohlc)
+        except Exception:
+            regimes = pd.Series(2, index=daily_close.index)
+
+        regime_daily = regimes.copy()
+        regime_daily.index = pd.DatetimeIndex(regime_daily.index).normalize()
+
+        sig_range = _build_yagami(yp)(bars)
+        sig_low   = _build_maedai(mp)(bars)
+        sig_high  = _build_union(up)(bars)
+
+        result = pd.Series('flat', index=bars.index, dtype=object)
+        for idx in bars.index:
+            day = pd.Timestamp(idx).normalize()
+            try:
+                regime = int(regime_daily.get(day, regime_daily.iloc[-1]))
+            except Exception:
+                regime = 2
+
+            if regime == 0:
+                v = sig_range.get(idx, 'flat')
+            elif regime == 1:
+                v = sig_low.get(idx, 'flat')
+            else:
+                v = sig_high.get(idx, 'flat')
+
+            result[idx] = v if v is not None else 'flat'
+
+        return result
+
+    return _signal
+
+
+def grid_search_meta_v3(df_4h: pd.DataFrame, df_1d: pd.DataFrame,
+                        engine: 'BacktestEngine', verbose: bool = True) -> tuple:
+    """
+    5D HMM MetaStrategy v3.0 のグリッドサーチ。
+
+    Returns:
+        (best_params, best_result, all_results)
+    """
+    best_sharpe = -np.inf
+    best_params = None
+    best_result = None
+    all_results = []
+
+    combos = [
+        (yp, mp, up)
+        for yp in YAGAMI_GRID
+        for mp in MAEDAI_GRID
+        for up in UNION_GRID
+    ]
+
+    if verbose:
+        print(f'[v3] グリッドサーチ: {len(combos)}組み合わせ (5D HMM)')
+
+    for i, (yp, mp, up) in enumerate(combos):
+        name = (f"Meta3_y{yp.get('freq','4h')}"
+                f"_m{mp.get('lookback_days',15)}"
+                f"_u{up.get('rsi_oversold',45)}")
+        sig = make_meta_signal_v3(df_1d['close'], df_1d, yp, mp, up)
         r = engine.run(data=df_4h, signal_func=sig, freq='4h', name=name)
         sh = r.get('sharpe_ratio') or -9999
         all_results.append((name, r, yp, mp, up))

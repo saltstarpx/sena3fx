@@ -130,11 +130,81 @@
     <div id="chart-v12-sharpe" style="height:300px"></div>
   </div>
 
-  <!-- 3状態HMM レジーム円グラフ -->
+  <!-- 3状態HMM レジーム円グラフ (v2.0 2D) -->
   <div class="chart-wrap">
-    <h2>3状態HMM レジーム分布 (2025-01〜2026-02 日足)</h2>
-    <div id="chart-regime-pie" style="height:300px"></div>
-    <p class="note">v2.0: range=49.3% / low_trend=49.0% / high_trend=1.7% — v1.0(trend=1.4%)から大幅改善: MetaStrategy Sharpe 0.581→1.366</p>
+    <h2>3状態HMM レジーム分布 — v2.0(2D) vs v3.0(5D) 比較</h2>
+    <div style="display:flex;gap:12px;">
+      <div style="flex:1">
+        <div id="chart-regime-pie" style="height:280px"></div>
+        <p class="note" style="text-align:center">v2.0 (2D: log_return + abs_return)<br>range=49.3% / low_trend=49.0% / high_trend=1.7%</p>
+      </div>
+      <div style="flex:1">
+        <div id="chart-regime-pie-v3" style="height:280px"></div>
+        <p class="note" style="text-align:center">v3.0 (5D: +ATR, ADX, RSI)<br>range=45.2% / low_trend=48.3% / <b style="color:#f85149">high_trend=6.6%</b> (+4.9pt改善)</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- v14: MetaStrategy v2 vs v3 比較 -->
+  <div class="section-title">🧬 v14 MetaStrategy v2.0 vs v3.0 — 5D HMM 特徴量強化</div>
+  <div class="card" style="margin-bottom:8px;padding:12px 18px;background:#161b22;border:1px solid #30363d;border-radius:8px;font-size:0.82rem;color:#8b949e;">
+    v3.0: 観測変数を 2D→5D に拡張 (log_return, abs_return, ATR(14), ADX(14), RSI(14) / z-score正規化)<br>
+    結果: high_trend検出 1.7%→6.6%改善 | MDD 21.9%→14.4%(-7.5pt) | Calmar 2.425→3.158(+30%)
+  </div>
+
+  <!-- v14 MetaStrategy 性能比較棒グラフ -->
+  <div class="chart-wrap">
+    <h2>MetaStrategy v2.0 vs v3.0 — Sharpe / Calmar / MDD 比較</h2>
+    <div id="chart-v14-meta" style="height:320px"></div>
+    <p class="note">v3.0: MDD14.4% (目標≤30%達成) | Calmar3.158 (目標>3.0達成) | Sharpe相当 (1.366→1.359)</p>
+  </div>
+
+  <!-- v14 5D HMM 特徴量統計テーブル -->
+  <div class="chart-wrap">
+    <h2>5D HMM レジーム別特徴量統計 (2025-01〜2026-02 日足)</h2>
+    <table style="width:100%;border-collapse:collapse;font-size:0.83rem;color:#c9d1d9;">
+      <thead>
+        <tr style="background:#21262d;color:#8b949e;">
+          <th style="padding:8px 12px;text-align:left;border-bottom:1px solid #30363d">レジーム</th>
+          <th style="padding:8px 12px;text-align:right;border-bottom:1px solid #30363d">日数</th>
+          <th style="padding:8px 12px;text-align:right;border-bottom:1px solid #30363d">avg ATR</th>
+          <th style="padding:8px 12px;text-align:right;border-bottom:1px solid #30363d">avg ADX</th>
+          <th style="padding:8px 12px;text-align:right;border-bottom:1px solid #30363d">avg RSI</th>
+          <th style="padding:8px 12px;text-align:right;border-bottom:1px solid #30363d">平均日次リターン</th>
+          <th style="padding:8px 12px;text-align:left;border-bottom:1px solid #30363d">戦略</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr style="border-bottom:1px solid #21262d">
+          <td style="padding:8px 12px;color:#8b949e">🟦 range (レンジ)</td>
+          <td style="padding:8px 12px;text-align:right">105</td>
+          <td style="padding:8px 12px;text-align:right">38.70</td>
+          <td style="padding:8px 12px;text-align:right">26.6</td>
+          <td style="padding:8px 12px;text-align:right">64.5</td>
+          <td style="padding:8px 12px;text-align:right;color:#3fb950">+0.2419%</td>
+          <td style="padding:8px 12px;color:#58a6ff">YagamiA (RSI逆張り)</td>
+        </tr>
+        <tr style="border-bottom:1px solid #21262d">
+          <td style="padding:8px 12px;color:#d29922">🟨 low_trend (低ボラトレンド)</td>
+          <td style="padding:8px 12px;text-align:right">140</td>
+          <td style="padding:8px 12px;text-align:right">68.14</td>
+          <td style="padding:8px 12px;text-align:right">28.1</td>
+          <td style="padding:8px 12px;text-align:right">60.8</td>
+          <td style="padding:8px 12px;text-align:right;color:#3fb950">+0.2598%</td>
+          <td style="padding:8px 12px;color:#58a6ff">Maedai DC (短期DC感度高)</td>
+        </tr>
+        <tr>
+          <td style="padding:8px 12px;color:#f85149">🟥 high_trend (高ボラトレンド)</td>
+          <td style="padding:8px 12px;text-align:right">19</td>
+          <td style="padding:8px 12px;text-align:right">172.31</td>
+          <td style="padding:8px 12px;text-align:right">29.9</td>
+          <td style="padding:8px 12px;text-align:right">55.5</td>
+          <td style="padding:8px 12px;text-align:right;color:#f85149">-0.1423%</td>
+          <td style="padding:8px 12px;color:#58a6ff">Union_4H (強トレンドフォロー)</td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="note">ATRが172と突出高いhigh_trend期間は日次リターンが負 → VolatilityのみでなくADX・RSIを加えた5D学習でこの期間を正確に分離</p>
   </div>
 
   <!-- Real World Performance -->
@@ -605,7 +675,7 @@ function renderV12() {
     margin: { l: 60, r: 80, t: 30, b: 120 },
   }, { responsive: true, displayModeBar: false });
 
-  // ── 3状態HMM 円グラフ ──
+  // ── 3状態HMM 円グラフ v2.0 (2D) ──
   Plotly.newPlot('chart-regime-pie', [{
     type: 'pie',
     labels: ['レンジ (range)', '低ボラトレンド', '高ボラトレンド'],
@@ -617,10 +687,78 @@ function renderV12() {
   }], {
     ...plotLayout,
     annotations: [{
-      text: 'v2.0<br>3状態', x: 0.5, y: 0.5, font: { size: 13, color: '#c9d1d9' },
+      text: 'v2.0<br>2D', x: 0.5, y: 0.5, font: { size: 13, color: '#c9d1d9' },
       showarrow: false,
     }],
     margin: { l: 20, r: 20, t: 20, b: 20 },
+  }, { responsive: true, displayModeBar: false });
+
+  // ── 3状態HMM 円グラフ v3.0 (5D) ──
+  Plotly.newPlot('chart-regime-pie-v3', [{
+    type: 'pie',
+    labels: ['レンジ (range)', '低ボラトレンド', '高ボラトレンド'],
+    values: [45.2, 48.3, 6.6],
+    marker: { colors: ['#8b949e', '#d29922', '#f85149'] },
+    textinfo: 'label+percent',
+    hole: 0.4,
+    hovertemplate: '<b>%{label}</b><br>%{percent}<extra></extra>',
+  }], {
+    ...plotLayout,
+    annotations: [{
+      text: 'v3.0<br>5D', x: 0.5, y: 0.5, font: { size: 13, color: '#c9d1d9' },
+      showarrow: false,
+    }],
+    margin: { l: 20, r: 20, t: 20, b: 20 },
+  }, { responsive: true, displayModeBar: false });
+
+  // ── v14 MetaStrategy v2 vs v3 Sharpe/Calmar/MDD比較 ──
+  const V14_META = [
+    { name: 'Union_4H_Base',        sharpe: 2.817, calmar: 13.709, mdd:  9.8, color: '#58a6ff' },
+    { name: 'MetaStrategy_v2 (2D)', sharpe: 1.366, calmar:  2.425, mdd: 21.9, color: '#d29922' },
+    { name: 'MetaStrategy_v3 (5D)', sharpe: 1.359, calmar:  3.158, mdd: 14.4, color: '#bc8cff' },
+  ];
+  Plotly.newPlot('chart-v14-meta', [
+    {
+      name: 'Sharpe Ratio',
+      type: 'bar',
+      x: V14_META.map(r => r.name),
+      y: V14_META.map(r => r.sharpe),
+      marker: { color: V14_META.map(r => r.color) },
+      text: V14_META.map(r => r.sharpe.toFixed(3)),
+      textposition: 'outside',
+    },
+    {
+      name: 'Calmar Ratio',
+      type: 'bar',
+      x: V14_META.map(r => r.name),
+      y: V14_META.map(r => Math.min(r.calmar, 15)),
+      marker: { color: V14_META.map(r => r.color), opacity: 0.5 },
+      text: V14_META.map(r => r.calmar.toFixed(3)),
+      textposition: 'outside',
+      yaxis: 'y2',
+    },
+    {
+      name: 'MDD%',
+      type: 'scatter', mode: 'markers',
+      x: V14_META.map(r => r.name),
+      y: V14_META.map(r => r.mdd),
+      marker: { size: 14, color: V14_META.map(r => r.color), symbol: 'diamond' },
+      yaxis: 'y3',
+    },
+  ], {
+    ...plotLayout, barmode: 'group',
+    yaxis:  { ...plotLayout.yaxis, title: 'Sharpe' },
+    yaxis2: { title: 'Calmar (cap 15)', overlaying: 'y', side: 'right', gridcolor: '#21262d' },
+    yaxis3: { title: 'MDD%', overlaying: 'y', side: 'right', position: 1, anchor: 'free', gridcolor: '#21262d' },
+    annotations: [
+      { x: 'MetaStrategy_v3 (5D)', y: 3.158, yref: 'y2',
+        text: 'Calmar↑+30%', showarrow: false, font: { color: '#bc8cff', size: 10 } },
+      { x: 'MetaStrategy_v3 (5D)', y: 14.4, yref: 'y3',
+        text: 'MDD↓-7.5pt', showarrow: true, arrowhead: 2, ax: 60, ay: -20,
+        font: { color: '#3fb950', size: 10 }, arrowcolor: '#3fb950' },
+    ],
+    margin: { l: 60, r: 80, t: 30, b: 100 },
+    legend: { x: 0.01, y: 0.99, bgcolor: 'rgba(22,27,34,0.8)', font: { size: 11 } },
   }, { responsive: true, displayModeBar: false });
 }
 
