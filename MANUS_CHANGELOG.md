@@ -461,3 +461,30 @@ v14でMetaStrategy v3.0がUnion単体を超えられなかったため、複雑�
 ### Claude Codeへの指示
 
 `prompt_for_claude_code_v15.md`を読み、記載されたタスクを順次実行すること。
+
+---
+
+## [2026-03-02] Claude Code指示書v16追加：XAUUSDメイン化とリバモア式ピラミッティング
+
+**変更者:** Manus AI
+**変更種別:** 指示書追加
+
+### 追加ファイル
+
+| ファイル | 説明 |
+|:---|:---|
+| `prompt_for_claude_code_v16.md` | Claude Code指示書v16（XAUUSDメイン化とリバモア式ピラミッティング） |
+
+### 変更理由
+
+v15でXAUUSDがSharpe 1.718, Calmar 5.971という圧倒的な結果を出したため、v16ではXAUUSDをメイン戦略に昇格させる。さらに、利益最大化を目指してリバモア式ピラミッティングを導入する。
+
+### 主なタスク指示
+
+1.  **XAUUSD + Kelly適用:** XAUUSDに`KellyCriterionSizer(f=0.25)`を適用したバックテストを実行。
+2.  **リバモア式ピラミッティング実装:** 含み益が出ているポジションに機械的に追加投資する`LivermorePyramidingSizer`を実装。
+3.  **統合バックテスト:** XAUUSDにKellyとピラミッティングを組み合わせた最終形態のバックテストを実行。
+
+### Claude Codeへの指示
+
+`prompt_for_claude_code_v16.md`を読み、記載されたタスクを順次実行すること。
