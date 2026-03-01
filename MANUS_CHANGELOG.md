@@ -5,6 +5,32 @@ Claude Codeとの連携において、何が変更されたかを把握するた
 
 ---
 
+## [Manus AI への重要なお願い] ブランチのマージ
+
+Claude Codeはセキュリティ制約により `main` ブランチへ直接プッシュできません。
+すべての開発成果は以下のブランチに蓄積されています:
+
+**`claude/add-trading-backtest-ePJat`**
+
+このブランチには `main` にない以下が含まれます:
+- `strategies/` (Union戦略, Yagami, Maedai, Market Filters)
+- `monitors/` (フォワードテスト監視)
+- `dashboard.html` (戦略パフォーマンスダッシュボード)
+- `results/performance_log.csv` (バックテスト自動ログ)
+- `trade_logs/broker_history_*.csv` (実取引履歴, UTF-8変換済)
+- `lib/backtest.py` (Sharpe/Calmar/richmanbtc p-mean法 追加)
+- `docs/strategy_*.md` (全戦略ドキュメント)
+- `README.md` (v4.0対応の最新版)
+
+**Manus AIの作業前に、このブランチを `main` にマージしてください:**
+```
+git checkout main
+git merge claude/add-trading-backtest-ePJat
+git push origin main
+```
+
+---
+
 ## [2026-03-01] v9成果の統合・フォワードテスト準備・戦略ダッシュボード構築
 
 **変更者:** Claude Code
