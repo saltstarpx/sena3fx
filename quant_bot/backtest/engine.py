@@ -23,6 +23,15 @@ from .logger import TradeEventLogger  # noqa: E402
 
 log = logging.getLogger("quant_bot.backtest")
 
+# OANDA granularity → lib/backtest freq マッピング
+_GRAN_TO_FREQ = {
+    "M15": "15min",
+    "H1":  "1h",
+    "H4":  "4h",
+    "H8":  "4h",
+    "D":   "1d",
+}
+
 
 class QuantBacktestEngine:
     """
@@ -39,10 +48,14 @@ class QuantBacktestEngine:
         bt_cfg = config.get("backtest", {})
         log_cfg = config.get("logging", {})
 
-        self._initial_balance = float(bt_cfg.get("initial_balance", 10_000.0))
-        self._risk_pct = float(bt_cfg.get("risk_pct", 2.0))
-        self._sl_atr_mult = float(bt_cfg.get("sl_atr_mult", 2.0))
-        self._tp_atr_mult = float(bt_cfg.get("tp_atr_mult", 4.0))
+        self._init_cash = float(bt_cfg.get("initial_balance", 10_000.0))
+        # BacktestEngine の risk_pct は 0.0〜1.0 スケール (2% → 0.02)
+        self._risk_pct = float(bt_cfg.get("risk_pct", 2.0)) / 100.0
+        self._sl_atr = float(bt_cfg.get("sl_atr_mult", 2.0))
+        self._tp_atr = float(bt_cfg.get("tp_atr_mult", 4.0))
+        # exit_on_signal=False: シグナル反転で即決済せず SL/TP まで保有
+        # 純粋な方向予測エッジを測定するために必要
+        self._exit_on_signal = bool(bt_cfg.get("exit_on_signal", True))
 
         self._jsonl_dir = Path(log_cfg.get("jsonl_dir", "trade_logs"))
 
@@ -77,16 +90,23 @@ class QuantBacktestEngine:
                 'trade_count': int,
             }
         """
-        # lib/backtest.BacktestEngine でシグナル生成・取引シミュレーション
+        freq = _GRAN_TO_FREQ.get(timeframe, "4h")
+
+        # Bug 1 修正: 正しいパラメータ名を使用
         engine = BacktestEngine(
-            initial_balance=self._initial_balance,
+            init_cash=self._init_cash,
             risk_pct=self._risk_pct,
-            sl_atr_mult=self._sl_atr_mult,
-            tp_atr_mult=self._tp_atr_mult,
+            default_sl_atr=self._sl_atr,
+            default_tp_atr=self._tp_atr,
+            exit_on_signal=self._exit_on_signal,
         )
 
-        signal_series = strategy_fn(ohlcv_df)
-        result = engine.run(ohlcv_df, signal_series)
+        # Bug 2 修正: signal_func (callable) を渡す
+        # disable_atr_sl=True: スウィングSLではなく固定ATR-SLを使用
+        # → scanner の sl_atr_mult / tp_atr_mult と整合したRRで評価できる
+        result = engine.run(ohlcv_df, strategy_fn, freq=freq, disable_atr_sl=True)
+
+        # Bug 3 修正: result 全体が summary (trades は result["trades"] に含まれる)
         trades = result.get("trades", [])
 
         # JSONL ログ出力パスの決定
@@ -104,8 +124,8 @@ class QuantBacktestEngine:
             instrument=instrument,
             rule_ids=rule_ids or [],
             non_textbook=non_textbook,
-            initial_balance=self._initial_balance,
-            risk_pct=self._risk_pct,
+            initial_balance=self._init_cash,
+            risk_pct=self._risk_pct * 100,  # % 表示に戻す
         )
 
         log.info(
@@ -113,9 +133,12 @@ class QuantBacktestEngine:
             f"trades={count}, jsonl={output_path}"
         )
 
+        # Bug 3 修正: result 全体が summary (trades を除外したもの)
+        summary = {k: v for k, v in result.items() if k != "trades"}
+
         return {
             "trades": trades,
-            "summary": result.get("summary", {}),
+            "summary": summary,
             "jsonl_path": output_path,
             "trade_count": count,
         }

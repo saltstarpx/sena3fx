@@ -131,8 +131,16 @@ class EntryScanner:
             f"bars={n}, warmup={warmup}, scan_bars={n - warmup}"
         )
 
+        # ウィンドウサイズを固定して O(n²) を O(n) に改善
+        # 各条件が必要とする最大バー数:
+        #   C1: level_lookback=100, C4: min_bars=25, C5: ATR期間=14
+        # 十分なマージンをとって 300 バーに固定
+        window = 300
+
         for i in range(warmup, n):
-            slice_df = ohlcv_df.iloc[: i + 1]  # bar[i] = ライブバー
+            # 固定ウィンドウ: bar[i] = ライブバー (iloc[-1])
+            start = max(0, i + 1 - window)
+            slice_df = ohlcv_df.iloc[start : i + 1]
             timestamp = ohlcv_df.index[i]
 
             record = self.evaluate_bar(slice_df, instrument, timeframe, timestamp)

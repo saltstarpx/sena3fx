@@ -61,30 +61,49 @@ class C5BarTiming(ConditionBase):
         confirmed = self._confirmed(ohlcv_df)
         if len(confirmed) < 5:
             return self._not_enough_data("C5: 確認バー不足（最低5本必要）")
+        # パフォーマンス最適化: HTF方向判定に50バー以上あれば十分 (4H×50=8日分)
+        confirmed = confirmed.iloc[-50:]
 
         # OANDA granularity → timing.py freq 文字列に変換（必須）
         freq = self.GRANULARITY_MAP.get(timeframe, "1h")
 
         # 確定バーに対して各判定を実行
         bar_update_series = detect_bar_update_timing(confirmed, freq)
-        is_update = bool(bar_update_series.iloc[-1])
+        is_midnight_update = bool(bar_update_series.iloc[-1])  # 日足更新 (0:00 UTC)
 
         sessions = session_filter(confirmed)
         current_session = str(sessions.iloc[-1])
 
+        # ロンドン/NYオープンの足更新判定 (XAUUSD向け追加)
+        # 「4Hをお勧め: 同時に更新される足が多い」+ アジア時間除外
+        # - 0:00 UTC (東京): detect_bar_update_timing が検出、アジア session → ブロック
+        # - 8:00 UTC (ロンドンオープン): 流動性大、XAUUSDに最重要
+        # - 12:00 UTC (NY重複): 最もボラ高いセッション開始
+        last_bar_hour = int(confirmed.index[-1].hour)
+        is_london_ny_update = (freq in ("4h", "4H")) and (last_bar_hour in (8, 12))
+        is_update = is_midnight_update or is_london_ny_update
+
         htf_dir_series = higher_tf_direction(confirmed, freq)
-        htf_direction_val = float(htf_dir_series.iloc[-1])
+
+        # 日足更新の瞬間 (0:00 UTC) のみ: 新しい日足の最初の1本のため
+        # higher_tf_direction が open==close → 0.0 を返す。
+        # ロンドン/NYオープンは複数バーが蓄積されているため iloc[-1] を使用。
+        if is_midnight_update and not is_london_ny_update and len(htf_dir_series) >= 2:
+            htf_direction_val = float(htf_dir_series.iloc[-2])
+        else:
+            htf_direction_val = float(htf_dir_series.iloc[-1])
 
         trendless_series = detect_trendless(confirmed)
         is_trendless = bool(trendless_series.iloc[-1])
 
-        # 充足条件: 足更新あり + トレンドレスでない
-        satisfied = is_update and not is_trendless
+        # アジア時間ブレイクアウトリスクフラグ（R8ルール）
+        # 「アジア時間のブレイクアウトは危険」→ アジアセッション更新は除外
+        asia_breakout_risk = current_session == "asia" and is_update
+
+        # 充足条件: 足更新あり + アジアセッション除外 + トレンドレスでない
+        satisfied = is_update and not asia_breakout_risk and not is_trendless
         if self._require_trend:
             satisfied = satisfied and (htf_direction_val != 0.0)
-
-        # アジア時間ブレイクアウトリスクフラグ（R8ルール）
-        asia_breakout_risk = current_session == "asia" and is_update
 
         # スコア計算
         score = 0.0
