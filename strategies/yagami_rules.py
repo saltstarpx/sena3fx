@@ -26,6 +26,9 @@ from lib.yagami import (
     sig_yagami_prime_time,
     sig_yagami_full_filter,
     sig_yagami_A_full_filter,
+    # 時間軸適性分離シグナル (Proposal C)
+    sig_yagami_reversal_mode,
+    sig_yagami_trend_mode,
 )
 from strategies.market_filters import make_usd_filtered_signal
 
@@ -50,4 +53,7 @@ def yagami_variants(freq='4h'):
         ('YagamiB+USD',      sig_yagami_B_usd(freq=freq)),
         ('YagamiFull+USD',   sig_yagami_full_usd(freq=freq)),
         ('YagamiLonNY+USD',  sig_yagami_lonny_usd(freq=freq)),
+        # 時間軸適性分離バリアント (Proposal C)
+        ('YagamiReversalMode', sig_yagami_reversal_mode(freq=freq)),
+        ('YagamiTrendMode',    sig_yagami_trend_mode(freq=freq)),
     ]

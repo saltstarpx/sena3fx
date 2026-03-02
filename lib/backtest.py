@@ -66,7 +66,13 @@ class BacktestEngine:
                  target_max_dd=0.15,
                  target_min_wr=0.50,
                  target_rr_threshold=2.0,
-                 target_min_trades=30):
+                 target_min_trades=30,
+                 # ── Safety Valve (Proposal A) ──
+                 min_sl_atr_mult=0.3,
+                 min_sl_price_pct=0.001,
+                 max_pos_size=10000.0,
+                 max_notional_pct=5.0,
+                 skip_log_path=None):
         """
         Args:
             risk_pct: 初期エントリーのリスク比率（デフォルト5%、複利で資産に追随）
@@ -107,6 +113,32 @@ class BacktestEngine:
         self.target_min_wr = target_min_wr
         self.target_rr_threshold = target_rr_threshold
         self.target_min_trades = target_min_trades
+        # Safety Valve
+        self.min_sl_atr_mult = min_sl_atr_mult
+        self.min_sl_price_pct = min_sl_price_pct
+        self.max_pos_size = max_pos_size
+        self.max_notional_pct = max_notional_pct
+        self.skip_log_path = skip_log_path
+
+    def _log_skip(self, bar_time, direction, reason):
+        """
+        Safety Valve でスキップされたエントリーを JSONL に記録。
+        skip_log_path が None の場合は results/skip_log.jsonl に書き込む。
+        """
+        path = self.skip_log_path
+        if path is None:
+            path = os.path.join(
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                'results', 'skip_log.jsonl',
+            )
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        record = {
+            'ts': str(bar_time),
+            'dir': direction,
+            'reason': reason,
+        }
+        with open(path, 'a', encoding='utf-8') as f:
+            f.write(json.dumps(record, ensure_ascii=False) + '\n')
 
     def _calc_atr(self, bars, period=14):
         h = bars['high'].values
@@ -507,6 +539,32 @@ class BacktestEngine:
             sl_pips = sl_dist / self.pip
             pos_size = max(0.01, round(risk_amount / sl_pips, 2)) if sl_pips > 0 else 0.01
 
+            # ── Safety Valve (Proposal A): 異常ロット・近すぎSLをスキップ ──
+            _skip_reason = None
+            _min_sl_required = max(
+                bar_atr * self.min_sl_atr_mult,
+                entry_price * self.min_sl_price_pct,
+            )
+            if sl_dist < _min_sl_required:
+                _skip_reason = (
+                    f'sl_too_small: sl_dist={sl_dist:.5f} < '
+                    f'required={_min_sl_required:.5f} '
+                    f'(atr={bar_atr:.5f})'
+                )
+            elif pos_size > self.max_pos_size:
+                _skip_reason = (
+                    f'pos_size_too_large: pos_size={pos_size:.2f} > '
+                    f'max={self.max_pos_size:.2f}'
+                )
+            elif pos_size * entry_price > cash * self.max_notional_pct:
+                _skip_reason = (
+                    f'notional_too_large: notional={pos_size * entry_price:.0f} > '
+                    f'max={cash * self.max_notional_pct:.0f}'
+                )
+            if _skip_reason:
+                self._log_skip(bar_time, sig, _skip_reason)
+                continue
+
             pos = {
                 'dir': sig,
                 'sl': sl_price,
@@ -724,6 +782,8 @@ class BacktestEngine:
             'sharpe_ratio': sharpe_ratio,
             'calmar_ratio': calmar_ratio,
             'trades': trades,
+            # ── PF二重計算検証 (Proposal B) ──
+            'pf_verify': verify_pf(trades, reported_pf=round(pf, 4)),
         }
         # ── パフォーマンスログへ自動追記 (dashboard.html 用) ──
         self._append_performance_log(result)
@@ -759,3 +819,63 @@ class BacktestEngine:
                 r.get('total_trades', ''),
             ])
 
+
+def verify_pf(trades: list, reported_pf: float = None) -> dict:
+    """
+    トレード履歴から PF を独立計算してレポート値と照合する (Proposal B)。
+
+    目的:
+      バックテストエンジンが返す profit_factor と、トレードリストから
+      素直に再計算した値が一致するかを検証する。
+      不一致が大きい場合、手数料・滑り・部分決済・早期クローズの
+      寄与を exit_reason 別に分解して提示する。
+
+    Args:
+      trades:      BacktestEngine.run() が返す result['trades'] リスト。
+      reported_pf: result['profit_factor'] の値（照合用）。
+
+    Returns:
+      dict with keys:
+        gross_profit     : 勝ちトレードの PnL 合計
+        gross_loss       : 負けトレードの PnL 合計（絶対値）
+        recalc_pf        : 再計算 PF
+        reported_pf      : レポート PF（引数で渡した場合のみ）
+        pf_match         : 再計算 PF ≈ レポート PF か
+        pf_discrepancy   : 再計算 PF − レポート PF
+        pnl_by_exit_reason: exit_reason 別 PnL / 件数
+        tp_reach_rate_pct: TP 到達率 (%)
+    """
+    if not trades:
+        return {'gross_profit': 0, 'gross_loss': 0, 'recalc_pf': 0,
+                'pnl_by_exit_reason': {}, 'tp_reach_rate_pct': 0.0}
+
+    gross_profit = sum(t['pnl'] for t in trades if t['pnl'] > 0)
+    gross_loss = abs(sum(t['pnl'] for t in trades if t['pnl'] <= 0))
+    recalc_pf = round(gross_profit / gross_loss, 4) if gross_loss > 0 else 999.0
+
+    by_reason: dict = {}
+    for t in trades:
+        r = t.get('exit_reason', 'unknown')
+        if r not in by_reason:
+            by_reason[r] = {'pnl': 0.0, 'count': 0}
+        by_reason[r]['pnl'] += t['pnl']
+        by_reason[r]['count'] += 1
+
+    tp_count = by_reason.get('take_profit', {}).get('count', 0)
+    tp_reach_rate = tp_count / len(trades) * 100 if trades else 0.0
+
+    result = {
+        'gross_profit': round(gross_profit, 2),
+        'gross_loss': round(gross_loss, 2),
+        'recalc_pf': recalc_pf,
+        'pnl_by_exit_reason': {
+            r: {'pnl': round(v['pnl'], 2), 'count': v['count']}
+            for r, v in by_reason.items()
+        },
+        'tp_reach_rate_pct': round(tp_reach_rate, 1),
+    }
+    if reported_pf is not None:
+        result['reported_pf'] = reported_pf
+        result['pf_match'] = abs(recalc_pf - reported_pf) < 0.01
+        result['pf_discrepancy'] = round(recalc_pf - reported_pf, 4)
+    return result
