@@ -1,0 +1,149 @@
+# rule_registry.yaml
+# やがみメソッド 教材準拠ルール R1〜R11
+# 出典: やがみ「ローソク足の本」「ポジり方の本」
+# non_textbook: false (全て教材由来)
+
+rules:
+
+  R1:
+    id: R1
+    name: "大陽線/大陰線への逆張り禁止"
+    description: |
+      大陽線（big_bull）が出た場合、そのバーや次のバーでのショートエントリーを禁止。
+      大陰線（big_bear）が出た場合、ロングエントリーを禁止。
+      「大陽線・大陰線に逆らうと死にます」— やがみ
+    condition_id: C2
+    candle_types:
+      - big_bull   # → LONG禁止ではなくSHORT禁止（大陽線に逆張りSHORT禁止）
+      - big_bear   # → LONG禁止
+    enforcement: scorer  # scorer.py で適用済み
+    non_textbook: false
+
+  R2:
+    id: R2
+    name: "Doji連続4本以上 → トレンドレス → ノーポジ"
+    description: |
+      Dojiが4本以上連続して出現した場合は、トレンドが存在しない状態と判断。
+      エントリーを禁止し、待機を選択する。
+    condition_id: C5
+    detection: "lib.candle.detect_trendless(bars, doji_count=4)"
+    enforcement: c5_evaluation
+    non_textbook: false
+
+  R3:
+    id: R3
+    name: "包み足 → 転換サイン"
+    description: |
+      包み足（engulf_bull / engulf_bear）は強力な転換シグナル。
+      包み足の方向にエントリーを検討する。
+      ただし、大陽線/大陰線ルール（R1）が優先される。
+    condition_id: C2
+    candle_types:
+      - engulf_bull  # ロング転換
+      - engulf_bear  # ショート転換
+    enforcement: c2_evaluation
+    non_textbook: false
+
+  R4:
+    id: R4
+    name: "二番底/二番天井を待ってからエントリー"
+    description: |
+      反転トレードでは一番底/一番天井ではなく、
+      確認された二番底（double_bottom）/二番天井（double_top）が
+      形成されてからエントリーする。
+      「最初の反転は拾わない」— やがみ
+    condition_id: C3
+    price_action_types:
+      - double_bottom  # ロング
+      - double_top     # ショート
+    enforcement: c3_evaluation
+    non_textbook: false
+
+  R5:
+    id: R5
+    name: "計画SLで必ず損切り"
+    description: |
+      エントリー時に設定したSL（ストップロス）価格に到達したら、
+      感情なく必ず損切りを実行する。
+      SLを動かしてリスクを拡大することは禁止。
+    enforcement: backtest_engine
+    applies_to: all
+    non_textbook: false
+
+  R6:
+    id: R6
+    name: "SL位置 = 日足/4H直近安値・高値"
+    description: |
+      ロングのSLは直近の日足または4H足の安値（ヒゲ先端）の少し下に設定。
+      ショートのSLは直近の日足または4H足の高値の少し上に設定。
+      ATRベースのSLはこの原則の代替として使用。
+    enforcement: scorer_sl_calc
+    sl_reference:
+      - higher_tf: D
+      - higher_tf: H4
+      - metric: recent_low_for_long
+      - metric: recent_high_for_short
+    non_textbook: false
+
+  R7:
+    id: R7
+    name: "ロット = 損切り距離連動"
+    description: |
+      ポジションサイズ（ロット数）は損切り距離と口座リスク%から逆算する。
+      損切り距離が大きいほどロットを小さくする。
+      固定ロットトレードは禁止。
+      計算式: lots = (account × risk_pct) / (sl_distance × pip_value)
+    enforcement: risk_manager
+    risk_pct: 2.0
+    non_textbook: false
+
+  R8:
+    id: R8
+    name: "トレンドのある銘柄のみ触る"
+    description: |
+      上位足（日足・4H足）でトレンドが確認されている銘柄のみエントリー対象。
+      レンジ相場（Doji連続）での新規エントリーは禁止。
+      HTF方向を常に確認してからエントリーする。
+    condition_id: C5
+    enforcement: c5_htf_check
+    non_textbook: false
+
+  R9:
+    id: R9
+    name: "ミスプライス・スパイク除外"
+    description: |
+      異常な価格スパイク（ATR×10以上の単バー変動）はデータ異常と判断。
+      そのようなバーはレベル検出・シグナル生成から除外する。
+    condition_id: C1
+    enforcement: data_pipeline_cleaner
+    threshold_atr_mult: 10.0
+    non_textbook: false
+
+  R10:
+    id: R10
+    name: "日足色戻しで撤退"
+    description: |
+      ポジション保有中に日足ローソク足の色が逆転した場合
+      （ロング中に大陰線、ショート中に大陽線）は
+      ポジションを撤退（クローズ）する。
+    enforcement: live_monitoring
+    applies_to: open_positions
+    non_textbook: false
+
+  R11:
+    id: R11
+    name: "極力レンジブレイク狙い"
+    description: |
+      コンソリデーション（もみ合い）後のブレイクアウトを
+      優先的にエントリー対象とする。
+      フラッグ、ウェッジ、三角持ち合いのブレイクが理想的。
+    condition_id: C4
+    chart_patterns:
+      - flag_bull
+      - flag_bear
+      - wedge_bull
+      - wedge_bear
+      - triangle_break_bull
+      - triangle_break_bear
+    enforcement: c4_evaluation
+    non_textbook: false
