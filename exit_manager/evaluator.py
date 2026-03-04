@@ -303,6 +303,151 @@ def generate_report(
 
 
 # ------------------------------------------------------------------ #
+#  MFE/MAE 分析（OHLCデータと組み合わせて実施）                       #
+# ------------------------------------------------------------------ #
+
+def compute_mfe_mae(
+    trades: list[dict],
+    ohlc_by_trade: dict[str, list[dict]],
+) -> dict:
+    """
+    MFE（Maximum Favorable Excursion）と MAE（Maximum Adverse Excursion）を計算する。
+
+    OANDA の OHLC データ（M15推奨）と組み合わせて、各トレードの
+    「最大伸び幅」と「最大引き幅」をR倍率で計算する。
+
+    Args:
+        trades: TRADE_REGISTERED + TRADE_CLOSED のペアリスト。
+                各要素は dict: {
+                    'trade_id', 'entry_price', 'sl_distance_usd',
+                    'direction', 'pnl_jpy', 'final_r',
+                }
+        ohlc_by_trade: trade_id → OHLCバーのリスト（保有期間分）。
+                       各バーは {'high': float, 'low': float}
+
+    Returns:
+        dict:
+            mfe_distribution (list[float]): 各トレードのMFE（R倍率）
+            mae_distribution (list[float]): 各トレードのMAE（R倍率）
+            pct_reached_1r (float):         MFE>=1Rの割合（%）
+            pct_reached_2r (float):         MFE>=2Rの割合（%）
+            median_mae_wins (float):        勝ちトレードのMAE中央値（R）
+            wasted_r_cases (int):           MFE>=2R かつ 最終損益<=0.5R のトレード数
+            summary (str):                  解釈コメント
+    """
+    if not trades:
+        return {
+            'mfe_distribution': [],
+            'mae_distribution': [],
+            'pct_reached_1r': 0.0,
+            'pct_reached_2r': 0.0,
+            'median_mae_wins': 0.0,
+            'wasted_r_cases': 0,
+            'summary': 'データなし',
+        }
+
+    mfe_list = []
+    mae_list = []
+    win_mae_list = []
+    wasted = 0
+
+    for t in trades:
+        tid = t.get('trade_id', '')
+        entry = float(t.get('entry_price', 0))
+        sl_dist = float(t.get('sl_distance_usd', 1))
+        direction = str(t.get('direction', 'LONG')).upper()
+        final_r = float(t.get('final_r', 0.0))
+        bars = ohlc_by_trade.get(tid, [])
+
+        if sl_dist <= 0 or not bars:
+            continue
+
+        highs = [float(b.get('high', entry)) for b in bars]
+        lows = [float(b.get('low', entry)) for b in bars]
+
+        if direction == 'LONG':
+            mfe = (max(highs) - entry) / sl_dist
+            mae = (entry - min(lows)) / sl_dist
+        else:
+            mfe = (entry - min(lows)) / sl_dist
+            mae = (max(highs) - entry) / sl_dist
+
+        mfe_list.append(mfe)
+        mae_list.append(mae)
+
+        if final_r > 0:
+            win_mae_list.append(mae)
+
+        # 「+2R以上伸びたのに最終損益が+0.5R未満」= 利確が早すぎた証拠
+        if mfe >= 2.0 and final_r < 0.5:
+            wasted += 1
+
+    n = len(mfe_list)
+    pct_1r = round(100.0 * sum(1 for m in mfe_list if m >= 1.0) / n, 1) if n else 0.0
+    pct_2r = round(100.0 * sum(1 for m in mfe_list if m >= 2.0) / n, 1) if n else 0.0
+
+    if win_mae_list:
+        win_mae_list_sorted = sorted(win_mae_list)
+        mid = len(win_mae_list_sorted) // 2
+        median_mae = win_mae_list_sorted[mid]
+    else:
+        median_mae = 0.0
+
+    # 解釈コメント
+    lines = []
+    if pct_1r > 0:
+        lines.append(f'MFE>=1Rは{pct_1r}%のトレードが到達（TP1設定の妥当性確認）')
+    if pct_2r > 0:
+        lines.append(f'MFE>=2Rは{pct_2r}%のトレードが到達（Giveback Stop効果を確認）')
+    if wasted > 0:
+        lines.append(f'+2R以上伸びて最終+0.5R未満: {wasted}件（利確が早すぎた可能性）')
+    if median_mae > 0:
+        lines.append(
+            f'勝ちトレードMAE中央値: {median_mae:.2f}R'
+            f'{"（SLが狩られやすい可能性あり）" if median_mae > 0.5 else "（SL配置は適切）"}'
+        )
+
+    return {
+        'mfe_distribution': [round(m, 3) for m in mfe_list],
+        'mae_distribution': [round(m, 3) for m in mae_list],
+        'pct_reached_1r': pct_1r,
+        'pct_reached_2r': pct_2r,
+        'median_mae_wins': round(median_mae, 3),
+        'wasted_r_cases': wasted,
+        'summary': '\n'.join(lines) if lines else 'データ不足',
+    }
+
+
+def format_mfe_mae_report(mfe_mae: dict) -> str:
+    """MFE/MAE 分析結果をMarkdownセクションとして整形する。"""
+    lines = [
+        '## MFE/MAE 分析',
+        '',
+        '> OHLCデータとトレードログを組み合わせた「最大伸び・最大引き」分析',
+        '> TP1/SLパラメータ最適化の判断材料として使用する',
+        '',
+        f'| 指標 | 値 |',
+        f'|------|-----|',
+        f'| MFE>=1R 到達率 | {mfe_mae["pct_reached_1r"]}% |',
+        f'| MFE>=2R 到達率 | {mfe_mae["pct_reached_2r"]}% |',
+        f'| 勝ちトレード MAE 中央値 | {mfe_mae["median_mae_wins"]:.3f}R |',
+        f'| +2R伸びて+0.5R未満で終了 | {mfe_mae["wasted_r_cases"]}件 |',
+        '',
+        '### 解釈',
+        '',
+        mfe_mae['summary'],
+        '',
+        '### パラメータ最適化への示唆',
+        '',
+        '- **TP1のR倍率**: MFE分布で「X%のトレードが到達するR」を選ぶ（目安: 60-70%到達）',
+        '- **ロックアウト時間**: 時間帯別MFEで「利益が伸びる時間帯」を特定',
+        '- **Giveback Stop**: MFE>=2Rで最終損益<0.5Rのトレードのパターンを特定',
+        '',
+    ]
+    return '\n'.join(lines)
+
+
+# ------------------------------------------------------------------ #
 #  CLI エントリーポイント                                              #
 # ------------------------------------------------------------------ #
 

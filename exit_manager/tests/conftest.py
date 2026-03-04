@@ -134,6 +134,17 @@ def sample_config() -> dict:
                 'no_unplanned_averaging': True,
                 'no_repeated_partial': True,
             },
+            'volatility_regime': {
+                'enabled': True,
+                'non_textbook': True,
+                'atr_threshold_multiplier': 1.5,
+                'high_vol_adjustments': {
+                    'risk_reduction_pct': 50,
+                    'tp1_r_multiple': 0.7,
+                    'max_concurrent_trades': 1,
+                    'lockout_short_term_minutes': 30,
+                },
+            },
         },
         'logging': {
             'format': 'jsonl',

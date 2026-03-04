@@ -524,6 +524,115 @@ def check_anti_patterns(
 
 
 # ------------------------------------------------------------------ #
+#  ボラティリティ・レジーム判定（non_textbook）                       #
+# ------------------------------------------------------------------ #
+
+def check_volatility_regime(
+    candles_daily: pd.DataFrame,
+    config: dict,
+) -> dict:
+    """
+    日足ATR(14)が20日平均ATRの1.5倍以上なら「高ボラレジーム」と判定する。
+
+    市況教材: 「戦争相場では柔軟に対応できるようにする」
+              「必ずストップを置いて急な変動で無駄な損失を出さないようにする」
+
+    Args:
+        candles_daily: 日足OHLCデータ（30本以上推奨）。
+                       列: open, high, low, close
+        config:        config dict
+
+    Returns:
+        dict:
+            is_high_vol (bool):         高ボラレジームか
+            current_atr (float):        現在ATR(D,14)
+            avg_atr (float):            20日平均ATR
+            ratio (float):              current_atr / avg_atr
+            effective_risk_jpy (float): 高ボラ時の調整リスク（JPY）
+            effective_tp1_r (float):    高ボラ時のTP1 R倍率
+            max_concurrent (int):       高ボラ時の同時建玉上限
+            lockout_minutes (int):      高ボラ時のロックアウト分数
+    """
+    vr_cfg = config.get('exit_rules', {}).get('volatility_regime', {})
+    base_risk = float(config['account']['max_loss_jpy'])
+    base_tp1_r = float(config['exit_rules']['tp1']['r_multiple'])
+    base_concurrent = int(config['account']['max_concurrent_trades'])
+    base_lockout = int(
+        config['exit_rules']['lockout']['short_term'].get('duration_minutes', 60)
+    )
+
+    if not vr_cfg.get('enabled', True) or candles_daily is None or len(candles_daily) < 20:
+        return {
+            'is_high_vol': False,
+            'current_atr': 0.0,
+            'avg_atr': 0.0,
+            'ratio': 1.0,
+            'effective_risk_jpy': base_risk,
+            'effective_tp1_r': base_tp1_r,
+            'max_concurrent': base_concurrent,
+            'lockout_minutes': base_lockout,
+        }
+
+    # ATR(14) = 14日間の True Range の単純移動平均
+    high = candles_daily['high']
+    low = candles_daily['low']
+    close = candles_daily['close']
+    prev_close = close.shift(1)
+
+    tr = pd.concat([
+        high - low,
+        (high - prev_close).abs(),
+        (low - prev_close).abs(),
+    ], axis=1).max(axis=1)
+
+    atr14 = tr.rolling(14).mean()
+    current_atr = float(atr14.iloc[-1])
+
+    # 20日平均ATR（高ボラ判定のベースライン）
+    avg_atr = float(atr14.iloc[-20:].mean())
+
+    if avg_atr <= 0:
+        return {
+            'is_high_vol': False,
+            'current_atr': current_atr,
+            'avg_atr': avg_atr,
+            'ratio': 1.0,
+            'effective_risk_jpy': base_risk,
+            'effective_tp1_r': base_tp1_r,
+            'max_concurrent': base_concurrent,
+            'lockout_minutes': base_lockout,
+        }
+
+    ratio = current_atr / avg_atr
+    threshold = float(vr_cfg.get('atr_threshold_multiplier', 1.5))
+    is_high_vol = ratio >= threshold
+
+    if is_high_vol:
+        adj = vr_cfg.get('high_vol_adjustments', {})
+        risk_reduction = float(adj.get('risk_reduction_pct', 50)) / 100.0
+        effective_risk = base_risk * (1.0 - risk_reduction)
+        effective_tp1_r = float(adj.get('tp1_r_multiple', 0.7))
+        max_concurrent = int(adj.get('max_concurrent_trades', 1))
+        lockout_minutes = int(adj.get('lockout_short_term_minutes', 30))
+    else:
+        effective_risk = base_risk
+        effective_tp1_r = base_tp1_r
+        max_concurrent = base_concurrent
+        lockout_minutes = base_lockout
+
+    return {
+        'is_high_vol': is_high_vol,
+        'current_atr': round(current_atr, 4),
+        'avg_atr': round(avg_atr, 4),
+        'ratio': round(ratio, 3),
+        'effective_risk_jpy': effective_risk,
+        'effective_tp1_r': effective_tp1_r,
+        'max_concurrent': max_concurrent,
+        'lockout_minutes': lockout_minutes,
+    }
+
+
+# ------------------------------------------------------------------ #
 #  初期SL検証（登録時のみ呼ばれる）                                   #
 # ------------------------------------------------------------------ #
 

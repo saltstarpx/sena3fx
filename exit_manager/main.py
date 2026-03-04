@@ -57,6 +57,7 @@ from exit_manager.exit_rules import (
     check_silver_time_stop,
     check_tp1,
     check_trailing_stop,
+    check_volatility_regime,
 )
 from exit_manager.logger import ExitManagerLogger
 from exit_manager.notifier import DiscordNotifier
@@ -99,6 +100,16 @@ class ExitManager:
         # Kill Switch 状態
         self._kill_switch_active: bool = False
 
+        # ボラティリティ・レジーム状態（non_textbook）
+        self._vol_regime: dict = {
+            'is_high_vol': False,
+            'effective_risk_jpy': float(config['account']['max_loss_jpy']),
+            'effective_tp1_r': float(config['exit_rules']['tp1']['r_multiple']),
+            'max_concurrent': int(config['account']['max_concurrent_trades']),
+            'lockout_minutes': 60,
+        }
+        self._last_daily_candle_date: str = ''
+
         # instrument → jpy_per_dollar_per_unit のキャッシュ
         self._jpy_rates: dict = {
             inst: float(cfg.get('jpy_per_dollar_per_unit', 151.8))
@@ -139,6 +150,11 @@ class ExitManager:
             self._daily_realized_jpy = 0.0
             self._daily_reset_date = today_str
             log.info(f'日次P&Lリセット: {today_str}')
+
+            # 2.5 ボラティリティ・レジーム判定（日次1回）
+            if today_str != self._last_daily_candle_date:
+                self._update_volatility_regime()
+                self._last_daily_candle_date = today_str
 
         # 1. オープントレード取得
         try:
@@ -532,6 +548,39 @@ class ExitManager:
             unrealized_usd = float(ot.get('unrealizedPL', 0.0))
             total += unrealized_usd * jpy_rate
         return total
+
+    def _update_volatility_regime(self):
+        """
+        日足ATR(14)を取得してボラティリティ・レジームを判定する。
+        高ボラ時はリスク・TP1・同時建玉・ロックアウトを調整する（non_textbook）。
+        """
+        try:
+            candles_daily = self.client.get_candles('XAU_USD', 'D', count=35)
+        except Exception as e:
+            log.warning(f'ボラティリティ判定用日足取得失敗: {e}')
+            return
+
+        prev_regime = self._vol_regime.get('is_high_vol', False)
+        self._vol_regime = check_volatility_regime(candles_daily, self.config)
+
+        if self._vol_regime['is_high_vol'] != prev_regime:
+            new_label = '高ボラ' if self._vol_regime['is_high_vol'] else '通常'
+            log.warning(
+                f'ボラティリティ・レジーム変化: {new_label} '
+                f"(ATR ratio={self._vol_regime['ratio']:.2f})"
+            )
+            self.logger.log(
+                'VOLATILITY_REGIME_CHANGE',
+                is_high_vol=self._vol_regime['is_high_vol'],
+                current_atr=self._vol_regime['current_atr'],
+                avg_atr=self._vol_regime['avg_atr'],
+                ratio=self._vol_regime['ratio'],
+                effective_risk_jpy=self._vol_regime['effective_risk_jpy'],
+                effective_tp1_r=self._vol_regime['effective_tp1_r'],
+                max_concurrent=self._vol_regime['max_concurrent'],
+                lockout_minutes=self._vol_regime['lockout_minutes'],
+                non_textbook=True,
+            )
 
 
 # ------------------------------------------------------------------ #
