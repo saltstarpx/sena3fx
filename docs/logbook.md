@@ -97,3 +97,31 @@
 2. A2（ボリューム確認）の長期データ再検証
 3. 方向Bを「押し目買い・戻り売り」型シグナルに再設計
 4. 両戦略の組み合わせ検証
+
+---
+
+## EntryID: 20260305-005
+
+**日時**: 2026-03-05  
+**種別**: コードレビュー（OANDA認証堅牢化）  
+**担当**: Manus AI  
+**ReviewID**: REVIEW-20260305-001
+
+### 内容
+
+Claude Codeが報告したコミット `228b425`（OANDA認証環境変数の堅牢化）をレビュー。
+
+**調査結果**: コミット `228b425` はリポジトリに存在しない。`resolve_oanda_credentials()`、`OANDA_API_TOKEN` フォールバック、`tests/test_oanda_env_compat.py` のいずれも未実装。
+
+**現状の問題**:
+- `lib/oanda_client.py` は `OANDA_API_KEY` のみ対応
+- `monitors/` は `OANDA_API_TOKEN` を使用（変数名不統一）
+- 2つの独立した `oanda_client.py` が存在
+
+**根拠**: `docs/review_oanda_auth_20260305.md`
+
+### 次アクション
+
+水原様の判断待ち:
+- 選択肢A: Manusが `resolve_oanda_credentials()` とテストを実装
+- 選択肢B: Claude Codeに再プッシュを依頼
