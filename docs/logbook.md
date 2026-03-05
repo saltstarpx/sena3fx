@@ -442,3 +442,57 @@ DC50+EMA200は2021-2023の**3年間連続で壊滅** (PF=0.06, 0.31, 0.06)。
 3. **DC50+EMA200のPF=3.761は「出来過ぎ」が確認された。** 2024-2025の金急騰が数値を押し上げており、2021-2023では壊滅。レンジ相場フィルター追加が急務。
 4. **MTF v3は現状では実戦投入不可。** カスタムSL機能(ヒゲ先SL)のエンジン改修が先行条件。
 5. **推奨ポートフォリオ: PA v2(メイン) + DC50+EMA200(サブ/フィルター付き)** の2戦略構成。MTF v3は改善待ち。
+
+---
+
+## EntryID: 20260305-013
+
+**日時**: 2026-03-05
+**種別**: FX通貨ペア横展開バックテスト (RUN-011)
+**担当**: Claude Code
+
+### 内容
+
+OANDA API制約（XAUUSD非対応）に対応し、5通貨ペア × 3戦略の横展開バックテストを実施。
+スプレッド負荷テスト、前半/後半分割、年別分解、Walk-Forward検証を全組み合わせで実行。
+
+### 全期間バックテスト結果
+
+| ペア | PA v2 (4H) | MTF v3 (H1) | DC50+EMA200 |
+|------|:---:|:---:|:---:|
+| XAUUSD (参考) | PF=1.93 ★★★ | PF=1.18 ★ | PF=2.88 ★★★ |
+| USDJPY | PF=0.52 × | PF=1.12 ★ | PF=1.21 ★★ |
+| EURUSD | PF=0.60 × | PF=0.51 × | PF=0.10 × |
+| GBPUSD | PF=0.20 × | PF=1.64 ★★★ | PF=0.33 × |
+| **AUDUSD** | **PF=2.30 ★★★** | PF=0.85 × | PF=0.76 × |
+| GBPJPY | — | — | PF=0.55 × |
+
+### 重要発見
+
+1. **AUDUSD × PA v2 が唯一のGO判定**: PF=2.30, WF合格率67%, N=67, MDD=0.6%。コモディティ通貨の特性が金と類似のPAパターンを生む。
+2. **GBPUSD × MTF v3 がWAIT判定**: PF=1.64, WF合格率63%だが直近2 foldでFAIL。要経過観察。
+3. **DC50+EMA200（ドンチャンブレイク）はFXペアで完全無効**: 全ペアWF有効fold=0。FX運用から除外。
+4. **EURUSD/GBPJPYは現行3戦略すべてで損失**: 新規戦略開発が必要。
+
+### 実戦投入判定
+
+| 判定 | ペア×戦略 | PF | WF合格率 | Spread耐性 |
+|------|-----------|------|----------|------------|
+| **GO** | AUDUSD × PA v2 | 2.30 | 67% | A (1.0pips: PF=1.93) |
+| WAIT | GBPUSD × MTF v3 | 1.64 | 63% | B (1.0pips: PF=1.43) |
+| NO | その他全組み合わせ | <1.2 | <40% | — |
+
+### 根拠
+- `scripts/backtest_forex.py`
+- `results/run011_forex_full.csv`
+- `results/run011_forex_spread.csv`
+- `results/run011_forex_halfsplit.csv`
+- `results/run011_forex_annual.csv`
+- `results/run011_forex_wf.csv`
+- `results/run011_forex_report.md`
+
+### 改善アクション
+1. **AUDUSD × PA v2** のOANDA Practiceデモ口座フォワードテスト開始を推奨
+2. AUDUSD PA v2のパラメータ微調整（align_tol, stop_tolグリッドサーチ）
+3. GBPUSD MTF v3の直近性能劣化分析（2025Q3-Q4レジーム変化）
+4. USDJPY/EURUSD向け新規戦略のリサーチ
