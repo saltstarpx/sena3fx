@@ -2570,3 +2570,312 @@ def sig_yagami_trend_mode(freq: str = '1h', min_score: int = 3,
         return signals
 
     return _f
+
+
+# ==============================================================
+# やがみ PA v2: 画像解析知見を反映した改良版プライスアクション
+# ==============================================================
+# 自己批判レポート (RUN-009) に基づく3つの修正:
+#   A. 「止まる」= 点→線の判断 (複数足がレジサポ帯で実体形成)
+#   B. 実体揃い(Body Alignment)の厳格化 (終値が水平に並ぶ「壁」)
+#   C. インサイドバーのエネルギー蓄積 (ボラ収束→放れ)
+# ==============================================================
+
+def _detect_stopping(o, h, l, c, atr, idx, lookback=8, min_bars=3, tol_atr=0.15):
+    """
+    「止まる」の検出 — 点ではなく線での判断。
+
+    急落/急騰が止まり、複数の足が一定の価格帯で実体を揃えるまで待つ。
+    やがみ画像: 安値圏でピンバー1本ではなく、3本以上の足の実体下端が揃うことで
+    「止まった」と判断。
+
+    Returns:
+        (stopped, direction, level)
+        stopped: bool
+        direction: 'bull_stop' | 'bear_stop' | None
+        level: 止まったレベル (float)
+    """
+    if idx < lookback + min_bars:
+        return False, None, 0.0
+
+    a = atr[idx]
+    if np.isnan(a) or a == 0:
+        return False, None, 0.0
+
+    tol = a * tol_atr  # 実体揃いの許容範囲
+
+    # --- 底での「止まり」検出 ---
+    # 直近lookback本中に急落があったか (ATR*2以上の下落)
+    window_c = c[idx - lookback:idx + 1]
+    window_l = l[idx - lookback:idx + 1]
+    max_c_in_window = np.max(window_c)
+    min_l_in_window = np.min(window_l)
+
+    # 急落チェック: 高値→安値で ATR*3以上の落差
+    if max_c_in_window - min_l_in_window > a * 3.0:
+        # 直近min_bars本の実体下端（= min(open, close)）が揃っているか
+        body_lows = []
+        for j in range(idx - min_bars + 1, idx + 1):
+            body_lows.append(min(o[j], c[j]))
+
+        body_low_range = max(body_lows) - min(body_lows)
+        if body_low_range < tol:
+            # さらに: 現在の実体下端が直近安値帯にあるか
+            avg_body_low = np.mean(body_lows)
+            if avg_body_low - min_l_in_window < a * 1.0:
+                return True, 'bull_stop', avg_body_low
+
+    # --- 天井での「止まり」検出 ---
+    max_h_in_window = np.max(h[idx - lookback:idx + 1])
+    if max_h_in_window - min_l_in_window > a * 3.0:
+        body_highs = []
+        for j in range(idx - min_bars + 1, idx + 1):
+            body_highs.append(max(o[j], c[j]))
+
+        body_high_range = max(body_highs) - min(body_highs)
+        if body_high_range < tol:
+            avg_body_high = np.mean(body_highs)
+            if max_h_in_window - avg_body_high < a * 1.0:
+                return True, 'bear_stop', avg_body_high
+
+    return False, None, 0.0
+
+
+def _detect_strict_body_alignment(o, h, l, c, atr, idx, window=5, min_aligned=3,
+                                   tol_atr=0.10):
+    """
+    厳格な実体揃い検出 — 終値がミリ単位で水平に並ぶ「壁」。
+
+    v1の問題: 「価格が近い」程度の緩い条件(ATR*0.3)。
+    v2の修正: ATR*0.10の極めて厳しい条件で、視覚的に「壁」として認識できるレベル。
+
+    Returns:
+        (aligned, direction, level, count)
+        aligned: bool
+        direction: 'support_wall' | 'resist_wall' | None
+        level: 壁のレベル
+        count: 揃っている本数
+    """
+    if idx < window:
+        return False, None, 0.0, 0
+
+    a = atr[idx]
+    if np.isnan(a) or a == 0:
+        return False, None, 0.0, 0
+
+    tol = a * tol_atr
+
+    # 直近window本の終値を収集
+    closes = c[idx - window + 1:idx + 1]
+
+    # スライディングウィンドウでmin_aligned本以上の終値が揃う区間を探す
+    best_count = 0
+    best_level = 0.0
+    best_dir = None
+
+    for start in range(len(closes)):
+        ref = closes[start]
+        count = 0
+        for val in closes[start:]:
+            if abs(val - ref) < tol:
+                count += 1
+        if count >= min_aligned and count > best_count:
+            best_count = count
+            aligned_vals = [v for v in closes[start:] if abs(v - ref) < tol]
+            best_level = np.mean(aligned_vals)
+
+            # 方向判定: 壁の位置が直近レンジの下端→サポート壁、上端→レジスタンス壁
+            mid_range = (np.max(h[idx - window + 1:idx + 1]) +
+                         np.min(l[idx - window + 1:idx + 1])) / 2
+            if best_level < mid_range:
+                best_dir = 'support_wall'
+            else:
+                best_dir = 'resist_wall'
+
+    if best_count >= min_aligned:
+        return True, best_dir, best_level, best_count
+
+    return False, None, 0.0, 0
+
+
+def _detect_inside_bar_accumulation(o, h, l, c, atr, idx, max_lookback=6):
+    """
+    インサイドバーによるエネルギー蓄積検出。
+
+    v1の問題: 単発のインサイドバーを方向なしとして検出するのみ。
+    v2の修正: 連続するインサイドバー（ボラ収束）をカウントし、
+              ブレイク方向を確認してエントリーする。
+
+    Returns:
+        (accumulated, direction, ib_count)
+        accumulated: bool (2本以上のインサイドバー蓄積後にブレイク)
+        direction: 'bull_break' | 'bear_break' | None
+        ib_count: 蓄積されたインサイドバーの本数
+    """
+    if idx < 3:
+        return False, None, 0
+
+    # 現在のバーがインサイドバーなら蓄積中（まだブレイクしてない）
+    if h[idx] <= h[idx - 1] and l[idx] >= l[idx - 1]:
+        return False, None, 0
+
+    # 直前にインサイドバーが連続していたか遡ってカウント
+    ib_count = 0
+    mother_idx = idx - 1  # potential mother bar
+
+    for k in range(idx - 1, max(idx - max_lookback - 1, 0), -1):
+        if k > 0 and h[k] <= h[k - 1] and l[k] >= l[k - 1]:
+            ib_count += 1
+            mother_idx = k - 1
+        else:
+            break
+
+    if ib_count < 2:
+        return False, None, 0
+
+    # ブレイク方向: 現在の足がマザーバーの高値/安値を超えたか
+    mother_high = h[mother_idx]
+    mother_low = l[mother_idx]
+
+    if c[idx] > mother_high:
+        return True, 'bull_break', ib_count
+    elif c[idx] < mother_low:
+        return True, 'bear_break', ib_count
+
+    return False, None, ib_count
+
+
+def sig_yagami_pa_v2(freq='4h', min_conditions=2,
+                      stop_lookback=8, stop_min_bars=3, stop_tol=0.15,
+                      align_window=5, align_min=3, align_tol=0.10,
+                      ib_max_lookback=6, ib_min_count=2):
+    """
+    やがみプライスアクション v2 — 画像解析知見反映版。
+
+    自己批判レポートに基づく3つの根本修正:
+      A. 「止まる」= 複数足がレジサポ帯で実体形成（線の判断）
+      B. 実体揃い = 終値がATR*0.10以内で水平に並ぶ「壁」
+      C. インサイドバー = 2本以上の蓄積→ブレイク方向でエントリー
+
+    エントリー条件 (min_conditions個以上の複合):
+      1. 止まり検出 (A) + 反転ローソク足確認
+      2. 厳格実体揃い (B) + 方向確認
+      3. IB蓄積ブレイク (C)
+      4. 従来のプライスアクション (double_bottom/top, reversal)
+
+    Args:
+        freq: 時間足 (default '4h')
+        min_conditions: 最低必要条件数 (default 2)
+        stop_*: 止まり検出パラメータ
+        align_*: 実体揃いパラメータ
+        ib_*: インサイドバーパラメータ
+    """
+    def _f(bars):
+        n = len(bars)
+        signals = pd.Series(index=bars.index, dtype=object)
+        if n < 30:
+            return signals
+
+        o = bars['open'].values
+        h = bars['high'].values
+        l = bars['low'].values
+        c = bars['close'].values
+
+        # ATR
+        tr = np.maximum(h - l, np.maximum(
+            np.abs(h - np.roll(c, 1)), np.abs(l - np.roll(c, 1))))
+        tr[0] = h[0] - l[0]
+        atr = pd.Series(tr).rolling(14).mean().values
+
+        # ローソク足分析
+        df = detect_single_candle(bars)
+        df = detect_price_action(df)
+        df['trendless'] = detect_trendless(bars)
+
+        # セッションフィルター
+        sess = session_filter(bars)
+
+        for i in range(20, n):
+            if np.isnan(atr[i]) or atr[i] == 0:
+                continue
+
+            # トレンドレス → ノーポジ
+            if df['trendless'].iloc[i]:
+                continue
+
+            direction = 0  # +1=ロング, -1=ショート
+            conditions_met = 0
+
+            # --- 条件A: 止まり検出 ---
+            stopped, stop_dir, stop_level = _detect_stopping(
+                o, h, l, c, atr, i,
+                lookback=stop_lookback, min_bars=stop_min_bars,
+                tol_atr=stop_tol)
+
+            if stopped:
+                # 止まり + 反転ローソク足の確認
+                ctype = df['candle_type'].iloc[i]
+                if stop_dir == 'bull_stop':
+                    if ctype in ('engulf_bull', 'hammer', 'pinbar_bull', 'big_bull'):
+                        conditions_met += 1
+                        direction += 1
+                elif stop_dir == 'bear_stop':
+                    if ctype in ('engulf_bear', 'inv_hammer', 'pinbar_bear', 'big_bear'):
+                        conditions_met += 1
+                        direction -= 1
+
+            # --- 条件B: 厳格実体揃い ---
+            aligned, align_dir, align_level, align_count = \
+                _detect_strict_body_alignment(
+                    o, h, l, c, atr, i,
+                    window=align_window, min_aligned=align_min,
+                    tol_atr=align_tol)
+
+            if aligned:
+                conditions_met += 1
+                if align_dir == 'support_wall':
+                    direction += 1
+                elif align_dir == 'resist_wall':
+                    direction -= 1
+
+            # --- 条件C: インサイドバー蓄積ブレイク ---
+            ib_break, ib_dir, ib_count = _detect_inside_bar_accumulation(
+                o, h, l, c, atr, i, max_lookback=ib_max_lookback)
+
+            if ib_break and ib_count >= ib_min_count:
+                conditions_met += 1
+                if ib_dir == 'bull_break':
+                    direction += 1
+                elif ib_dir == 'bear_break':
+                    direction -= 1
+
+            # --- 条件D: 従来プライスアクション (double_bottom等) ---
+            pa = df['pa_signal'].iloc[i]
+            if pa in ('reversal_low', 'double_bottom'):
+                conditions_met += 1
+                direction += 1
+            elif pa in ('reversal_high', 'double_top'):
+                conditions_met += 1
+                direction -= 1
+
+            # --- シグナル生成 ---
+            if conditions_met >= min_conditions:
+                # 大陽線/大陰線への逆張り禁止
+                ctype = df['candle_type'].iloc[i]
+                if ctype == 'big_bull' and direction < 0:
+                    continue
+                if ctype == 'big_bear' and direction > 0:
+                    continue
+
+                # アジア時間ブレイクアウトフィルター
+                if sess.iloc[i] == 'asia' and ib_break:
+                    continue
+
+                if direction > 0:
+                    signals.iloc[i] = 'long'
+                elif direction < 0:
+                    signals.iloc[i] = 'short'
+
+        return signals
+
+    return _f
