@@ -156,3 +156,33 @@ Claude Codeハンドオフ文書（`docs/prompt_for_manusai_improvement_handoff.
 ### 次のアクション
 
 Walk-Forward検証（P1-1）をRUN-005として実施予定。
+
+---
+
+## EntryID: 20260305-007
+**日時**: 2026-03-05  
+**担当**: Manus AI  
+**RunID**: RUN-20260305-006（案1〜3並行実施）  
+**種別**: 並行作業完了報告
+
+### 案1: OANDA認証堅牢化（実装完了）
+
+`lib/oanda_client.py` に `resolve_oanda_credentials()` 関数を追加。優先順位: `OANDA_API_KEY` > `OANDA_API_TOKEN`（後方互換）、`OANDA_ENVIRONMENT` > `OANDA_ENV`（後方互換）。`tests/test_oanda_env_compat.py` を新規作成し9テスト全通過。
+
+### 案2: Maedai DC30+EMA200 深掘りバックテスト（RUN-006）
+
+DC50+EMA200（XAUUSD D1）が PF=3.761、WR=76.5%、MDD=4.0% を記録。9戦略中7戦略が合格基準（PF≥1.5、WR≥30%、MDD≤20%）をクリア。**ハンドオフ文書の予測を定量的に確認。Maedai DC+EMA200が真のアルファ源泉と確定。**
+
+### 案3: Claude Code連絡簿確認とRUN-007以降のPDCA設計
+
+Claude Code RUN-005結果: Yagami_A Walk-Forward OOS合格1/11、OOS平均PF=0.47 → **偶然と判定（EntryID 20260305-006）**。RUN-007〜010のPDCA設計を `docs/prompts/runs/RUN-20260305-007_pdca_design.md` に作成。
+
+### 根拠ファイル
+- `results/run006_maedai_deep.csv`
+- `tests/test_oanda_env_compat.py`
+- `docs/prompts/runs/RUN-20260305-007_pdca_design.md`
+
+### 次のアクション
+1. Claude CodeにRUN-007（DC50+EMA200 Walk-Forward）を依頼
+2. RUN-007合格後にポートフォリオ検証（RUN-008）をManusが実施
+3. OANDA Practice環境の `.env` 設定確認後、フォワードテスト（RUN-010）へ
