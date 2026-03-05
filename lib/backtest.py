@@ -490,7 +490,7 @@ class BacktestEngine:
         # 月次集計
         df_t = pd.DataFrame(trades)
         df_t['exit_time'] = pd.to_datetime(df_t['exit_time'])
-        monthly_pnl = df_t.set_index('exit_time')['pnl'].resample('M').sum().to_dict()
+        monthly_pnl = df_t.set_index('exit_time')['pnl'].resample('ME').sum().to_dict()
         
         # 決済理由
         reasons = df_t['reason'].value_counts().to_dict()
