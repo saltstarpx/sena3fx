@@ -1,0 +1,6 @@
+﻿variant,trades,win_rate_pct,profit_factor,sharpe,calmar,mdd_pct,total_ret_pct,passed,checks
+london_ny_H4,524,30.7,0.41,-4.51,-0.42,88.9,-88.6,False,"{'PF≥1.8': np.False_, 'MDD≤15%': np.False_, 'WR≥60%': False, 'N≥30': True, 'Sharpe≥1.5': False}"
+london_ny_strict_H4,223,24.7,0.29,-3.97,-0.42,77.4,-76.5,False,"{'PF≥1.8': np.False_, 'MDD≤15%': np.False_, 'WR≥60%': False, 'N≥30': True, 'Sharpe≥1.5': False}"
+london_ny_tight_tp_H4,550,33.6,0.46,-3.98,-0.42,85.0,-84.7,False,"{'PF≥1.8': np.False_, 'MDD≤15%': np.False_, 'WR≥60%': False, 'N≥30': True, 'Sharpe≥1.5': False}"
+london_ny_wide_rr_H4,520,30.4,0.42,-4.12,-0.42,88.5,-88.1,False,"{'PF≥1.8': np.False_, 'MDD≤15%': np.False_, 'WR≥60%': False, 'N≥30': True, 'Sharpe≥1.5': False}"
+baseline_all_sessions_H4,831,35.1,0.45,-4.54,-0.42,91.5,-91.3,False,"{'PF≥1.8': np.False_, 'MDD≤15%': np.False_, 'WR≥60%': False, 'N≥30': True, 'Sharpe≥1.5': False}"

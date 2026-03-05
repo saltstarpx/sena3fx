@@ -35,21 +35,172 @@
     "やがみ戦略 平均リターン: -27.74% vs インジケーター戦略: -13.22%",
     "サイクル#2: 平均リターン -19.86%",
     "やがみ戦略 平均リターン: -27.74% vs インジケーター戦略: -13.22%",
-
     "ミッション5.0 達成: 固定ATR SL + 固定RR3 (トレーリングなし) で50+/yr AND PF>1.3 達成",
     "D1スウィングSL問題の根本原因: SL=6-8ATR遠すぎ → trailing 1.5-3ATRで発動 → 実効RR<1",
     "解決策: use_dynamic_sl=False, default_sl_atr=1.5, trail_start_atr=0.0, risk_pct=0.02",
     "季節性フィルター効果: 6月・7月スキップ → PF 1.454→1.658 (+14%), ROI 134%→168% (+25%)",
     "6月が主犯: Gold横横(-0.3%) → DCブレイク全てダマシ → WR=17%",
-    "7月も問題: Gold微動(+0.2%) → WR=0-22% (UNION系はWR=0%も)"
+    "7月も問題: Gold微動(+0.2%) → WR=0-22% (UNION系はWR=0%も)",
+    {
+      "timestamp": "2026-03-02T07:41:05",
+      "type": "yagami_pdca",
+      "total_variants": 5,
+      "passed_variants": 0,
+      "best_variant": "strict_A_grade_H4",
+      "condition_hit_rates": {
+        "C1": 99.7,
+        "C2": 42.0,
+        "C3": 42.9,
+        "C4": 13.4,
+        "C5": 0.0
+      },
+      "top_combos": [
+        {
+          "C1": 4356
+        },
+        {
+          "C1+C3": 2996
+        },
+        {
+          "C1+C2": 2820
+        },
+        {
+          "C1+C2+C3": 2452
+        },
+        {
+          "C1+C4": 668
+        }
+      ]
+    },
+    {
+      "timestamp": "2026-03-02T08:17:01",
+      "type": "yagami_pdca",
+      "total_variants": 5,
+      "passed_variants": 0,
+      "best_variant": "c5_required_H1",
+      "condition_hit_rates": {
+        "C1": 99.7,
+        "C2": 42.0,
+        "C3": 42.9,
+        "C4": 13.4,
+        "C5": 12.7
+      },
+      "top_combos": [
+        {
+          "C1": 3712
+        },
+        {
+          "C1+C3": 2688
+        },
+        {
+          "C1+C2": 2476
+        },
+        {
+          "C1+C2+C3": 2080
+        },
+        {
+          "C1+C5": 644
+        }
+      ]
+    },
+    {
+      "timestamp": "2026-03-02T08:30:21",
+      "type": "yagami_pdca",
+      "total_variants": 5,
+      "passed_variants": 0,
+      "best_variant": "london_ny_strict_H4",
+      "condition_hit_rates": {
+        "C1": 99.7,
+        "C2": 42.0,
+        "C3": 42.9,
+        "C4": 13.4,
+        "C5": 32.1
+      },
+      "top_combos": [
+        {
+          "C1": 3720
+        },
+        {
+          "C1+C2": 2525
+        },
+        {
+          "C1+C3": 2395
+        },
+        {
+          "C1+C2+C3": 2210
+        },
+        {
+          "C1+C5": 1725
+        }
+      ]
+    },
+    {
+      "timestamp": "2026-03-02T08:38:13",
+      "type": "yagami_pdca",
+      "total_variants": 5,
+      "passed_variants": 0,
+      "best_variant": "london_ny_strict_H4",
+      "condition_hit_rates": {
+        "C1": 99.7,
+        "C2": 42.0,
+        "C3": 42.9,
+        "C4": 13.4,
+        "C5": 32.1
+      },
+      "top_combos": [
+        {
+          "C1": 3720
+        },
+        {
+          "C1+C2": 2525
+        },
+        {
+          "C1+C3": 2395
+        },
+        {
+          "C1+C2+C3": 2210
+        },
+        {
+          "C1+C5": 1725
+        }
+      ]
+    },
+    {
+      "timestamp": "2026-03-02T08:56:20",
+      "type": "yagami_pdca",
+      "total_variants": 5,
+      "passed_variants": 0,
+      "best_variant": "hold_strict_H4",
+      "condition_hit_rates": {
+        "C1": 99.7,
+        "C2": 42.0,
+        "C3": 42.9,
+        "C4": 13.4,
+        "C5": 32.1
+      },
+      "top_combos": [
+        {
+          "C1": 3720
+        },
+        {
+          "C1+C2": 2525
+        },
+        {
+          "C1+C3": 2395
+        },
+        {
+          "C1+C2+C3": 2210
+        },
+        {
+          "C1+C5": 1725
+        }
+      ]
+    }
   ],
-
   "richmanbtc_methodology": {
     "source": "note.com/btcml - richmanbtc (SS級botter、東大院卒、年収10億円規模)",
     "last_updated": "2026-02-27",
-
     "core_philosophy": "機械学習の予測精度の問題に帰着させ、Kaggler界隈のノウハウを適用。バックテスト成績ではなく予測精度(R2)を改善するのがベストプラクティス。",
-
     "key_insights": [
       {
         "id": "1",
@@ -100,23 +251,59 @@
         "id": "7",
         "title": "特徴量エンジニアリング - TA-Lib網羅",
         "detail": "特徴量の意味は深く考えず、TA-Libの指標を片っ端から追加してから重要度で絞る。価格(close)で割って正規化。非定常な特徴量は除外または定常化。",
-        "feature_list": ["DEMA", "EMA", "HT_TRENDLINE", "KAMA", "MA", "SMA", "T3", "TEMA", "WMA", "LINEARREG", "Bollinger Bands", "ADX", "ADXR", "AROON", "ATR", "NATR", "STDDEV", "TRANGE", "APO", "MACD", "MOM", "AD", "ADOSC", "OBV", "HT_PHASOR", "HT_SINE", "HT_DCPERIOD"],
+        "feature_list": [
+          "DEMA",
+          "EMA",
+          "HT_TRENDLINE",
+          "KAMA",
+          "MA",
+          "SMA",
+          "T3",
+          "TEMA",
+          "WMA",
+          "LINEARREG",
+          "Bollinger Bands",
+          "ADX",
+          "ADXR",
+          "AROON",
+          "ATR",
+          "NATR",
+          "STDDEV",
+          "TRANGE",
+          "APO",
+          "MACD",
+          "MOM",
+          "AD",
+          "ADOSC",
+          "OBV",
+          "HT_PHASOR",
+          "HT_SINE",
+          "HT_DCPERIOD"
+        ],
         "applicability_to_sena3fx": "中。将来ML実装時の特徴量候補として使用。",
         "status": "将来の機械学習移行時に実装予定"
       }
     ],
-
     "key_failure_patterns": [
       "特徴量リーク: 未来の情報が特徴量に混入 → バックテスト優秀・実運用完全失敗",
       "非定常特徴量: 絶対価格を特徴量にすると過去の相場環境に過学習",
       "過最適化: 同じテストデータで何度も実験するとデータにフィッティング",
       "評価指標の不連続性: sign(y_pred)をベースにしたPFはコロナショック等で急変"
     ],
-
     "applicable_to_current_system": {
-      "immediate": ["p-mean法による安定性検証 (実装済み)", "ATR指値エントリーの検証 (要実装)"],
-      "medium_term": ["rolling window バックテスト", "確信度スコアによる可変リスク"],
-      "long_term": ["LightGBM MLモデルへの移行", "Non-Stationarity Score監視", "TA-Lib特徴量追加"]
+      "immediate": [
+        "p-mean法による安定性検証 (実装済み)",
+        "ATR指値エントリーの検証 (要実装)"
+      ],
+      "medium_term": [
+        "rolling window バックテスト",
+        "確信度スコアによる可変リスク"
+      ],
+      "long_term": [
+        "LightGBM MLモデルへの移行",
+        "Non-Stationarity Score監視",
+        "TA-Lib特徴量追加"
+      ]
     }
   }
 }

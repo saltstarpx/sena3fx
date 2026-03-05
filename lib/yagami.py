@@ -2292,3 +2292,279 @@ def sig_aggressive_union(freq='4h', ema_days=21, lookback_days_dc=7,
         return combined
 
     return _f
+
+
+# ==============================================================
+# 時間軸適性分離シグナル (Proposal C)
+# Reversal（短期反発）系 と Trend（スイング）系 を明確に分離し、
+# 混在によるPDCA迷走を防ぐ。
+# ==============================================================
+
+def sig_yagami_reversal_mode(freq: str = '1h', min_score: int = 3):
+    """
+    Reversal モード (短期反発系): C1 + C2/C3 が反転シグナルであることを必須化。
+
+    設計方針:
+      - C1 (レジサポ) は必須: レベルに乗っていない反発は拾わない
+      - C2/C3 の少なくとも一方が「反転系」パターンであること
+        (hammer / pinbar / engulf / reversal_low|high / double_bottom|top)
+      - 合計スコア >= min_score (デフォルト3)
+      - アジア時間ブレイクアウト・大陽線/大陰線への逆張りは禁止
+
+    推奨エンジン設定:
+      exit_on_signal=True, default_tp_atr=1.5 (小さなTP)
+
+    評価指標: WR > 60%, PF > 1.8, 平均保有時間 < 8h
+    """
+    from .candle import detect_single_candle, detect_price_action
+    from .timing import session_filter
+
+    _REVERSAL_BULL_CANDLE = frozenset(
+        ('hammer', 'pinbar_bull', 'engulf_bull', 'big_bull', 'pullback_bear'))
+    _REVERSAL_BEAR_CANDLE = frozenset(
+        ('inv_hammer', 'pinbar_bear', 'engulf_bear', 'big_bear', 'pullback_bull'))
+    _REVERSAL_BULL_PA = frozenset(
+        ('reversal_low', 'double_bottom', 'wick_fill_bull', 'body_align_support'))
+    _REVERSAL_BEAR_PA = frozenset(
+        ('reversal_high', 'double_top', 'wick_fill_bear', 'body_align_resist'))
+
+    def _f(bars):
+        n = len(bars)
+        signals = pd.Series(index=bars.index, dtype=object)
+        if n < 30:
+            return signals
+
+        df = detect_single_candle(bars)
+        df = detect_price_action(df)
+        session = session_filter(bars)
+
+        h = bars['high'].values
+        l = bars['low'].values
+        c = bars['close'].values
+        tr = np.maximum(h - l, np.maximum(
+            np.abs(h - np.roll(c, 1)), np.abs(l - np.roll(c, 1))))
+        tr[0] = h[0] - l[0]
+        atr = pd.Series(tr).rolling(14).mean().values
+
+        levels_cache = None
+        levels_update_idx = -100
+
+        for i in range(20, n):
+            if np.isnan(atr[i]) or atr[i] == 0:
+                continue
+
+            # アジア時間ブレイクアウト除外
+            sess = session.iloc[i]
+            ctype = df['candle_type'].iloc[i]
+            pa = df['pa_signal'].iloc[i]
+
+            # C1: レジサポ (必須)
+            if i - levels_update_idx >= 10:
+                levels_cache = extract_levels(df.iloc[max(0, i - 100):i + 1])
+                levels_update_idx = i
+            at_lv, lv_type = is_at_level(c[i], levels_cache, atr[i], 0.8)
+            if not at_lv:
+                continue  # C1 必須
+
+            # C2/C3 反転系チェック
+            is_bull_reversal = (ctype in _REVERSAL_BULL_CANDLE or
+                                pa in _REVERSAL_BULL_PA)
+            is_bear_reversal = (ctype in _REVERSAL_BEAR_CANDLE or
+                                pa in _REVERSAL_BEAR_PA)
+
+            if not is_bull_reversal and not is_bear_reversal:
+                continue  # C2/C3 反転なし
+
+            # スコア計算（C1確定済みなので+1からスタート）
+            score = 1  # C1
+            direction = 0
+
+            if lv_type == 'support':
+                direction += 1
+            elif lv_type == 'resistance':
+                direction -= 1
+
+            if is_bull_reversal:
+                score += 1
+                direction += 1
+            if is_bear_reversal:
+                score += 1
+                direction -= 1
+
+            # C4: チャートパターン（加点のみ）
+            cp = df['chart_pattern'].iloc[i] if 'chart_pattern' in df.columns else None
+            if cp in ('inv_hs_long', 'flag_bull', 'wedge_bull', 'ascending_tri'):
+                score += 1
+                direction += 1
+            elif cp in ('hs_short', 'flag_bear', 'wedge_bear', 'descending_tri'):
+                score += 1
+                direction -= 1
+
+            if score < min_score:
+                continue
+
+            # やがみ禁止ルール: 大陽線/大陰線への逆張り
+            if ctype == 'big_bull' and direction < 0:
+                continue
+            if ctype == 'big_bear' and direction > 0:
+                continue
+
+            # アジア時間ブレイクアウト禁止
+            if sess == 'asia' and cp and 'break' in str(cp):
+                continue
+
+            if direction > 0:
+                signals.iloc[i] = 'long'
+            elif direction < 0:
+                signals.iloc[i] = 'short'
+
+        return signals
+
+    return _f
+
+
+def sig_yagami_trend_mode(freq: str = '1h', min_score: int = 3,
+                           ema_period: int = 200, adx_period: int = 14,
+                           adx_thresh: float = 20.0):
+    """
+    Trend モード (スイング/トレンドフォロー系): 反転パターンではなく
+    トレンド継続条件を必須化する。
+
+    設計方針:
+      - EMA200 方向への順張りのみ許可（逆張り禁止）
+      - ADX >= adx_thresh でトレンド強度を確認
+      - C2/C3 の「反転系」条件は必須外（ただし加点）
+      - 代わりに「トレンド継続系」(pullback_bear/bull, body_align) を優先
+      - 合計スコア >= min_score
+
+    推奨エンジン設定:
+      trail_start_atr=3.0, trail_dist_atr=1.5, default_tp_atr=8.0
+
+    評価指標: Sharpe > 1.5, Calmar > 3.0, 平均保有時間 > 12h
+    """
+    from .candle import detect_single_candle, detect_price_action
+    from .timing import session_filter
+
+    _TREND_BULL_SIGNALS = frozenset(
+        ('pullback_bear', 'big_bull', 'engulf_bull', 'body_align_support'))
+    _TREND_BEAR_SIGNALS = frozenset(
+        ('pullback_bull', 'big_bear', 'engulf_bear', 'body_align_resist'))
+
+    def _f(bars):
+        n = len(bars)
+        signals = pd.Series(index=bars.index, dtype=object)
+        if n < max(ema_period + 10, 50):
+            return signals
+
+        df = detect_single_candle(bars)
+        df = detect_price_action(df)
+        session = session_filter(bars)
+
+        close_s = bars['close']
+        h_arr = bars['high'].values
+        l_arr = bars['low'].values
+        c_arr = bars['close'].values
+
+        # EMA200
+        ema = close_s.ewm(span=ema_period, adjust=False).mean().values
+
+        # ADX (Wilder方式)
+        tr_arr = np.maximum(h_arr - l_arr, np.maximum(
+            np.abs(h_arr - np.roll(c_arr, 1)),
+            np.abs(l_arr - np.roll(c_arr, 1))))
+        tr_arr[0] = h_arr[0] - l_arr[0]
+        dm_plus = np.where(
+            (h_arr - np.roll(h_arr, 1)) > (np.roll(l_arr, 1) - l_arr),
+            np.maximum(h_arr - np.roll(h_arr, 1), 0), 0)
+        dm_minus = np.where(
+            (np.roll(l_arr, 1) - l_arr) > (h_arr - np.roll(h_arr, 1)),
+            np.maximum(np.roll(l_arr, 1) - l_arr, 0), 0)
+        atr_s = pd.Series(tr_arr).ewm(span=adx_period, adjust=False).mean()
+        di_plus = pd.Series(dm_plus).ewm(
+            span=adx_period, adjust=False).mean() / atr_s * 100
+        di_minus = pd.Series(dm_minus).ewm(
+            span=adx_period, adjust=False).mean() / atr_s * 100
+        dx = (np.abs(di_plus - di_minus) / (di_plus + di_minus).replace(0, np.nan) * 100)
+        adx_s = dx.ewm(span=adx_period, adjust=False).mean().values
+
+        levels_cache = None
+        levels_update_idx = -100
+
+        for i in range(ema_period + 10, n):
+            a = atr_s.iloc[i]
+            if np.isnan(a) or a == 0:
+                continue
+            adx_val = adx_s[i]
+            if np.isnan(adx_val) or adx_val < adx_thresh:
+                continue  # トレンドが弱い → スキップ
+
+            # EMA200 方向フィルター
+            ema_dir = 1 if c_arr[i] > ema[i] else -1
+
+            sess = session.iloc[i]
+            ctype = df['candle_type'].iloc[i]
+            pa = df['pa_signal'].iloc[i] if 'pa_signal' in df.columns else None
+
+            # スコア計算
+            score = 0
+            direction = 0
+
+            # C1: レジサポ（加点のみ、必須ではない）
+            if i - levels_update_idx >= 10:
+                levels_cache = extract_levels(df.iloc[max(0, i - 100):i + 1])
+                levels_update_idx = i
+            at_lv, lv_type = is_at_level(c_arr[i], levels_cache, a, 0.8)
+            if at_lv:
+                score += 1
+                direction += 1 if lv_type == 'support' else -1
+
+            # C2: トレンド継続系ローソク足
+            if ctype in _TREND_BULL_SIGNALS:
+                score += 1
+                direction += 1
+            elif ctype in _TREND_BEAR_SIGNALS:
+                score += 1
+                direction -= 1
+
+            # C3: プライスアクション（トレンド継続系のみカウント）
+            if pa in ('reversal_low', 'double_bottom', 'body_align_support'):
+                score += 1
+                direction += 1
+            elif pa in ('reversal_high', 'double_top', 'body_align_resist'):
+                score += 1
+                direction -= 1
+
+            # C4: チャートパターン
+            cp = df['chart_pattern'].iloc[i] if 'chart_pattern' in df.columns else None
+            if cp in ('flag_bull', 'ascending_tri', 'wedge_bull'):
+                score += 1
+                direction += 1
+            elif cp in ('flag_bear', 'descending_tri', 'wedge_bear'):
+                score += 1
+                direction -= 1
+
+            # EMA200 方向と一致しない方向はスキップ
+            if direction > 0 and ema_dir == -1:
+                continue
+            if direction < 0 and ema_dir == 1:
+                continue
+
+            if score < min_score:
+                continue
+
+            # やがみ禁止ルール
+            if ctype == 'big_bull' and direction < 0:
+                continue
+            if ctype == 'big_bear' and direction > 0:
+                continue
+            if sess == 'asia' and cp and 'break' in str(cp):
+                continue
+
+            if direction > 0:
+                signals.iloc[i] = 'long'
+            elif direction < 0:
+                signals.iloc[i] = 'short'
+
+        return signals
+
+    return _f

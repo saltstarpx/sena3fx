@@ -127,3 +127,79 @@ def is_at_level(price: float, levels: List[dict], atr: float,
         if abs(price - lv['level']) < atr * proximity_mult:
             return True, lv['type']
     return False, ''
+
+
+def extract_levels_binned(bars: pd.DataFrame, n_bins: int = 40,
+                          min_freq_pct: float = 0.06,
+                          atr_period: int = 14) -> List[dict]:
+    """
+    価格帯ビン（クラスタ）方式でレジサポを抽出 (Proposal D)。
+
+    従来の extract_levels は min_touches=2 の水平クラスタリングのため
+    ほぼ全バーで C1 が成立（99%+）してしまう。
+    本関数は価格レンジを n_bins 個のビンに分割し、
+    ローソク足の価格点（高値・安値・実体端）が min_freq_pct 以上
+    集中するビンのみを S/R ゾーンとして返す。
+    これにより C1 成立率を 20〜60% 程度に制御できる。
+
+    Args:
+      n_bins:        価格レンジを分割するビン数（多いほど細かい）
+      min_freq_pct:  有効 S/R ゾーンとして認める最低頻度（全価格点に対する割合）
+      atr_period:    ATR 計算期間
+
+    Returns:
+      List[dict] with keys: level, touches, type, strength, distance_atr
+    """
+    o = bars['open'].values
+    h = bars['high'].values
+    l = bars['low'].values
+    c = bars['close'].values
+    n = len(bars)
+
+    tr = np.maximum(h - l, np.maximum(
+        np.abs(h - np.roll(c, 1)), np.abs(l - np.roll(c, 1))))
+    tr[0] = h[0] - l[0]
+    atr_val = np.nanmean(pd.Series(tr).rolling(atr_period).mean().values[-20:])
+    if np.isnan(atr_val) or atr_val == 0:
+        return []
+
+    # 全価格点を収集（高値・安値・実体端）
+    points = np.concatenate([
+        h, l,
+        np.maximum(o, c),  # 実体上端
+        np.minimum(o, c),  # 実体下端
+    ])
+    points = points[np.isfinite(points)]
+    if len(points) == 0:
+        return []
+
+    price_min = points.min()
+    price_max = points.max()
+    if price_max <= price_min:
+        return []
+
+    counts, bin_edges = np.histogram(points, bins=n_bins,
+                                     range=(price_min, price_max))
+    total_points = len(points)
+    threshold = total_points * min_freq_pct
+    current_price = c[-1]
+
+    levels = []
+    for idx in range(n_bins):
+        if counts[idx] < threshold:
+            continue
+        level = (bin_edges[idx] + bin_edges[idx + 1]) / 2.0
+        touches = int(counts[idx])
+        level_type = 'support' if level < current_price else 'resistance'
+        distance = abs(level - current_price) / atr_val
+        strength = min(1.0, touches / (total_points * 0.1)) * max(0.1, 1.0 - distance / 20.0)
+        levels.append({
+            'level': round(level, 4),
+            'touches': touches,
+            'type': level_type,
+            'strength': round(strength, 4),
+            'distance_atr': round(distance, 2),
+        })
+
+    levels.sort(key=lambda x: x['strength'], reverse=True)
+    return levels

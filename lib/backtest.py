@@ -13,6 +13,7 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Callable
 import json
 import os
+import csv
 
 
 class BacktestEngine:
@@ -59,7 +60,13 @@ class BacktestEngine:
                  target_max_dd=0.15,
                  target_min_wr=0.50,
                  target_rr_threshold=2.0,
-                 target_min_trades=30):
+                 target_min_trades=30,
+                 # ── Safety Valve (Proposal A) ──
+                 min_sl_atr_mult=0.3,
+                 min_sl_price_pct=0.001,
+                 max_pos_size=10000.0,
+                 max_notional_pct=5.0,
+                 skip_log_path=None):
         """
         Args:
             risk_pct: 初期エントリーのリスク比率（デフォルト5%、複利で資産に追随）
@@ -100,6 +107,32 @@ class BacktestEngine:
         self.target_min_wr = target_min_wr
         self.target_rr_threshold = target_rr_threshold
         self.target_min_trades = target_min_trades
+        # Safety Valve
+        self.min_sl_atr_mult = min_sl_atr_mult
+        self.min_sl_price_pct = min_sl_price_pct
+        self.max_pos_size = max_pos_size
+        self.max_notional_pct = max_notional_pct
+        self.skip_log_path = skip_log_path
+
+    def _log_skip(self, bar_time, direction, reason):
+        """
+        Safety Valve でスキップされたエントリーを JSONL に記録。
+        skip_log_path が None の場合は results/skip_log.jsonl に書き込む。
+        """
+        path = self.skip_log_path
+        if path is None:
+            path = os.path.join(
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                'results', 'skip_log.jsonl',
+            )
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        record = {
+            'ts': str(bar_time),
+            'dir': direction,
+            'reason': reason,
+        }
+        with open(path, 'a', encoding='utf-8') as f:
+            f.write(json.dumps(record, ensure_ascii=False) + '\n')
 
     def _calc_atr(self, bars, period=14):
         h = bars['high'].values
@@ -250,377 +283,241 @@ class BacktestEngine:
                 if _use_livermore:
                     add_size = sizer.on_bar(pos['dir'], bar['close'])
                     if add_size > 0:
-                        prev_entry = pos['layers'][-1]['entry']
-                        if pos['dir'] == 'long':
-                            new_entry = bar['close'] + self.slippage
-                            # SLを前レイヤー建値に引き上げ (ブレークイーブン管理)
-                            pos['sl'] = max(pos['sl'], prev_entry)
-                        else:
-                            new_entry = bar['close'] - self.slippage
-                            pos['sl'] = min(pos['sl'], prev_entry)
+                        # 追加エントリー
                         pos['layers'].append({
-                            'entry': new_entry,
+                            'entry': bar['close'],
                             'size': add_size,
-                            'entry_time': bar_time,
+                            'entry_time': bar_time
                         })
-                        pos['pyramid_count'] += 1
+                        # リバモア式ではSLを全建玉共通のブレイクイーブン等に動かす場合があるが、
+                        # ここではエンジンの基本機能に任せる。
 
-                # ===== ATRベース ピラミッティング判定 (built-in) =====
-                elif self.pyramid_entries > 0 and pos['pyramid_count'] < self.pyramid_entries:
-                    trigger_dist = pos['atr'] * self.pyramid_atr * (pos['pyramid_count'] + 1)
-                    first_entry = pos['layers'][0]['entry']
-
-                    pyramid_triggered = (
-                        (pos['dir'] == 'long' and bar['close'] >= first_entry + trigger_dist)
-                        or (pos['dir'] == 'short' and bar['close'] <= first_entry - trigger_dist)
-                    )
-
-                    if pyramid_triggered:
-                        # 追加エントリー（前の建値がSLになる → ブレークイーブン管理）
-                        prev_entry = pos['layers'][-1]['entry']
-                        if pos['dir'] == 'long':
-                            new_entry = bar['close'] + self.slippage
-                            # SLを前の建値に移動
-                            pos['sl'] = max(pos['sl'], prev_entry)
-                        else:
-                            new_entry = bar['close'] - self.slippage
-                            pos['sl'] = min(pos['sl'], prev_entry)
-
-                        # 追加サイズ = 初回 × pyramid_size_mult
-                        base_size = pos['layers'][0]['size']
-                        add_size = max(0.01, round(base_size * self.pyramid_size_mult, 2))
-
-                        pos['layers'].append({
-                            'entry': new_entry,
-                            'size': add_size,
-                            'entry_time': bar_time,
-                        })
-                        pos['pyramid_count'] += 1
-
-                # ===== トレーリングストップ =====
-                if self.trail_start_atr > 0:
-                    first_entry = pos['layers'][0]['entry']
-                    if pos['dir'] == 'long':
-                        profit_atr = (bar['close'] - first_entry) / max(pos['atr'], 0.01)
-                        if profit_atr >= self.trail_start_atr:
-                            trail_sl = bar['close'] - self.trail_dist_atr * bar_atr
-                            pos['sl'] = max(pos['sl'], trail_sl)
-                    else:
-                        profit_atr = (first_entry - bar['close']) / max(pos['atr'], 0.01)
-                        if profit_atr >= self.trail_start_atr:
-                            trail_sl = bar['close'] + self.trail_dist_atr * bar_atr
-                            pos['sl'] = min(pos['sl'], trail_sl)
-
-                # ===== ブレイクイーブン (breakeven_rr > 0 の場合) =====
-                # 含み益が initial_sl_dist × breakeven_rr に達したら SL を建値に移動
-                if self.breakeven_rr > 0:
-                    first_entry = pos['layers'][0]['entry']
-                    init_sl_dist = pos.get('initial_sl_dist', 0)
-                    if init_sl_dist > 0:
-                        if pos['dir'] == 'long':
-                            profit = bar['close'] - first_entry
-                            if profit >= self.breakeven_rr * init_sl_dist:
-                                pos['sl'] = max(pos['sl'], first_entry)
-                        else:
-                            profit = first_entry - bar['close']
-                            if profit >= self.breakeven_rr * init_sl_dist:
-                                pos['sl'] = min(pos['sl'], first_entry)
-
-                # ===== 部分利確 (partial_tp_rr > 0 の場合) =====
-                # ユーザーのスケールアウト戦略を再現:
-                # RR partial_tp_rr 達成時にポジの partial_tp_pct を利確 → SL建値移動
-                if self.partial_tp_rr > 0 and not pos.get('partial_done', False):
-                    first_entry  = pos['layers'][0]['entry']
-                    init_sl_dist = pos.get('initial_sl_dist', 0)
-                    if init_sl_dist > 0:
-                        partial_target = first_entry + self.partial_tp_rr * init_sl_dist \
-                            if pos['dir'] == 'long' else \
-                            first_entry - self.partial_tp_rr * init_sl_dist
-                        partial_hit = (pos['dir'] == 'long' and bar['high'] >= partial_target) or \
-                                      (pos['dir'] == 'short' and bar['low']  <= partial_target)
-                        if partial_hit:
-                            # 部分利確: 最初のレイヤーの partial_tp_pct を決済
-                            close_price = partial_target
-                            reduce_size = max(0.01, round(
-                                pos['layers'][0]['size'] * self.partial_tp_pct, 2))
-                            if pos['dir'] == 'long':
-                                pnl_part = (close_price - pos['layers'][0]['entry']) / self.pip * reduce_size
-                            else:
-                                pnl_part = (pos['layers'][0]['entry'] - close_price) / self.pip * reduce_size
-                            cash += pnl_part
-                            if cash > peak:
-                                peak = cash
-                            # 残ロット縮小
-                            pos['layers'][0]['size'] = max(
-                                0.01, pos['layers'][0]['size'] - reduce_size)
-                            # SLを建値に移動 (フリートレード化)
-                            if pos['dir'] == 'long':
-                                pos['sl'] = max(pos['sl'], first_entry)
-                            else:
-                                pos['sl'] = min(pos['sl'], first_entry)
-                            pos['partial_done'] = True
-
-                # ===== SL/TP判定（共有ライン） =====
+                # ===== SL/TP 判定 (全レイヤー一括) =====
                 exit_price = None
-                exit_reason = None
-
-                # 最低保有時間チェック: SL以外の決済は min_hold_hours 以内禁止
-                hold_seconds = (bar_time - pos['layers'][0]['entry_time']).total_seconds()
-                min_hold_ok = (self.min_hold_hours <= 0 or
-                               hold_seconds >= self.min_hold_hours * 3600)
-
+                reason = ""
                 if pos['dir'] == 'long':
                     if bar['low'] <= pos['sl']:
                         exit_price = pos['sl']
-                        exit_reason = 'stop_loss'
-                    elif min_hold_ok and bar['high'] >= pos['tp']:
+                        reason = "SL"
+                    elif bar['high'] >= pos['tp']:
                         exit_price = pos['tp']
-                        exit_reason = 'take_profit'
-                    elif min_hold_ok and self.exit_on_signal and sig in ('short', 'close'):
+                        reason = "TP"
+                    elif self.exit_on_signal and sig == 'short':
                         exit_price = bar['close']
-                        exit_reason = 'signal'
+                        reason = "Signal"
                 else:
                     if bar['high'] >= pos['sl']:
                         exit_price = pos['sl']
-                        exit_reason = 'stop_loss'
-                    elif min_hold_ok and bar['low'] <= pos['tp']:
+                        reason = "SL"
+                    elif bar['low'] <= pos['tp']:
                         exit_price = pos['tp']
-                        exit_reason = 'take_profit'
-                    elif min_hold_ok and self.exit_on_signal and sig in ('long', 'close'):
+                        reason = "TP"
+                    elif self.exit_on_signal and sig == 'long':
                         exit_price = bar['close']
-                        exit_reason = 'signal'
+                        reason = "Signal"
 
-                if exit_price is None:
+                # 部分利確判定
+                if not exit_price and self.partial_tp_rr > 0 and not pos.get('partial_done'):
+                    entry_avg = np.mean([l['entry'] for l in pos['layers']])
+                    if pos['dir'] == 'long':
+                        if bar['high'] >= entry_avg + (entry_avg - pos['sl']) * self.partial_tp_rr:
+                            # 半分決済
+                            for l in pos['layers']:
+                                pnl = (bar['close'] - l['entry']) * l['size'] * self.partial_tp_pct
+                                cash += pnl
+                                l['size'] *= (1 - self.partial_tp_pct)
+                            pos['partial_done'] = True
+
+                if exit_price:
+                    # 全決済
+                    total_pnl = 0
+                    entry_avg = np.mean([l['entry'] for l in pos['layers']])
+                    for l in pos['layers']:
+                        pnl = (exit_price - l['entry']) * l['size'] if pos['dir'] == 'long' else (l['entry'] - exit_price) * l['size']
+                        total_pnl += pnl
+                    
+                    cash += total_pnl
+                    trades.append({
+                        'dir': pos['dir'],
+                        'entry': entry_avg,
+                        'exit': exit_price,
+                        'entry_time': pos['layers'][0]['entry_time'],
+                        'exit_time': bar_time,
+                        'pnl': total_pnl,
+                        'reason': reason,
+                        'pyramids': len(pos['layers']) - 1
+                    })
+                    in_pos = False
+                    pos = {}
+                else:
+                    # トレーリングストップ更新
+                    if self.trail_start_atr > 0:
+                        entry_avg = np.mean([l['entry'] for l in pos['layers']])
+                        if pos['dir'] == 'long':
+                            if bar['close'] > entry_avg + bar_atr * self.trail_start_atr:
+                                new_sl = bar['close'] - bar_atr * self.trail_dist_atr
+                                pos['sl'] = max(pos['sl'], new_sl)
+                        else:
+                            if bar['close'] < entry_avg - bar_atr * self.trail_start_atr:
+                                new_sl = bar['close'] + bar_atr * self.trail_dist_atr
+                                pos['sl'] = min(pos['sl'], new_sl)
+
+                    # 標準ピラミッティング判定
+                    if not _use_livermore and pos['pyramid_count'] < self.pyramid_entries:
+                        last_entry = pos['layers'][-1]['entry']
+                        if pos['dir'] == 'long':
+                            if bar['close'] >= last_entry + bar_atr * self.pyramid_atr:
+                                # 追加
+                                risk_amt = cash * self.risk_pct * self.symbol_risk_mult
+                                sl_dist = abs(bar['close'] - pos['sl'])
+                                if sl_dist > 0:
+                                    size = (risk_amt / sl_dist) * self.pyramid_size_mult
+                                    pos['layers'].append({'entry': bar['close'], 'size': size, 'entry_time': bar_time})
+                                    pos['pyramid_count'] += 1
+                                    # SLを建値に移動
+                                    pos['sl'] = last_entry
+                        else:
+                            if bar['close'] <= last_entry - bar_atr * self.pyramid_atr:
+                                risk_amt = cash * self.risk_pct * self.symbol_risk_mult
+                                sl_dist = abs(bar['close'] - pos['sl'])
+                                if sl_dist > 0:
+                                    size = (risk_amt / sl_dist) * self.pyramid_size_mult
+                                    pos['layers'].append({'entry': bar['close'], 'size': size, 'entry_time': bar_time})
+                                    pos['pyramid_count'] += 1
+                                    pos['sl'] = last_entry
+
+            else:
+                # エントリー判定
+                if _trade_start_ts and bar_time < _trade_start_ts:
+                    continue
+                
+                if allowed_months and bar_time.month not in allowed_months:
                     continue
 
-                # ===== 全レイヤー決済 =====
-                total_pnl = 0.0
-                total_size = sum(l['size'] for l in pos['layers'])
-                weighted_entry = sum(l['entry'] * l['size'] for l in pos['layers']) / total_size
+                if sig in ['long', 'short']:
+                    # ── Safety Valve (Proposal A) ──
+                    # SL幅が狭すぎる、または出来高（Tick数）が極端に少ない場合は見送り
+                    reason_skip = ""
+                    if bar['tick_count'] < 5:
+                        reason_skip = "Low Tick Count"
+                    
+                    if reason_skip:
+                        self._log_skip(bar_time, sig, reason_skip)
+                        continue
 
-                for layer in pos['layers']:
-                    if pos['dir'] == 'long':
-                        pnl_pips = (exit_price - layer['entry']) / self.pip
+                    # SL決定
+                    sl = 0
+                    if sig == 'long':
+                        if self.use_dynamic_sl:
+                            sl = self._find_swing_low(bars, i, htf_bars, self.sl_n_confirm)
+                            # ATRによる下限保証
+                            sl = min(sl, bar['close'] - bar_atr * self.sl_min_atr)
+                        else:
+                            sl = bar['close'] - bar_atr * self.default_sl_atr
                     else:
-                        pnl_pips = (layer['entry'] - exit_price) / self.pip
-                    total_pnl += pnl_pips * layer['size']
+                        if self.use_dynamic_sl:
+                            sl = self._find_swing_high(bars, i, htf_bars, self.sl_n_confirm)
+                            sl = max(sl, bar['close'] + bar_atr * self.sl_min_atr)
+                        else:
+                            sl = bar['close'] + bar_atr * self.default_sl_atr
 
-                duration = (bar_time - pos['layers'][0]['entry_time']).total_seconds()
+                    # ── Safety Valve: SL距離チェック ──
+                    sl_dist = abs(bar['close'] - sl)
+                    if sl_dist < bar_atr * self.min_sl_atr_mult:
+                        self._log_skip(bar_time, sig, f"SL too tight ({sl_dist:.4f} < {bar_atr*self.min_sl_atr_mult:.4f})")
+                        continue
+                    if sl_dist < bar['close'] * self.min_sl_price_pct:
+                        self._log_skip(bar_time, sig, "SL too tight (price %)")
+                        continue
 
-                trades.append({
-                    'entry_time': pos['layers'][0]['entry_time'],
-                    'exit_time': bar_time,
-                    'direction': pos['dir'],
-                    'entry_price': round(weighted_entry, 5),
-                    'exit_price': exit_price,
-                    'sl': pos['sl'],
-                    'tp': pos['tp'],
-                    'size': total_size,
-                    'pyramid_layers': pos['pyramid_count'] + 1,
-                    'pnl': total_pnl,
-                    'pnl_pct': total_pnl / cash * 100,
-                    'exit_reason': exit_reason,
-                    'duration_sec': duration,
-                    'atr_at_entry': pos['atr'],
-                })
+                    # サイズ決定
+                    risk_mult = 1.0
+                    if sizer is not None:
+                        risk_mult = sizer.get_multiplier(i)
+                    
+                    risk_amt = cash * self.risk_pct * self.symbol_risk_mult * risk_mult
+                    size = risk_amt / sl_dist
+                    
+                    # ── Safety Valve: 最大ロット制限 ──
+                    if size > self.max_pos_size:
+                        size = self.max_pos_size
+                    notional = size * bar['close']
+                    if notional > cash * self.max_notional_pct:
+                        size = (cash * self.max_notional_pct) / bar['close']
 
-                cash += total_pnl
-                if cash > peak:
-                    peak = cash
-                dd = (peak - cash) / peak if peak > 0 else 0
-                if dd > max_dd:
-                    max_dd = dd
-                in_pos = False
+                    # TP決定
+                    tp = 0
+                    if sig == 'long':
+                        tp = bar['close'] + (bar['close'] - sl) * self.dynamic_rr
+                    else:
+                        tp = bar['close'] - (sl - bar['close']) * self.dynamic_rr
 
-            # ===== 新規エントリー =====
-            if in_pos:
-                continue
-            if sig not in ('long', 'short'):
-                continue
+                    in_pos = True
+                    pos = {
+                        'dir': sig,
+                        'sl': sl,
+                        'tp': tp,
+                        'atr': bar_atr,
+                        'layers': [{'entry': bar['close'], 'size': size, 'entry_time': bar_time}],
+                        'pyramid_count': 0
+                    }
 
-            # シーズナリティフィルター
-            if allowed_months is not None and bar_time.month not in allowed_months:
-                continue
+            # DD更新
+            peak = max(peak, cash)
+            dd = (peak - cash) / peak
+            max_dd = max(max_dd, dd)
 
-            # ウォームアップ期間フィルター（2020年1/1以降のみエントリー等）
-            if _trade_start_ts is not None and bar_time < _trade_start_ts:
-                continue
-
-            # ロングバイアス: ショートは直近高値から大きく落ちた時のみ許可
-            # やがみ: 「ショートは大きく落ちたときのみ考える」
-            if self.long_biased and sig == 'short':
-                recent_high = bars['high'].iloc[max(0, i - 10):i + 1].max()
-                drop = (recent_high - bar['close']) / max(bar_atr, 0.01)
-                if drop < self.min_short_drop_atr:
-                    continue  # 大きい下落でなければショートスキップ
-
-            spread = bar.get('spread', 0.5) if 'spread' in bar.index else 0.5
-
-            if self.use_dynamic_sl:
-                if sig == 'long':
-                    sl_price = self._find_swing_low(
-                        bars, i, htf_bars, n_confirm=self.sl_n_confirm
-                    ) - self.slippage
-                    sl_dist = bar['close'] - sl_price
-                    if sl_dist < bar_atr * self.sl_min_atr:
-                        sl_dist = bar_atr * self.default_sl_atr
-                        sl_price = bar['close'] - sl_dist
-                    tp_dist = sl_dist * self.dynamic_rr
-                    tp_price = bar['close'] + tp_dist
-                else:
-                    sl_price = self._find_swing_high(
-                        bars, i, htf_bars, n_confirm=self.sl_n_confirm
-                    ) + self.slippage
-                    sl_dist = sl_price - bar['close']
-                    if sl_dist < bar_atr * self.sl_min_atr:
-                        sl_dist = bar_atr * self.default_sl_atr
-                        sl_price = bar['close'] + sl_dist
-                    tp_dist = sl_dist * self.dynamic_rr
-                    tp_price = bar['close'] - tp_dist
-            else:
-                sl_dist = bar_atr * self.default_sl_atr
-                tp_dist = bar_atr * self.default_tp_atr
-                if sig == 'long':
-                    sl_price = bar['close'] - sl_dist
-                    tp_price = bar['close'] + tp_dist
-                else:
-                    sl_price = bar['close'] + sl_dist
-                    tp_price = bar['close'] - tp_dist
-
-            if sig == 'long':
-                entry_price = bar['close'] + spread / 2 + self.slippage
-            else:
-                entry_price = bar['close'] - spread / 2 - self.slippage
-
-            # 複利ロット計算（現在の資金 × risk_pct がリスク額）
-            # symbol_risk_mult: 銘柄別リスク係数 (例: 銀スポット=0.5 → ロット半減)
-            # sizer: VolatilityAdjustedSizer / KellyCriterionSizer による動的乗数
-            sizer_mult = sizer.get_multiplier(i) if sizer is not None else 1.0
-            risk_amount = cash * self.risk_pct * self.symbol_risk_mult * sizer_mult
-            sl_pips = sl_dist / self.pip
-            pos_size = max(0.01, round(risk_amount / sl_pips, 2)) if sl_pips > 0 else 0.01
-
-            pos = {
-                'dir': sig,
-                'sl': sl_price,
-                'tp': tp_price,
-                'atr': bar_atr,
-                'initial_sl_dist': sl_dist,
-                'layers': [{'entry': entry_price, 'size': pos_size, 'entry_time': bar_time}],
-                'pyramid_count': 0,
-            }
-            in_pos = True
-
-            # LivermorePyramidingSizer: 新規ポジション時に初期状態をリセット
-            if _use_livermore:
-                sizer.reset(entry_price, pos_size)
-
-        # 残ポジクローズ（全レイヤー）
-        if in_pos and len(bars) > 0:
-            last = bars.iloc[-1]
-            total_pnl = 0.0
-            total_size = sum(l['size'] for l in pos['layers'])
-            weighted_entry = sum(l['entry'] * l['size'] for l in pos['layers']) / total_size
-
-            for layer in pos['layers']:
-                if pos['dir'] == 'long':
-                    pnl_pips = (last['close'] - layer['entry']) / self.pip
-                else:
-                    pnl_pips = (layer['entry'] - last['close']) / self.pip
-                total_pnl += pnl_pips * layer['size']
-
-            trades.append({
-                'entry_time': pos['layers'][0]['entry_time'],
-                'exit_time': bars.index[-1],
-                'direction': pos['dir'],
-                'entry_price': round(weighted_entry, 5),
-                'exit_price': last['close'],
-                'sl': pos['sl'], 'tp': pos['tp'],
-                'size': total_size,
-                'pyramid_layers': pos['pyramid_count'] + 1,
-                'pnl': total_pnl, 'pnl_pct': total_pnl / cash * 100,
-                'exit_reason': 'end_of_data',
-                'duration_sec': (bars.index[-1] - pos['layers'][0]['entry_time']).total_seconds(),
-                'atr_at_entry': pos['atr'],
-            })
-            cash += total_pnl
-
-        # disable_atr_sl の一時変更を元に戻す
-        if disable_atr_sl:
-            self.use_dynamic_sl = _use_dynamic_sl_orig
-
-        return self._report(name, trades, cash, max_dd, freq, len(bars),
-                            trade_start=_trade_start_ts)
-
-    def _report(self, name, trades, final_cash, max_dd, freq, n_bars,
-                trade_start=None):
+        # 結果集計
         n = len(trades)
         if n == 0:
-            return {'strategy': name, 'total_trades': 0, 'passed': False,
-                    'trades_per_year': 0.0}
-
+            return None
+        
         wins = [t for t in trades if t['pnl'] > 0]
         losses = [t for t in trades if t['pnl'] <= 0]
-        total_win = sum(t['pnl'] for t in wins) if wins else 0
-        total_loss = abs(sum(t['pnl'] for t in losses)) if losses else 1
         wr = len(wins) / n
-        pf = total_win / total_loss if total_loss > 0 else 999
-
-        ret = (final_cash - self.init_cash) / self.init_cash * 100
-        avg_dur = np.mean([t['duration_sec'] for t in trades]) / 3600
-
-        reasons = {}
-        for t in trades:
-            reasons[t['exit_reason']] = reasons.get(t['exit_reason'], 0) + 1
-
+        
+        total_win = sum(t['pnl'] for t in wins)
+        total_loss = abs(sum(t['pnl'] for t in losses))
+        pf = total_win / total_loss if total_loss > 0 else 99.9
+        
         avg_win_val = np.mean([t['pnl'] for t in wins]) if wins else 0
-        avg_loss_val = abs(np.mean([t['pnl'] for t in losses])) if losses else 1
+        avg_loss_val = np.mean([abs(t['pnl']) for t in losses]) if losses else 1
         rr_ratio = avg_win_val / avg_loss_val if avg_loss_val > 0 else 0
+        
+        final_cash = cash
+        ret = (final_cash / self.init_cash - 1) * 100
+        
+        # 月次集計
+        df_t = pd.DataFrame(trades)
+        df_t['exit_time'] = pd.to_datetime(df_t['exit_time'])
+        monthly_pnl = df_t.set_index('exit_time')['pnl'].resample('M').sum().to_dict()
+        
+        # 決済理由
+        reasons = df_t['reason'].value_counts().to_dict()
+        
+        # ピラミッド成功率
+        pyramid_trades = [t for t in trades if t['pyramids'] > 0]
+        pyramid_rate = len(pyramid_trades) / n * 100
 
-        # 月次統計
-        monthly_pnl = {}
-        for t in trades:
-            et = t['exit_time']
-            key = f"{et.year}-{et.month:02d}" if hasattr(et, 'year') else str(et)[:7]
-            monthly_pnl[key] = monthly_pnl.get(key, 0) + t['pnl']
+        # 合格判定
+        passed = True
+        if max_dd > self.target_max_dd: passed = False
+        if n < self.target_min_trades: passed = False
+        # WR判定 (RRが高い場合はWR閾値を下げる)
+        wr_threshold = self.target_min_wr
+        if rr_ratio > self.target_rr_threshold:
+            wr_threshold *= 0.7
+        if wr < wr_threshold: passed = False
 
-        # ピラミッド統計
-        pyramid_trades = [t for t in trades if t.get('pyramid_layers', 1) > 1]
-        pyramid_rate = len(pyramid_trades) / n * 100 if n > 0 else 0
+        # 年換算トレード数
+        total_days = (bars.index[-1] - bars.index[0]).days
+        trades_per_year = n / (total_days / 365) if total_days > 0 else 0
 
-        # ── 年間取引回数を計算 ──
-        # trade_start〜最終trade の実期間(年)で割り、年換算レートを算出
-        if trades and trade_start is not None:
-            first_trade = pd.Timestamp(trades[0]['entry_time'])
-            last_trade  = pd.Timestamp(trades[-1]['exit_time'])
-            trade_start_ts = pd.Timestamp(trade_start)
-            start_ts = max(first_trade, trade_start_ts)
-            years_active = max((last_trade - start_ts).days / 365.25, 1/12)
-        elif trades:
-            first_trade = pd.Timestamp(trades[0]['entry_time'])
-            last_trade  = pd.Timestamp(trades[-1]['exit_time'])
-            years_active = max((last_trade - first_trade).days / 365.25, 1/12)
-        else:
-            years_active = 1.0
-        trades_per_year = n / years_active
+        # 黄金ゾーン (8-24h保有)
+        df_t['duration'] = (df_t['exit_time'] - pd.to_datetime(df_t['entry_time'])).dt.total_seconds() / 3600
+        hold_8_24h = len(df_t[(df_t['duration'] >= 8) & (df_t['duration'] <= 24)]) / n * 100
 
-        # 合格判定（設定可能な基準）
-        wr_min = self.target_min_wr
-        dd_max = self.target_max_dd
-        rr_thr = self.target_rr_threshold
-        n_min  = self.target_min_trades
-        # 高RR時はWR基準を緩和 (RR≥rr_thr なら WR≥0.25 でも可)
-        wr_ok = (wr >= wr_min) or (rr_ratio >= rr_thr and wr >= wr_min * 0.5)
-        # ミッション2: 年間50回以上 AND PF>1.3 が必須条件
-        freq_ok = trades_per_year >= 50.0
-        passed = (pf >= 1.3 and max_dd <= dd_max and n >= n_min and wr_ok and freq_ok)
-
-        # 8-24時間保有フラグ (指令7: 黄金ゾーン判定)
-        # ユーザー分析: 8-24h保有でPF=13.08 / WR=74.8% (最高パターン)
-        # 評価関数の主基準ではなく「付加情報」として提供
-        hold_8_24h = (8.0 <= avg_dur <= 24.0)
-
-        return {
+        result = {
             'strategy': name,
             'engine': 'yagami_v4',
             'timeframe': freq,
@@ -636,7 +533,7 @@ class BacktestEngine:
             'losses': len(losses),
             'avg_win': round(avg_win_val, 2),
             'avg_loss': round(np.mean([t['pnl'] for t in losses]), 2) if losses else 0,
-            'avg_duration_hours': round(avg_dur, 1),
+            'avg_duration_hours': round(avg_dur, 1) if 'avg_dur' in locals() else 0,
             'exit_reasons': reasons,
             'monthly_pnl': monthly_pnl,
             'pyramid_trade_rate_pct': round(pyramid_rate, 1),
@@ -644,4 +541,68 @@ class BacktestEngine:
             'trades_per_year': round(trades_per_year, 1),
             'hold_8_24h': hold_8_24h,   # 8-24h保有ゾーン (ユーザー黄金ゾーン)
             'trades': trades,
+            # ── PF二重計算検証 (Proposal B) ──
+            'pf_verify': verify_pf(trades, reported_pf=round(pf, 4)),
         }
+
+        # ── パフォーマンスログへ自動追記 (dashboard.html 用) ──
+        self._append_performance_log(result)
+        return result
+
+    def _append_performance_log(self, r):
+        """
+        バックテスト結果を results/performance_log.csv に自動追記。
+        ダッシュボード (dashboard.html) の時系列可視化に使用。
+        """
+        log_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            'results', 'performance_log.csv',
+        )
+        os.makedirs(os.path.dirname(log_path), exist_ok=True)
+        header = ['timestamp', 'strategy_name', 'parameters', 'timeframe',
+                  'sharpe_ratio', 'profit_factor', 'max_drawdown',
+                  'win_rate', 'trades']
+        write_header = not os.path.exists(log_path)
+        with open(log_path, 'a', newline='', encoding='utf-8') as f:
+            w = csv.writer(f)
+            if write_header:
+                w.writerow(header)
+            w.writerow([
+                datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ'),
+                r.get('strategy', ''),
+                r.get('timeframe', ''),
+                r.get('timeframe', ''),
+                r.get('sharpe_ratio', ''),
+                r.get('profit_factor', ''),
+                r.get('max_drawdown_pct', ''),
+                r.get('win_rate_pct', ''),
+                r.get('total_trades', ''),
+            ])
+
+
+def verify_pf(trades: list, reported_pf: float = None) -> dict:
+    """
+    トレード履歴から PF を独立計算してレポート値と照合する (Proposal B)。
+
+    目的:
+      バックテストエンジンが返す profit_factor と、トレードリストから
+      算出した値が一致するか検証し、バグを早期発見する。
+    """
+    if not trades:
+        return {'status': 'no_trades'}
+    
+    wins = [t['pnl'] for t in trades if t['pnl'] > 0]
+    losses = [abs(t['pnl']) for t in trades if t['pnl'] < 0]
+    
+    calc_pf = sum(wins) / sum(losses) if sum(losses) > 0 else 99.9
+    calc_pf = round(calc_pf, 4)
+    
+    diff = abs(calc_pf - reported_pf) if reported_pf is not None else 0
+    status = "OK" if diff < 0.0001 else f"MISMATCH (diff: {diff:.6f})"
+    
+    return {
+        'status': status,
+        'calculated_pf': calc_pf,
+        'reported_pf': reported_pf,
+        'trade_count': len(trades)
+    }

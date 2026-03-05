@@ -1,0 +1,69 @@
+# non_textbook_rules.yaml
+# 教材外補完ルール
+# これらのルールはやがみ教材に明示的な記載はないが、
+# 実運用上の経験則や市場分析から追加されたもの。
+# non_textbook: true
+
+rules:
+
+  NT1:
+    id: NT1
+    name: "USD強弱フィルター"
+    description: |
+      DXY（米ドル指数）のトレンドを確認し、
+      XAU/USD のシグナルと一致する方向のみエントリーを許可。
+      - DXY 上昇トレンド → XAU/USD ショート有利
+      - DXY 下降トレンド → XAU/USD ロング有利
+      矛盾する場合はシグナルスコアを 0.5 倍に割り引く。
+    enforcement: indicator_trade.instrument_selector
+    instrument: DXY
+    non_textbook: true
+
+  NT2:
+    id: NT2
+    name: "季節フィルター（ゴールドシーズナリティ）"
+    description: |
+      金（XAU）の季節性パターンに基づくフィルター。
+      統計的に金が上昇しやすい月: 1月、8月、9月
+      統計的に金が下落しやすい月: 3月、6月
+      逆方向のシグナルは信頼度を低下させる。
+    enforcement: indicator_trade.macro_regime
+    seasonality:
+      bullish_months: [1, 8, 9]
+      bearish_months: [3, 6]
+    non_textbook: true
+
+  NT3:
+    id: NT3
+    name: "重要指標前48時間フィルター"
+    description: |
+      FOMC、NFP、CPI 等の超重要指標の発表48時間前は
+      新規エントリーを見送る（既存ポジションの管理は継続）。
+      指標発表後4時間は値動きが確定してからエントリーを検討。
+    enforcement: indicator_trade.calendar
+    events:
+      - FOMC
+      - NFP
+      - CPI
+      - GDP
+      - PCE
+    pre_event_hours: 48
+    post_event_hours: 4
+    non_textbook: true
+
+  NT4:
+    id: NT4
+    name: "ロンドン/NY セッション優先"
+    description: |
+      有効なシグナルはロンドン（08:00-17:00 UTC）および
+      NY（13:00-22:00 UTC）セッション中に絞る。
+      アジアセッション（23:00-08:00 UTC）のブレイクアウトは
+      フェイクブレイクのリスクが高いため見送る。
+      (やがみR1 アジアブレイク見送りの補完実装)
+    enforcement: c5_bar_timing
+    preferred_sessions:
+      - london
+      - new_york
+    avoid_sessions:
+      - asia
+    non_textbook: true
