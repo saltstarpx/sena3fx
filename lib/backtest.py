@@ -329,11 +329,13 @@ class BacktestEngine:
                             pos['partial_done'] = True
 
                 if exit_price:
-                    # 全決済
+                    # 全決済 — スリッページ適用
                     total_pnl = 0
                     entry_avg = np.mean([l['entry'] for l in pos['layers']])
                     for l in pos['layers']:
                         pnl = (exit_price - l['entry']) * l['size'] if pos['dir'] == 'long' else (l['entry'] - exit_price) * l['size']
+                        # スリッページ: エントリー+エグジットの往復分を差し引く
+                        pnl -= 2 * self.slippage * l['size']
                         total_pnl += pnl
                     
                     cash += total_pnl
