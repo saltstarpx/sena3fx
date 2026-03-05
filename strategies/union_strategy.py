@@ -72,8 +72,12 @@ def fmt(v, prec=3):
 # ──────────────────────────────────────────────────────
 
 def run_backtest():
-    ohlc_4h = os.path.join(ROOT, 'data', 'ohlc', 'XAUUSD_2025_4h.csv')
-    if not os.path.exists(ohlc_4h):
+    # P0-3修正: ハードコード年度をglob()による動的検出に変更
+    import glob
+    candidates = sorted(glob.glob(os.path.join(ROOT, 'data', 'ohlc', 'XAUUSD_*_4h.csv')))
+    if candidates:
+        ohlc_4h = candidates[-1]  # 最新ファイルを自動選択
+    else:
         ohlc_4h = os.path.join(ROOT, 'data', 'ohlc', 'XAUUSD_4h.csv')
 
     print(f'Loading: {ohlc_4h}')

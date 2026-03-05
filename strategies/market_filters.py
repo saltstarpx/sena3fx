@@ -98,11 +98,15 @@ def wrap_signal_with_usd_filter(sig_func, bars: pd.DataFrame,
     """
     raw_signals = sig_func(bars)
     usd_strong = usd_strength_filter(bars, threshold, lookback, rank_window)
+    usd_weak = ~usd_strong  # USD弱側（小子指数が下位）
 
     filtered = raw_signals.copy()
-    # USD強 + ロングシグナル → 除去
-    mask = usd_strong & (filtered == 'long')
-    filtered[mask] = None
+    # USD強 + ロングシグナル → 除去（金連動逆相関: USD強=Gold弱）
+    mask_long = usd_strong & (filtered == 'long')
+    filtered[mask_long] = None
+    # P1-4修正: USD弱 + ショートシグナル → 除去（非対称設計の修正）
+    mask_short = usd_weak & (filtered == 'short')
+    filtered[mask_short] = None
     return filtered
 
 

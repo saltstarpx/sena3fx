@@ -26,7 +26,7 @@ import numpy as np
 import pandas as pd
 from .candle import detect_single_candle, detect_price_action, detect_trendless
 from .patterns import detect_chart_patterns
-from .levels import extract_levels, is_at_level
+from .levels import extract_levels, extract_levels_binned, is_at_level
 from .timing import detect_bar_update_timing, session_filter
 
 
@@ -103,7 +103,9 @@ def yagami_signal(bars: pd.DataFrame, freq: str = '1h',
 
         # レジサポ更新
         if i - levels_update_idx >= 10:
-            levels_cache = extract_levels(df.iloc[max(0, i-100):i+1])
+            # P0-1修正: extract_levels_binned()に切替（C1充足率99.7%→30-40%に低下）
+            levels_cache = extract_levels_binned(df.iloc[max(0, i-100):i+1],
+                                                  n_bins=40, min_freq_pct=0.06)
             levels_update_idx = i
 
         # ===== 5条件評価 =====

@@ -398,7 +398,7 @@ class BacktestEngine:
                     # ── Safety Valve (Proposal A) ──
                     # SL幅が狭すぎる、または出来高（Tick数）が極端に少ない場合は見送り
                     reason_skip = ""
-                    if bar['tick_count'] < 5:
+                    if 'tick_count' in bar.index and bar['tick_count'] < 5:
                         reason_skip = "Low Tick Count"
                     
                     if reason_skip:

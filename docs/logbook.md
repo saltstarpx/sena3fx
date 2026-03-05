@@ -125,3 +125,34 @@ Claude Codeが報告したコミット `228b425`（OANDA認証環境変数の堅
 水原様の判断待ち:
 - 選択肢A: Manusが `resolve_oanda_credentials()` とテストを実装
 - 選択肢B: Claude Codeに再プッシュを依頼
+
+---
+
+## EntryID: 20260305-005
+
+**日時**: 2026-03-05  
+**担当**: Manus AI  
+**RunID**: RUN-20260305-004  
+**種別**: P0修正実装・定量検証
+
+### 実施内容
+
+Claude Codeハンドオフ文書（`docs/prompt_for_manusai_improvement_handoff.md`）のP0→P1→P2修正を実装し、定量検証を実施した。
+
+### 主要な発見（根拠あり）
+
+- **C1充足率**: 88.5% → 25.6%（Δ-62.9%）。ハンドオフ文書の予測（30〜40%）に近い値で確認。
+- **Yagami_A PF**: 1.501 → 2.012（+34%向上）。ただしN=7のため統計的有意性は低い。
+- **追加発見**: `lib/backtest.py` の `tick_count` KeyErrorバグ（P0-4として修正）。
+
+### 修正ファイル一覧
+
+- `lib/yagami.py`: extract_levels_binned切替（P0-1）
+- `lib/backtest.py`: tick_count KeyError修正（P0-4）
+- `strategies/union_strategy.py`: glob()動的検出（P0-3）
+- `strategies/market_filters.py`: USDフィルター対称化（P1-4）
+- `scripts/main_loop.py`: insight重複排除（P2-10）
+
+### 次のアクション
+
+Walk-Forward検証（P1-1）をRUN-005として実施予定。

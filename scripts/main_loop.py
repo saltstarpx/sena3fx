@@ -379,7 +379,10 @@ def run_pdca_cycle():
                 f"インジケーター戦略: {other_avg:.2f}%"
             )
 
-    knowledge['insights'].extend(insights)
+    # P2-10修正: insight重複排除（同一文字列の2重登録防止）
+    existing_set = set(knowledge['insights'])
+    new_insights = [ins for ins in insights if ins not in existing_set]
+    knowledge['insights'].extend(new_insights)
     save_knowledge(knowledge)
 
     # レポート生成
