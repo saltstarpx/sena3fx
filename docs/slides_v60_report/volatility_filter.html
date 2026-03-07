@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ボラティリティフィルターの影響</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1"></script>
+    <style>
+        body { margin: 0; padding: 0; font-family: 'Inter', sans-serif; background: #F8F8F8; }
+        .slide-container {
+            width: 1280px;
+            min-height: 720px; /* keep required min-height */
+            box-sizing: border-box;
+            background: #F8F8F8;
+            padding: 60px 80px 0; /* do not shrink upper padding */
+            display: flex;
+            flex-direction: column;
+        }
+        .page-title {
+            font-size: 32px;
+            color: #2C3E50;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        .content-wrapper {
+            display: flex;
+            justify-content: space-between;
+            gap: 28px; /* slightly tightened spacing */
+        }
+        .analysis-section {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+        .section-header {
+            font-size: 20px;
+            font-weight: 700;
+            color: #2C3E50;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #3498DB;
+            padding-bottom: 5px;
+        }
+        .comparison-box {
+            background: #FFFFFF;
+            padding: 12px; /* reduced inner padding */
+            margin-bottom: 12px; /* reduced spacing between boxes */
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .comparison-box h4 {
+            font-size: 18px;
+            margin-bottom: 8px;
+            color: #34495E;
+        }
+        .comparison-box p {
+            font-size: 14px;
+            color: #34495E;
+            line-height: 1.5;
+            margin: 0; /* tighten text spacing */
+        }
+        .highlight-red { color: #E74C3C; font-weight: 700; }
+        .highlight-blue { color: #3498DB; font-weight: 700; }
+        .chart-container {
+            height: 180px; /* reduced from 250px to save vertical space */
+            width: 100%;
+            margin-top: 8px;
+        }
+        .summary-footer {
+            margin-top: 18px;
+            padding: 16px; /* slightly reduced padding */
+            background: #ECF0F1;
+            border-left: 5px solid #3498DB;
+        }
+        .summary-footer p {
+            font-size: 16px;
+            color: #2C3E50;
+            font-weight: 700;
+            margin: 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="slide-container">
+        <h2 class="page-title">ボラティリティフィルターの分析と影響</h2>
+        
+        <div class="content-wrapper">
+            <div class="analysis-section">
+                <div class="section-header">フィルター有効時 (デフォルト)</div>
+                <div class="comparison-box">
+                    <h4>シグナル発生数: <span class="highlight-blue">0件</span></h4>
+                    <p>ATRが閾値（スプレッドの3倍 = 0.006）を常に下回っていたため、すべてのエントリーがブロックされました。2月の相場環境では、この条件は厳しすぎることが判明しました。</p>
+                </div>
+                <div class="chart-container">
+                    <canvas id="signalChart"></canvas>
+                </div>
+            </div>
+
+            <div class="analysis-section">
+                <div class="section-header">フィルター無効化時 (デバッグ)</div>
+                <div class="comparison-box">
+                    <h4>シグナル発生数: <span class="highlight-red">115件</span></h4>
+                    <p>フィルターを外すと大量のシグナルが発生しましたが、<span class="highlight-red">PF 0.046</span>という極めて低い結果に。ボラティリティが低い局面での「髭」狙いは、ダマシに遭う確率が非常に高いことが実証されました。</p>
+                </div>
+                <div class="comparison-box">
+                    <h4>教訓</h4>
+                    <p>フィルター自体は「無駄な負け」を減らすために不可欠です。しかし、2月の低ボラティリティ環境に合わせるには、閾値をスプレッドの0.5〜1.0倍程度まで緩和する必要があります。</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="summary-footer">
+            <p>結論：フィルターは機能しているが、閾値の最適化が必要。低ボラティリティ下でのロジックの脆弱性が浮き彫りになった。</p>
+        </div>
+    </div>
+
+    <script>
+        const ctx = document.getElementById('signalChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: ['フィルター有効', 'フィルター無効'],
+                datasets: [{
+                    label: 'シグナル発生数',
+                    data: [0, 115],
+                    backgroundColor: ['#3498DB', '#E74C3C'],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: { display: true, text: '件数' }
+                    }
+                }
+            }
+        });
+    </script>
+</body>
+</html>

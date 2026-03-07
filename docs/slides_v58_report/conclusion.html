@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; }
+        .slide-container {
+            width: 1280px;
+            min-height: 720px;
+            box-sizing: border-box;
+            background: #0A0A0A;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            position: relative;
+            overflow: hidden;
+            padding: 60px 80px;
+        }
+        .geometric-shape {
+            position: absolute;
+            background-color: #00FF00;
+            opacity: 0.05;
+            transform: rotate(45deg);
+        }
+        .shape-1 {
+            width: 300px;
+            height: 300px;
+            top: -50px;
+            left: -50px;
+        }
+        .shape-2 {
+            width: 400px;
+            height: 400px;
+            bottom: -100px;
+            right: -100px;
+            background-color: #FF0000;
+            opacity: 0.05;
+        }
+        .content-left {
+            width: 55%;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            align-items: flex-start;
+        }
+        .content-right {
+            width: 40%;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            align-items: flex-start;
+        }
+        .title {
+            font-family: 'Roboto', sans-serif;
+            font-size: 32px;
+            color: #E0E0E0;
+            margin-bottom: 30px;
+        }
+        .conclusion-item {
+            font-family: 'Roboto', sans-serif;
+            font-size: 20px;
+            color: #B0B0B0;
+            margin-bottom: 25px;
+            display: flex;
+            align-items: flex-start;
+        }
+        .conclusion-item i {
+            color: #00FF00;
+            margin-right: 15px;
+            font-size: 24px;
+            line-height: 1.2;
+        }
+        .conclusion-title {
+            font-weight: bold;
+            color: #E0E0E0;
+            margin-bottom: 5px;
+            display: block;
+        }
+        .final-message {
+            font-family: 'Roboto', sans-serif;
+            font-size: 24px;
+            color: #00FF00;
+            font-weight: bold;
+            margin-top: 40px;
+            border-top: 1px solid #333;
+            padding-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="slide-container">
+        <div class="geometric-shape shape-1"></div>
+        <div class="geometric-shape shape-2"></div>
+        <div class="content-left">
+            <h2 class="title">7. 結論</h2>
+            <div class="conclusion-item">
+                <i class="fas fa-check-double"></i>
+                <div>
+                    <span class="conclusion-title">v58ロジックの有効性</span>
+                    <span>1.0pipsスプレッド環境下でも「精度」と「ボラティリティ」の組み合わせにより、期待値の改善が可能であることを示しました。</span>
+                </div>
+            </div>
+            <div class="conclusion-item">
+                <i class="fas fa-rocket"></i>
+                <div>
+                    <span class="conclusion-title">今後の推奨事項</span>
+                    <span>実運用に向けては、さらなるパラメータの微調整と、特定の通貨ペアへの適応性の検証が有効です。</span>
+                </div>
+            </div>
+            <p class="final-message">「精度」こそが、厳しい市場環境を生き抜くための唯一の武器である。</p>
+        </div>
+        <div class="content-right">
+            <!-- Placeholder for potential image or additional context -->
+        </div>
+    </div>
+</body>
+</html>

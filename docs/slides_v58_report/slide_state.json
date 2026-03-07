@@ -1,0 +1,108 @@
+{
+  "project_info": {
+    "title": "やがみ式FX戦略「sena3fx」バックテスト最終報告書 (v58)",
+    "created": 1772713828.8646884,
+    "last_updated": 1772714025.0366423,
+    "total_slides": 8
+  },
+  "slides": [
+    {
+      "id": "title_slide",
+      "state": "edited",
+      "pageNum": 1
+    },
+    {
+      "id": "overview",
+      "state": "edited",
+      "pageNum": 2
+    },
+    {
+      "id": "testing_environment",
+      "state": "edited",
+      "pageNum": 3
+    },
+    {
+      "id": "strategy_logic_v58",
+      "state": "edited",
+      "pageNum": 4
+    },
+    {
+      "id": "backtest_results_comparison",
+      "state": "edited",
+      "pageNum": 5
+    },
+    {
+      "id": "analysis_and_discussion_1",
+      "state": "edited",
+      "pageNum": 6
+    },
+    {
+      "id": "analysis_and_discussion_2",
+      "state": "edited",
+      "pageNum": 7
+    },
+    {
+      "id": "conclusion",
+      "state": "edited",
+      "pageNum": 8
+    }
+  ],
+  "outline": [
+    {
+      "id": "title_slide",
+      "title": "やがみ式FX戦略「sena3fx」バックテスト最終報告書 (v58)",
+      "summary": "やがみ式FX戦略「sena3fx」の最終バックテスト結果をまとめたプレゼンテーションです。v58ロジックの有効性と今後の推奨事項を報告します。",
+      "image_plan": "Use a suitable image if needed",
+      "slide_template_key": ""
+    },
+    {
+      "id": "overview",
+      "title": "1. 概要",
+      "summary": "本レポートの目的と検証の背景を説明します。ユーザーのフィードバックに基づき再構築されたv58戦略の検証です。",
+      "image_plan": "Use a suitable image if needed",
+      "slide_template_key": ""
+    },
+    {
+      "id": "testing_environment",
+      "title": "2. 検証環境",
+      "summary": "バックテストに使用したデータ期間、通貨ペア、スプレッド、ターゲットRRなどの検証条件を提示します。",
+      "image_plan": "Use a suitable image if needed",
+      "slide_template_key": ""
+    },
+    {
+      "id": "strategy_logic_v58",
+      "title": "3. 戦略ロジック (v58)",
+      "summary": "v58ロジックの主要な特徴を説明します。上位足意識、精度の追求、損切りの緩和、期待値の最大化について詳述します。",
+      "image_plan": "Use a suitable image if needed",
+      "slide_template_key": ""
+    },
+    {
+      "id": "backtest_results_comparison",
+      "title": "4. バックテスト結果比較",
+      "summary": "1月と2月のバックテスト結果を比較表で示し、v58ロジックのパフォーマンスを明確にします。",
+      "image_plan": "Use a suitable image if needed",
+      "slide_template_key": ""
+    },
+    {
+      "id": "analysis_and_discussion_1",
+      "title": "5. 分析と考察 (1)",
+      "summary": "精度の勝利とボラティリティがパフォーマンスに与える影響について考察します。",
+      "image_plan": "Use a suitable image if needed",
+      "slide_template_key": ""
+    },
+    {
+      "id": "analysis_and_discussion_2",
+      "title": "6. 分析と考察 (2)",
+      "summary": "「難しいことはやっていない」というローソク足の原理原則の重要性について深掘りします。",
+      "image_plan": "Use a suitable image if needed",
+      "slide_template_key": ""
+    },
+    {
+      "id": "conclusion",
+      "title": "7. 結論",
+      "summary": "v58ロジックの有効性を結論付け、今後の実運用への最適化に関する推奨事項を提示します。",
+      "image_plan": "Use a suitable image if needed",
+      "slide_template_key": ""
+    }
+  ]
+}

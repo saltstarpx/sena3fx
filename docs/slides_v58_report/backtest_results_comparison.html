@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; }
+        .slide-container {
+            width: 1280px;
+            min-height: 720px;
+            box-sizing: border-box;
+            background: #0A0A0A;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            position: relative;
+            overflow: hidden;
+            padding: 60px 80px;
+        }
+        .geometric-shape {
+            position: absolute;
+            background-color: #00FF00;
+            opacity: 0.05;
+            transform: rotate(45deg);
+        }
+        .shape-1 {
+            width: 300px;
+            height: 300px;
+            top: -50px;
+            left: -50px;
+        }
+        .shape-2 {
+            width: 400px;
+            height: 400px;
+            bottom: -100px;
+            right: -100px;
+            background-color: #FF0000;
+            opacity: 0.05;
+        }
+        .content-left {
+            width: 35%;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            align-items: flex-start;
+        }
+        .content-right {
+            width: 60%;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            align-items: flex-start;
+        }
+        .title {
+            font-family: 'Roboto', sans-serif;
+            font-size: 32px;
+            color: #E0E0E0;
+            margin-bottom: 30px;
+        }
+        .results-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-family: 'Roboto', sans-serif;
+            color: #B0B0B0;
+            font-size: 18px;
+        }
+        .results-table th, .results-table td {
+            padding: 15px;
+            text-align: center;
+            border-bottom: 1px solid #333;
+        }
+        .results-table th {
+            background-color: #1A1A1A;
+            color: #E0E0E0;
+            font-weight: bold;
+        }
+        .positive { color: #00FF00; font-weight: bold; }
+        .negative { color: #FF0000; font-weight: bold; }
+        .highlight { background-color: rgba(0, 255, 0, 0.05); }
+    </style>
+</head>
+<body>
+    <div class="slide-container">
+        <div class="geometric-shape shape-1"></div>
+        <div class="geometric-shape shape-2"></div>
+        <div class="content-left">
+            <h2 class="title">4. バックテスト結果比較</h2>
+            <p style="font-family: 'Roboto', sans-serif; font-size: 18px; color: #B0B0B0; line-height: 1.6;">
+                1月の低ボラティリティ環境から、2月の高精度ロジック（v58）への移行により、パフォーマンスの向上が確認されました。
+                特に、無駄なエントリーを排除し、精度を高めることで、1.0pipsスプレッドの克服に近づいています。
+            </p>
+        </div>
+        <div class="content-right">
+            <table class="results-table">
+                <thead>
+                    <tr>
+                        <th>項目</th>
+                        <th>1月 (v57)</th>
+                        <th>2月 (v58)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>期間</td>
+                        <td>2026/01</td>
+                        <td>2026/02</td>
+                    </tr>
+                    <tr class="highlight">
+                        <td>Profit Factor</td>
+                        <td>0.0134</td>
+                        <td class="positive">0.1245 (向上)</td>
+                    </tr>
+                    <tr>
+                        <td>トレード回数</td>
+                        <td>251回</td>
+                        <td>120回 (厳選)</td>
+                    </tr>
+                    <tr class="highlight">
+                        <td>勝率</td>
+                        <td>1.99%</td>
+                        <td class="positive">4.17% (向上)</td>
+                    </tr>
+                    <tr>
+                        <td>平均利益/損失</td>
+                        <td>1.5 / 1.0</td>
+                        <td class="positive">4.5 / 1.0 (RR向上)</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</body>
+</html>

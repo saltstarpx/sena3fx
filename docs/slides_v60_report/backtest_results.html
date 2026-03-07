@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>バックテスト結果</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body { margin: 0; padding: 0; font-family: 'Inter', sans-serif; background: #F8F8F8; }
+        .slide-container {
+            width: 1280px;
+            min-height: 720px; /* keep as required */
+            box-sizing: border-box;
+            background: #F8F8F8;
+            padding: 60px 80px 30px; /* keep upper padding, reduce bottom */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+        }
+        .page-title {
+            font-size: 32px;
+            color: #2C3E50;
+            margin: 0 0 24px; /* reduce space below title */
+            text-align: center;
+        }
+        .results-container {
+            display: grid; /* refresh layout to 2 columns */
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px 20px; /* smaller gaps */
+            justify-items: stretch;
+            width: 100%;
+            max-width: 1000px;
+        }
+        .result-item {
+            background: #FFFFFF;
+            padding: 18px; /* shrink inner padding */
+            border-radius: 8px;
+            text-align: center;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            min-width: 300px;
+            box-sizing: border-box;
+        }
+        .result-item h3 {
+            font-size: 20px;
+            color: #34495E;
+            margin: 8px 0 8px;
+        }
+        .result-item .value {
+            font-size: 48px;
+            font-weight: 700;
+            color: #E74C3C; /* Accent color for negative result */
+            margin: 8px 0;
+        }
+        .result-item .value.positive {
+            color: #3498DB; /* Accent color for positive result */
+        }
+        .result-item p {
+            font-size: 16px;
+            color: #34495E;
+            line-height: 1.6;
+            margin: 6px 0 0;
+        }
+        .info-text {
+            font-size: 18px;
+            color: #34495E;
+            margin-top: 18px; /* reduce space */
+            text-align: center;
+            width: 100%;
+        }
+        @media (max-width: 1100px) {
+            .results-container { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="slide-container">
+        <h2 class="page-title">バックテスト結果: 2026年2月</h2>
+        <div class="results-container">
+            <div class="result-item">
+                <h3>プロフィットファクター (PF)</h3>
+                <p class="value">0.0461</p>
+                <p>総利益を総損失で割った値。1.0未満は損失を示します。</p>
+            </div>
+            <div class="result-item">
+                <h3>勝率</h3>
+                <p class="value">8.70%</p>
+                <p>勝利トレードの割合。低い勝率は戦略の見直しを示唆します。</p>
+            </div>
+            <div class="result-item">
+                <h3>総取引数</h3>
+                <p class="value positive">115</p>
+                <p>バックテスト期間中に実行された合計取引回数。</p>
+            </div>
+            <div class="result-item">
+                <h3>最終損益</h3>
+                <p class="value">-13.94 pips</p>
+                <p>全取引の合計損益。マイナスは損失を示します。</p>
+            </div>
+        </div>
+        <p class="info-text">期間: 2026-02-01 22:00:00 to 2026-02-27 21:59:00 | スプレッド: 0.2 pips</p>
+    </div>
+</body>
+</html>

@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1280, height=720, initial-scale=1.0">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Roboto', sans-serif; background-color: #121212; color: #FFFFFF; overflow: hidden; }
+        .slide-container {
+            width: 1280px;
+            height: 720px;
+            position: relative;
+            background-color: #121212;
+            padding: 60px 80px;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .header {
+            margin-bottom: 20px;
+            border-bottom: 2px solid #333;
+            padding-bottom: 15px;
+        }
+        
+        .title {
+            font-size: 48px;
+            font-weight: 700;
+            color: #FFFFFF;
+            margin-bottom: 5px;
+        }
+        
+        .subtitle {
+            font-size: 24px;
+            color: #FF5252; /* Red for rejection */
+            font-weight: 400;
+        }
+
+        .main-content {
+            display: flex;
+            gap: 40px;
+            height: 100%;
+        }
+
+        .left-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .right-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .hypothesis-box {
+            background-color: #1E1E1E;
+            padding: 20px;
+            border-left: 4px solid #888;
+        }
+
+        .result-box {
+            background-color: rgba(255, 82, 82, 0.1);
+            padding: 20px;
+            border-left: 4px solid #FF5252;
+        }
+
+        .box-label {
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 5px;
+            display: block;
+            font-weight: 700;
+        }
+
+        .box-content {
+            font-size: 18px;
+            line-height: 1.4;
+        }
+
+        .analysis-section {
+            margin-top: 10px;
+        }
+
+        .analysis-title {
+            font-size: 20px;
+            color: #00E676;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+
+        .analysis-list {
+            list-style: none;
+        }
+
+        .analysis-list li {
+            margin-bottom: 10px;
+            font-size: 16px;
+            color: #CCC;
+            display: flex;
+            align-items: flex-start;
+        }
+
+        .analysis-list li::before {
+            content: "•";
+            color: #00E676;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 16px;
+            margin-top: 20px;
+        }
+
+        .data-table th {
+            text-align: left;
+            padding: 10px;
+            border-bottom: 2px solid #444;
+            color: #888;
+            font-weight: 500;
+        }
+
+        .data-table td {
+            padding: 10px;
+            border-bottom: 1px solid #333;
+            color: #EEE;
+        }
+
+        .chart-container {
+            width: 100%;
+            height: 280px;
+            background-color: #000;
+            border: 1px solid #333;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .chart-img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+
+        .highlight-base { color: #00E676; font-weight: 700; }
+        .highlight-bad { color: #FF5252; font-weight: 700; }
+
+    </style>
+</head>
+<body>
+    <div class="slide-container">
+        <div class="header">
+            <h1 class="title">RUN-002 — 4時間足ゾーンフィルター</h1>
+            <p class="subtitle">仮説棄却: 上位足レジサポ確認は逆効果</p>
+        </div>
+
+        <div class="main-content">
+            <div class="left-panel">
+                <div class="hypothesis-box">
+                    <span class="box-label" style="color: #AAA;">Hypothesis</span>
+                    <div class="box-content">
+                        4時間足ゾーンフィルターの追加により、<br>
+                        PF > 1.2, 勝率 > 45% を達成できる。
+                    </div>
+                </div>
+
+                <div class="result-box">
+                    <span class="box-label" style="color: #FF5252;">Result: REJECTED</span>
+                    <div class="box-content">
+                        12パラメータセット全てがベースラインを下回る。<br>
+                        フィルター追加によりパフォーマンスが悪化。
+                    </div>
+                </div>
+
+                <div class="analysis-section">
+                    <div class="analysis-title">原因分析</div>
+                    <ul class="analysis-list">
+                        <li><strong>トレンド不整合:</strong> 2024-2025年の強力な円安トレンド下で、リバーサル型フィルターがエントリー機会を阻害。</li>
+                        <li><strong>データ不足:</strong> 8ヶ月の期間では、4時間足の有意なゾーン形成には統計的に不十分。</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="right-panel">
+                <div class="chart-container">
+                    <img src="/home/ubuntu/sena3fx/results/figures/fig5_htf_comparison.png" alt="HTF Filter Comparison" class="chart-img">
+                </div>
+                <p style="color: #888; font-size: 14px;">図2: フィルター有無によるパフォーマンス比較</p>
+
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>フィルター設定</th>
+                            <th>PF</th>
+                            <th>勝率</th>
+                            <th>N</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>なし (Baseline)</td>
+                            <td class="highlight-base">1.030</td>
+                            <td class="highlight-base">40.9%</td>
+                            <td>22</td>
+                        </tr>
+                        <tr>
+                            <td>HTF lb20_z1.5 (Best)</td>
+                            <td class="highlight-bad">0.763</td>
+                            <td>29.4%</td>
+                            <td>17</td>
+                        </tr>
+                        <tr>
+                            <td>HTF lb30_z1.0 (Worst)</td>
+                            <td class="highlight-bad">0.392</td>
+                            <td>25.0%</td>
+                            <td>12</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

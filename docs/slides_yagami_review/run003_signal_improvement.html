@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1280, height=720, initial-scale=1.0">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Roboto', sans-serif; background-color: #121212; color: #FFFFFF; overflow: hidden; }
+        .slide-container {
+            width: 1280px;
+            height: 720px;
+            position: relative;
+            background-color: #121212;
+            padding: 60px 80px;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .header {
+            margin-bottom: 20px;
+            border-bottom: 2px solid #333;
+            padding-bottom: 15px;
+        }
+        
+        .title {
+            font-size: 48px;
+            font-weight: 700;
+            color: #FFFFFF;
+            margin-bottom: 5px;
+        }
+        
+        .subtitle {
+            font-size: 24px;
+            color: #888;
+            font-weight: 400;
+        }
+
+        .main-content {
+            display: flex;
+            gap: 40px;
+            height: 100%;
+        }
+
+        .left-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .right-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .section-header {
+            font-size: 20px;
+            font-weight: 700;
+            color: #AAA;
+            margin-bottom: 10px;
+            border-bottom: 1px solid #333;
+            padding-bottom: 5px;
+        }
+
+        /* Slightly reduced inner padding to save vertical space */
+        .insight-card {
+            background-color: #1E1E1E;
+            padding: 16px;
+            border-left: 4px solid #555;
+        }
+
+        .insight-card.success { border-left-color: #00E676; }
+        .insight-card.failure { border-left-color: #FF5252; }
+
+        .insight-title {
+            font-size: 22px;
+            font-weight: 700;
+            color: #FFFFFF;
+            margin-bottom: 8px;
+        }
+
+        .insight-text {
+            font-size: 18px;
+            color: #CCCCCC;
+            line-height: 1.5;
+        }
+
+        .chart-container {
+            width: 100%;
+            height: 300px;
+            background-color: #000;
+            border: 1px solid #333;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .chart-img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 16px;
+        }
+
+        .data-table th {
+            text-align: left;
+            padding: 8px;
+            border-bottom: 2px solid #444;
+            color: #888;
+            font-weight: 500;
+        }
+
+        /* Reduced td padding to decrease total table height by >8px */
+        .data-table td {
+            padding: 8px;
+            border-bottom: 1px solid #333;
+            color: #EEE;
+        }
+
+        .tag {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .tag-pass { background-color: rgba(0, 230, 118, 0.2); color: #00E676; }
+        .tag-fail { background-color: rgba(255, 82, 82, 0.2); color: #FF5252; }
+        .tag-invalid { background-color: rgba(100, 100, 100, 0.2); color: #AAA; }
+
+    </style>
+</head>
+<body>
+    <div class="slide-container">
+        <div class="header">
+            <h1 class="title">RUN-003 — シグナル精度向上</h1>
+            <p class="subtitle">方向A (精度) vs 方向B (トレンド) 並行検証</p>
+        </div>
+
+        <div class="main-content">
+            <div class="left-panel">
+                <div>
+                    <div class="section-header">方向A: シグナル精度向上</div>
+                    <div class="insight-card success">
+                        <div class="insight-title">ボリューム確認のみ有効</div>
+                        <p class="insight-text">
+                            「A2_Vol_only」がPF 1.060を記録。
+                            出来高急増を伴うリバーサルは信頼性が高いことが確認された。
+                            一方、インサイドバー待機はエントリー遅延により逆効果。
+                        </p>
+                    </div>
+                </div>
+
+                <div>
+                    <div class="section-header">方向B: EMAトレンドフィルター</div>
+                    <div class="insight-card failure">
+                        <div class="insight-title">論理的矛盾による破綻</div>
+                        <p class="insight-text">
+                            EMAトレンド追従フィルターとリバーサルエントリーの組み合わせは、
+                            「押し目」ではなく「逆張り」として機能してしまい、
+                            エントリー機会が激減（N=3〜4）し統計的に無効。
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="right-panel">
+                <div class="chart-container">
+                    <img src="/home/ubuntu/sena3fx/results/figures/fig8_run003_overview.png" alt="RUN-003 Overview Chart" class="chart-img">
+                </div>
+                
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>戦略</th>
+                            <th>PF</th>
+                            <th>勝率</th>
+                            <th>判定</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td style="color: #00E676; font-weight: 700;">A2_Vol_only</td>
+                            <td>1.060</td>
+                            <td>44.4%</td>
+                            <td><span class="tag tag-pass">PARTIAL</span></td>
+                        </tr>
+                        <tr>
+                            <td>A3_Sess_only</td>
+                            <td>0.921</td>
+                            <td>38.1%</td>
+                            <td><span class="tag tag-fail">FAIL</span></td>
+                        </tr>
+                        <tr>
+                            <td>A1_IB_only</td>
+                            <td>0.523</td>
+                            <td>25.0%</td>
+                            <td><span class="tag tag-fail">FAIL</span></td>
+                        </tr>
+                        <tr>
+                            <td style="color: #888;">Direction B (Avg)</td>
+                            <td style="color: #888;">0.510</td>
+                            <td style="color: #888;">18.0%</td>
+                            <td><span class="tag tag-invalid">INVALID</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

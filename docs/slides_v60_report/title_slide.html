@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Yagami MTF v60 バックテスト結果レポート</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body { margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
+        .slide-container {
+            width: 1280px;
+            min-height: 720px;
+            box-sizing: border-box;
+            background: #F8F8F8;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            overflow: hidden;
+        }
+        .title-section {
+            position: absolute;
+            left: 100px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 50%;
+            text-align: left;
+            z-index: 1;
+        }
+        .main-title {
+            font-size: 64px;
+            color: #2C3E50;
+            margin-bottom: 20px;
+            line-height: 1.2;
+        }
+        .sub-title {
+            font-size: 32px;
+            color: #34495E;
+            margin-bottom: 40px;
+        }
+        .author-date {
+            font-size: 20px;
+            color: #34495E;
+        }
+        .geometric-shape {
+            position: absolute;
+            right: -100px;
+            top: -100px;
+            width: 700px;
+            height: 700px;
+            background-color: #3498DB;
+            transform: rotate(45deg);
+            opacity: 0.7;
+            z-index: 0;
+        }
+        .geometric-shape.two {
+            right: -200px;
+            bottom: -200px;
+            top: auto;
+            background-color: #E74C3C;
+            opacity: 0.6;
+            width: 600px;
+            height: 600px;
+            transform: rotate(-30deg);
+        }
+    </style>
+</head>
+<body>
+    <div class="slide-container">
+        <div class="geometric-shape"></div>
+        <div class="geometric-shape two"></div>
+        <div class="title-section">
+            <h1 class="main-title">Yagami MTF v60 バックテスト結果レポート</h1>
+            <p class="sub-title">2026年2月期間の戦略パフォーマンス分析</p>
+            <p class="author-date">水原 / 2026年3月5日</p>
+        </div>
+    </div>
+</body>
+</html>

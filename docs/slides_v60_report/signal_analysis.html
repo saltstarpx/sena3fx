@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>シグナル生成分析</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+    <style>
+        body { margin: 0; padding: 0; font-family: 'Inter', sans-serif; background: #F8F8F8; }
+        .slide-container {
+            width: 1280px;
+            min-height: 720px;
+            box-sizing: border-box;
+            background: #F8F8F8;
+            padding: 60px 80px 0;
+            display: flex;
+            flex-direction: column;
+        }
+        .page-title {
+            font-size: 32px;
+            color: #2C3E50;
+            margin-bottom: 40px;
+            text-align: center;
+        }
+        .content-wrapper {
+            display: flex;
+            justify-content: space-between;
+            gap: 40px;
+        }
+        .logic-column {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .log-column {
+            flex: 1;
+            background: #FFFFFF;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .step-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 20px;
+            background: #FFFFFF;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .step-number {
+            background: #3498DB;
+            color: #FFFFFF;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            flex-shrink: 0;
+        }
+        .step-content h3 {
+            font-size: 18px;
+            color: #2C3E50;
+            margin-bottom: 8px;
+        }
+        .step-content p {
+            font-size: 14px;
+            color: #34495E;
+            line-height: 1.5;
+        }
+        .log-title {
+            font-size: 20px;
+            color: #2C3E50;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .log-title i { color: #E74C3C; }
+        .log-entry {
+            font-family: 'Courier New', Courier, monospace;
+            background: #F1F1F1;
+            padding: 15px;
+            border-radius: 4px;
+            font-size: 13px;
+            color: #333;
+            margin-bottom: 20px;
+            border-left: 4px solid #E74C3C;
+        }
+        .insight-list {
+            list-style: none;
+            padding-top: 10px;
+        }
+        .insight-list li {
+            font-size: 15px;
+            color: #34495E;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .insight-list li i { color: #3498DB; font-size: 12px; }
+    </style>
+</head>
+<body>
+    <div class="slide-container">
+        <h2 class="page-title">シグナル生成ロジックの動作分析</h2>
+        <div class="content-wrapper">
+            <div class="logic-column">
+                <div class="step-item">
+                    <div class="step-number">1</div>
+                    <div class="step-content">
+                        <h3>15分足の形状確認</h3>
+                        <p>ATRの0.5倍以上の「髭」を持つローソク足を特定。反転の兆しを数学的に定義します。</p>
+                    </div>
+                </div>
+                <div class="step-item">
+                    <div class="step-number">2</div>
+                    <div class="step-content">
+                        <h3>上位足（1H/4H）の壁</h3>
+                        <p>EMA20/75の並び順からトレンドを判定。壁に守られた方向へのみエントリーを許可します。</p>
+                    </div>
+                </div>
+                <div class="step-item">
+                    <div class="step-number">3</div>
+                    <div class="step-content">
+                        <h3>1分足での精密執行</h3>
+                        <p>15分足の髭の半値（ミッドポイント）まで価格が戻った瞬間を狙い、1分足でエントリーを執行します。</p>
+                    </div>
+                </div>
+            </div>
+            <div class="log-column">
+                <div class="log-title"><i class="fas fa-exclamation-triangle"></i> デバッグログからの洞察</div>
+                <div class="log-entry">
+                    [2026-02-02 01:15:00] Volatility too low:<br>
+                    ATR=0.00221, Threshold=0.00600<br>
+                    -> Signal Skipped
+                </div>
+                <ul class="insight-list">
+                    <li><i class="fas fa-check-circle"></i> <b>ボラティリティフィルターの厳格性:</b> 多くの潜在的シグナルがスプレッドの3倍という閾値でカットされています。</li>
+                    <li><i class="fas fa-check-circle"></i> <b>市場環境の適合性:</b> 2月の相場はATRが低く、v60の標準設定では取引機会が極端に制限されました。</li>
+                    <li><i class="fas fa-check-circle"></i> <b>ロジックの健全性:</b> フィルター解除時には115回の取引を確認。計算ロジック自体は正常に動作しています。</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

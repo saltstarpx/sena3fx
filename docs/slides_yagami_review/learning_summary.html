@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1280, height=720, initial-scale=1.0">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Roboto', sans-serif; background-color: #121212; color: #FFFFFF; overflow: hidden; }
+        .slide-container {
+            width: 1280px;
+            height: 720px;
+            position: relative;
+            background-color: #121212;
+            padding: 60px 80px;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .header {
+            margin-bottom: 30px;
+            border-bottom: 2px solid #333;
+            padding-bottom: 20px;
+        }
+        
+        .title {
+            font-size: 48px;
+            font-weight: 700;
+            color: #FFFFFF;
+            margin-bottom: 10px;
+        }
+        
+        .subtitle {
+            font-size: 24px;
+            color: #888;
+            font-weight: 400;
+        }
+
+        .content-wrapper {
+            display: flex;
+            gap: 60px;
+            height: 100%;
+        }
+
+        .timeline-col {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .timeline-item {
+            display: flex;
+            margin-bottom: 25px;
+            position: relative;
+        }
+
+        .timeline-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .timeline-marker {
+            width: 4px;
+            background-color: #333;
+            margin-right: 20px;
+            position: relative;
+        }
+
+        .timeline-dot {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background-color: #555;
+            position: absolute;
+            top: 5px;
+            left: -6px;
+        }
+
+        .timeline-dot.fail { background-color: #FF5252; }
+        .timeline-dot.neutral { background-color: #FFC107; }
+        .timeline-dot.pivot { background-color: #00E676; }
+
+        .timeline-content {
+            flex: 1;
+        }
+
+        .run-id {
+            font-size: 14px;
+            color: #888;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+
+        .run-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: #EEE;
+            margin-bottom: 4px;
+        }
+
+        .run-result {
+            font-size: 16px;
+            color: #AAA;
+        }
+
+        .right-col {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        /* Reduced chart height by 20px to eliminate overflow */
+        .chart-container {
+            width: 100%;
+            height: 280px;
+            background-color: #000;
+            border: 1px solid #333;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+
+        .chart-img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+
+        .pivot-box {
+            width: 100%;
+            background-color: #1E1E1E;
+            padding: 25px;
+            border-left: 4px solid #00E676;
+        }
+
+        .pivot-title {
+            font-size: 20px;
+            font-weight: 700;
+            color: #00E676;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+        }
+
+        .pivot-text {
+            font-size: 18px;
+            color: #CCCCCC;
+            line-height: 1.5;
+        }
+
+    </style>
+</head>
+<body>
+    <div class="slide-container">
+        <div class="header">
+            <h1 class="title">8サイクルの学習成果まとめ</h1>
+            <p class="subtitle">全アプローチ失敗、問題はシグナル生成ロジック全体にある</p>
+        </div>
+
+        <div class="content-wrapper">
+            <div class="timeline-col">
+                <div class="timeline-item">
+                    <div class="timeline-marker"><div class="timeline-dot neutral"></div></div>
+                    <div class="timeline-content">
+                        <div class="run-id">RUN-001</div>
+                        <div class="run-title">ベースライン検証</div>
+                        <div class="run-result">PF 1.03 (損益分岐点) が限界。</div>
+                    </div>
+                </div>
+
+                <div class="timeline-item">
+                    <div class="timeline-marker"><div class="timeline-dot fail"></div></div>
+                    <div class="timeline-content">
+                        <div class="run-id">RUN-002</div>
+                        <div class="run-title">4時間足フィルター</div>
+                        <div class="run-result">トレンド不整合によりパフォーマンス悪化。</div>
+                    </div>
+                </div>
+
+                <div class="timeline-item">
+                    <div class="timeline-marker"><div class="timeline-dot fail"></div></div>
+                    <div class="timeline-content">
+                        <div class="run-id">RUN-004 / 005</div>
+                        <div class="run-title">バグ修正 & Walk-Forward</div>
+                        <div class="run-result">OOS PF 0.47。統計的有意性なし。</div>
+                    </div>
+                </div>
+
+                <div class="timeline-item">
+                    <div class="timeline-marker"><div class="timeline-dot fail"></div></div>
+                    <div class="timeline-content">
+                        <div class="run-id">RUN-008</div>
+                        <div class="run-title">最終緩和検証</div>
+                        <div class="run-result">C4除外・B緩和でもPF 1.00止まり。</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="right-col">
+                <div class="chart-container">
+                    <img src="/home/ubuntu/sena3fx/results/figures/fig10_pdca_progress.png" alt="PDCA Progress" class="chart-img">
+                </div>
+
+                <div class="pivot-box">
+                    <div class="pivot-title"><i class="fas fa-random" style="margin-right: 10px;"></i>Strategic Pivot</div>
+                    <p class="pivot-text">
+                        やがみメソッドは「シグナル生成器」としては機能しない。<br>
+                        リソースを凍結し、<strong>Maedai DC+EMA200 (PF 3.76)</strong> へ主軸を移行する。
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

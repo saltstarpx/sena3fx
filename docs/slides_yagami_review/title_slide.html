@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1280, height=720, initial-scale=1.0">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Roboto', sans-serif; background-color: #121212; color: #FFFFFF; overflow: hidden; }
+        .slide-container {
+            width: 1280px;
+            height: 720px;
+            position: relative;
+            background-color: #121212;
+            background-image: 
+                linear-gradient(rgba(30, 30, 30, 0.5) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(30, 30, 30, 0.5) 1px, transparent 1px);
+            background-size: 40px 40px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        /* Abstract decorative elements */
+        .decoration-circle {
+            position: absolute;
+            border-radius: 50%;
+            border: 2px solid #00E676;
+            opacity: 0.1;
+        }
+        .dec-1 { width: 600px; height: 600px; top: -100px; right: -100px; }
+        .dec-2 { width: 400px; height: 400px; bottom: -50px; left: -50px; border-color: #FFFFFF; }
+        
+        .content-wrapper {
+            z-index: 10;
+            text-align: center;
+            width: 80%;
+        }
+        
+        .main-title {
+            font-size: 80px;
+            font-weight: 900;
+            margin-bottom: 20px;
+            line-height: 1.1;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            text-shadow: 0 4px 10px rgba(0,0,0,0.5);
+        }
+        
+        .accent-text {
+            color: #00E676;
+        }
+        
+        .subtitle {
+            font-size: 32px;
+            font-weight: 400;
+            color: #CCCCCC;
+            margin-bottom: 60px;
+            letter-spacing: 1px;
+        }
+        
+        .metadata-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+            width: 100%;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        
+        .metadata-card {
+            background-color: rgba(30, 30, 30, 0.8);
+            border-left: 4px solid #00E676;
+            padding: 20px;
+            text-align: left;
+            backdrop-filter: blur(5px);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            transition: transform 0.3s ease;
+        }
+        
+        .metadata-label {
+            font-size: 14px;
+            color: #AAAAAA;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+            display: block;
+        }
+        
+        .metadata-value {
+            font-size: 20px;
+            font-weight: 500;
+            color: #FFFFFF;
+        }
+        
+        .icon {
+            color: #00E676;
+            margin-right: 10px;
+            width: 20px;
+            text-align: center;
+        }
+
+        /* Status indicator */
+        .status-bar {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 6px;
+            background: linear-gradient(90deg, #00E676 0%, #121212 100%);
+        }
+    </style>
+</head>
+<body>
+    <div class="slide-container">
+        <!-- Decorative Background Elements -->
+        <div class="decoration-circle dec-1"></div>
+        <div class="decoration-circle dec-2"></div>
+        
+        <div class="content-wrapper">
+            <h1 class="main-title">やがみプライスアクション<br><span class="accent-text">検証総括</span></h1>
+            <p class="subtitle">RUN-001〜008（2026年3月5日）</p>
+            
+            <div class="metadata-grid">
+                <div class="metadata-card">
+                    <span class="metadata-label"><i class="fas fa-calendar-alt icon"></i>検証期間</span>
+                    <div class="metadata-value">2024年7月〜2026年2月</div>
+                </div>
+                <div class="metadata-card">
+                    <span class="metadata-label"><i class="fas fa-chart-line icon"></i>対象銘柄</span>
+                    <div class="metadata-value">USD/JPY 1H, XAUUSD 4H, etc.</div>
+                </div>
+                <div class="metadata-card">
+                    <span class="metadata-label"><i class="fas fa-sync-alt icon"></i>検証規模</span>
+                    <div class="metadata-value">8 RUN / 50+ パラメータセット</div>
+                </div>
+                <div class="metadata-card">
+                    <span class="metadata-label"><i class="fas fa-users icon"></i>担当チーム</span>
+                    <div class="metadata-value">Manus AI × Claude Code</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="status-bar"></div>
+    </div>
+</body>
+</html>

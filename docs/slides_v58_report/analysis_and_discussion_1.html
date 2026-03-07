@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; }
+        .slide-container {
+            width: 1280px;
+            min-height: 720px;
+            box-sizing: border-box;
+            background: #0A0A0A;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            position: relative;
+            overflow: hidden;
+            padding: 60px 80px;
+        }
+        .geometric-shape {
+            position: absolute;
+            background-color: #00FF00;
+            opacity: 0.05;
+            transform: rotate(45deg);
+        }
+        .shape-1 {
+            width: 300px;
+            height: 300px;
+            top: -50px;
+            left: -50px;
+        }
+        .shape-2 {
+            width: 400px;
+            height: 400px;
+            bottom: -100px;
+            right: -100px;
+            background-color: #FF0000;
+            opacity: 0.05;
+        }
+        .content-left {
+            width: 55%;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            align-items: flex-start;
+        }
+        .content-right {
+            width: 40%;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            align-items: flex-start;
+        }
+        .title {
+            font-family: 'Roboto', sans-serif;
+            font-size: 32px;
+            color: #E0E0E0;
+            margin-bottom: 30px;
+        }
+        .analysis-item {
+            font-family: 'Roboto', sans-serif;
+            font-size: 20px;
+            color: #B0B0B0;
+            margin-bottom: 25px;
+            display: flex;
+            align-items: flex-start;
+        }
+        .analysis-item i {
+            color: #00FF00;
+            margin-right: 15px;
+            font-size: 24px;
+            line-height: 1.2;
+        }
+        .analysis-title {
+            font-weight: bold;
+            color: #E0E0E0;
+            margin-bottom: 5px;
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="slide-container">
+        <div class="geometric-shape shape-1"></div>
+        <div class="geometric-shape shape-2"></div>
+        <div class="content-left">
+            <h2 class="title">5. 分析と考察 (1)</h2>
+            <div class="analysis-item">
+                <i class="fas fa-trophy"></i>
+                <div>
+                    <span class="analysis-title">精度の勝利</span>
+                    <span>1.0pipsという高い壁を越えるには、極限までエントリーの「精度」を高める必要がある。</span>
+                </div>
+            </div>
+            <div class="analysis-item">
+                <i class="fas fa-wind"></i>
+                <div>
+                    <span class="analysis-title">ボラティリティの影響</span>
+                    <span>1月の低ボラ環境ではRR 5.0の達成が困難であったが、2月のボラティリティ上昇により、期待値が改善。</span>
+                </div>
+            </div>
+            <div class="analysis-item">
+                <i class="fas fa-filter"></i>
+                <div>
+                    <span class="analysis-title">エントリーの厳選</span>
+                    <span>トレード回数を絞ることで、期待値の低い場面を排除し、全体のPFを押し上げた。</span>
+                </div>
+            </div>
+        </div>
+        <div class="content-right">
+            <!-- Placeholder for potential image or additional context -->
+        </div>
+    </div>
+</body>
+</html>

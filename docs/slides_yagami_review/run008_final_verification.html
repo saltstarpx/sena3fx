@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1280, height=720, initial-scale=1.0">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Roboto', sans-serif; background-color: #121212; color: #FFFFFF; overflow: hidden; }
+        .slide-container {
+            width: 1280px;
+            height: 720px;
+            position: relative;
+            background-color: #121212;
+            padding: 60px 80px;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .header {
+            margin-bottom: 30px;
+            border-bottom: 2px solid #333;
+            padding-bottom: 20px;
+        }
+        
+        .title {
+            font-size: 48px;
+            font-weight: 700;
+            color: #FFFFFF;
+            margin-bottom: 5px;
+        }
+        
+        .subtitle {
+            font-size: 24px;
+            color: #FF5252; /* Red for failure/warning */
+            font-weight: 400;
+        }
+
+        .content-wrapper {
+            display: flex;
+            gap: 50px;
+            height: 100%;
+        }
+
+        .left-col {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .right-col {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .experiment-box {
+            background-color: #1E1E1E;
+            padding: 25px;
+            border-left: 4px solid #00E676;
+            margin-bottom: 30px;
+        }
+
+        .box-title {
+            font-size: 20px;
+            font-weight: 700;
+            color: #FFFFFF;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+        }
+
+        .box-text {
+            font-size: 18px;
+            color: #CCCCCC;
+            line-height: 1.5;
+        }
+
+        .conclusion-box {
+            background-color: rgba(255, 82, 82, 0.1);
+            padding: 25px;
+            border: 1px solid #FF5252;
+            margin-top: auto;
+        }
+
+        .conclusion-title {
+            font-size: 20px;
+            font-weight: 700;
+            color: #FF5252;
+            margin-bottom: 10px;
+        }
+
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 16px;
+        }
+
+        .data-table th {
+            text-align: left;
+            padding: 15px;
+            border-bottom: 2px solid #444;
+            color: #888;
+            font-weight: 500;
+            text-transform: uppercase;
+        }
+
+        .data-table td {
+            padding: 15px;
+            border-bottom: 1px solid #333;
+            color: #EEE;
+        }
+
+        .data-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .highlight-val {
+            font-weight: 700;
+            color: #FFFFFF;
+        }
+
+        .tag {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .tag-fail { background-color: rgba(255, 82, 82, 0.2); color: #FF5252; }
+        .tag-neutral { background-color: rgba(255, 255, 255, 0.1); color: #AAA; }
+
+    </style>
+</head>
+<body>
+    <div class="slide-container">
+        <div class="header">
+            <h1 class="title">RUN-008 — C4見直し・B緩和 (最終検証)</h1>
+            <p class="subtitle">8パラメータセット全て不合格。やがみ4Hは構造的に機能しない</p>
+        </div>
+
+        <div class="content-wrapper">
+            <div class="left-col">
+                <div class="experiment-box">
+                    <div class="box-title"><i class="fas fa-flask" style="margin-right: 10px; color: #00E676;"></i>検証アプローチ</div>
+                    <p class="box-text">
+                        Claude Codeの推奨に基づき、以下の変更を実装して再検証を実施。<br><br>
+                        1. <strong>C4条件拡張</strong>: インサイドバーブレイク、EMA乖離、3連足反転を追加<br>
+                        2. <strong>B評価緩和</strong>: 3条件→2条件へ緩和し、エントリー数を確保
+                    </p>
+                </div>
+
+                <div class="conclusion-box">
+                    <div class="conclusion-title"><i class="fas fa-exclamation-triangle" style="margin-right: 10px;"></i>最終結論</div>
+                    <p class="box-text" style="color: #FFCDD2;">
+                        C4を除外してもPF=1.004止まり。<br>
+                        パターン追加も効果なし。<br>
+                        <strong>問題はC4単体ではなく、シグナル生成ロジック全体にある。</strong>
+                    </p>
+                </div>
+            </div>
+
+            <div class="right-col">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>戦略</th>
+                            <th>PF</th>
+                            <th>勝率</th>
+                            <th>N</th>
+                            <th>判定</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td style="color: #00E676; font-weight: 700;">Yagami_NoC4_B (最良)</td>
+                            <td class="highlight-val">1.004</td>
+                            <td>40.3%</td>
+                            <td>360</td>
+                            <td><span class="tag tag-neutral">BREAK-EVEN</span></td>
+                        </tr>
+                        <tr>
+                            <td>Yagami_C4ext_B (拡張)</td>
+                            <td class="highlight-val">0.992</td>
+                            <td>38.4%</td>
+                            <td>354</td>
+                            <td><span class="tag tag-fail">FAIL</span></td>
+                        </tr>
+                        <tr>
+                            <td>Yagami_A_original</td>
+                            <td class="highlight-val">0.956</td>
+                            <td>37.5%</td>
+                            <td>56</td>
+                            <td><span class="tag tag-fail">FAIL</span></td>
+                        </tr>
+                        <tr>
+                            <td>Yagami_B_original</td>
+                            <td class="highlight-val">0.820</td>
+                            <td>35.4%</td>
+                            <td>223</td>
+                            <td><span class="tag tag-fail">FAIL</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+                <p style="margin-top: 15px; color: #888; font-size: 14px; text-align: right;">
+                    *合格基準: PF > 1.2
+                </p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

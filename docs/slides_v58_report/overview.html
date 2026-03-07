@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; }
+        .slide-container {
+            width: 1280px;
+            min-height: 720px;
+            box-sizing: border-box;
+            background: #0A0A0A;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            position: relative;
+            overflow: hidden;
+            padding: 60px 80px;
+        }
+        .geometric-shape {
+            position: absolute;
+            background-color: #00FF00;
+            opacity: 0.05;
+            transform: rotate(45deg);
+        }
+        .shape-1 {
+            width: 300px;
+            height: 300px;
+            top: -50px;
+            left: -50px;
+        }
+        .shape-2 {
+            width: 400px;
+            height: 400px;
+            bottom: -100px;
+            right: -100px;
+            background-color: #FF0000;
+            opacity: 0.05;
+        }
+        .content-left {
+            width: 55%;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            align-items: flex-start;
+        }
+        .content-right {
+            width: 40%;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            align-items: flex-start;
+        }
+        .title {
+            font-family: 'Roboto', sans-serif;
+            font-size: 32px;
+            color: #E0E0E0;
+            margin-bottom: 30px;
+        }
+        .paragraph {
+            font-family: 'Roboto', sans-serif;
+            font-size: 18px;
+            color: #B0B0B0;
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }
+        .key-points-title {
+            font-family: 'Roboto', sans-serif;
+            font-size: 24px;
+            color: #00FF00;
+            margin-bottom: 20px;
+        }
+        .key-point-item {
+            font-family: 'Roboto', sans-serif;
+            font-size: 18px;
+            color: #B0B0B0;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: flex-start;
+        }
+        .key-point-item i {
+            color: #00FF00;
+            margin-right: 10px;
+            font-size: 18px;
+            line-height: 1.6;
+        }
+    </style>
+</head>
+<body>
+    <div class="slide-container">
+        <div class="geometric-shape shape-1"></div>
+        <div class="geometric-shape shape-2"></div>
+        <div class="content-left">
+            <h2 class="title">1. 概要</h2>
+            <p class="paragraph">
+                本レポートは、ユーザーのフィードバックに基づき再構築された「やがみ式FX戦略 v58」のバックテスト結果をまとめたものです。
+                特に、1.0pipsという過酷なスプレッド条件下での「精度」と「上位足の形状形成」を意識したロジックの有効性を検証しました。
+            </p>
+            <p class="paragraph">
+                これまでの検証で直面した低ボラティリティ環境と高スプレッドの課題に対し、ローソク足の原理原則に立ち返り、
+                より本質的なエントリーポイントの特定と動的な決済ロジックの導入を目指しました。
+            </p>
+        </div>
+        <div class="content-right">
+            <h3 class="key-points-title">検証の主要ポイント</h3>
+            <div class="key-point-item"><i class="fas fa-check-circle"></i>高精度ロジックの追求</div>
+            <div class="key-point-item"><i class="fas fa-check-circle"></i>上位足の形状形成を意識</div>
+            <div class="key-point-item"><i class="fas fa-check-circle"></i>RR 5.0を目標とした動的決済</div>
+            <div class="key-point-item"><i class="fas fa-check-circle"></i>1.0pipsスプレッド環境下での有効性検証</div>
+        </div>
+    </div>
+</body>
+</html>

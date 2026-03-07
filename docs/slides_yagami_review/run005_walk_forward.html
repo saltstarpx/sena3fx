@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1280, height=720, initial-scale=1.0">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Roboto', sans-serif; background-color: #121212; color: #FFFFFF; overflow: hidden; }
+        .slide-container {
+            width: 1280px;
+            height: 720px;
+            position: relative;
+            background-color: #121212;
+            padding: 60px 60px 40px 60px; /* keep top padding (title spacing) */
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .header {
+            margin-bottom: 20px; /* reduced */
+            border-bottom: 2px solid #333;
+            padding-bottom: 12px; /* reduced */
+        }
+        
+        .title {
+            font-size: 48px;
+            font-weight: 700;
+            color: #FFFFFF;
+            margin-bottom: 10px;
+        }
+        
+        .subtitle {
+            font-size: 24px;
+            color: #FF5252; /* Red for critical failure */
+            font-weight: 400;
+        }
+
+        .methodology-bar {
+            background-color: #1E1E1E;
+            padding: 8px 20px; /* reduced */
+            border-left: 4px solid #888;
+            margin-bottom: 20px; /* reduced */
+            display: flex;
+            align-items: center;
+            font-size: 18px;
+            color: #CCC;
+        }
+
+        .method-item {
+            margin-right: 30px; /* slightly reduced */
+            display: flex;
+            align-items: center;
+        }
+
+        .method-icon {
+            margin-right: 8px;
+            color: #888;
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 18px; /* reduced */
+            margin-bottom: 20px; /* reduced */
+        }
+
+        .metric-card {
+            background-color: #1E1E1E;
+            padding: 14px; /* reduced */
+            text-align: center;
+            border-top: 4px solid #333;
+        }
+
+        .metric-card.fail {
+            border-top-color: #FF5252;
+            background: linear-gradient(180deg, rgba(255, 82, 82, 0.06) 0%, rgba(30, 30, 30, 1) 100%);
+        }
+
+        .metric-label {
+            font-size: 16px;
+            color: #AAA;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px; /* reduced */
+        }
+
+        .metric-value {
+            font-size: 64px;
+            font-weight: 900;
+            color: #FFFFFF;
+            line-height: 1;
+        }
+
+        .metric-sub {
+            font-size: 20px;
+            color: #FF5252;
+            margin-top: 8px; /* reduced */
+            font-weight: 500;
+        }
+
+        .analysis-section {
+            display: flex;
+            gap: 20px; /* reduced */
+            /* removed height:100% to allow natural shrink */
+        }
+
+        .analysis-box {
+            flex: 1;
+            background-color: #1E1E1E;
+            padding: 12px; /* reduced */
+            border-left: 4px solid #FF5252;
+        }
+
+        .analysis-title {
+            font-size: 22px;
+            font-weight: 700;
+            margin-bottom: 10px; /* reduced */
+            color: #FFFFFF;
+        }
+
+        .analysis-text {
+            font-size: 18px;
+            line-height: 1.6;
+            color: #CCC;
+        }
+
+        .table-container {
+            flex: 1;
+            overflow: hidden; /* avoid expanding */
+        }
+
+        .comparison-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 16px;
+        }
+
+        .comparison-table th {
+            text-align: left;
+            padding: 6px; /* reduced */
+            border-bottom: 2px solid #444;
+            color: #888;
+        }
+
+        .comparison-table td {
+            padding: 8px 6px; /* reduced */
+            border-bottom: 1px solid #333;
+            color: #EEE;
+        }
+
+        .val-bad { color: #FF5252; font-weight: 700; }
+        .val-neutral { color: #888; }
+
+    </style>
+</head>
+<body>
+    <div class="slide-container">
+        <div class="header">
+            <h1 class="title">RUN-005 — Walk-Forward検証</h1>
+            <p class="subtitle">統計的有意性の検証: Yagami_Aは「偶然」と判定</p>
+        </div>
+
+        <div class="methodology-bar">
+            <div class="method-item"><i class="fas fa-layer-group method-icon"></i> 拡張型WF (訓練6ヶ月 / 検証2ヶ月)</div>
+            <div class="method-item"><i class="fas fa-chart-bar method-icon"></i> XAUUSD 4H</div>
+            <div class="method-item"><i class="fas fa-clock method-icon"></i> 2023.10 - 2026.02</div>
+        </div>
+
+        <div class="metrics-grid">
+            <div class="metric-card fail">
+                <div class="metric-label">OOS 合格率</div>
+                <div class="metric-value">9<span style="font-size: 32px">%</span></div>
+                <div class="metric-sub">1 / 11 Folds</div>
+            </div>
+            <div class="metric-card fail">
+                <div class="metric-label">OOS 平均PF</div>
+                <div class="metric-value">0.47</div>
+                <div class="metric-sub">Target &gt; 1.2</div>
+            </div>
+            <div class="metric-card fail">
+                <div class="metric-label">OOS 平均勝率</div>
+                <div class="metric-value">22.9<span style="font-size: 32px">%</span></div>
+                <div class="metric-sub">Target &gt; 40%</div>
+            </div>
+        </div>
+
+        <div class="analysis-section">
+            <div class="analysis-box">
+                <div class="analysis-title">判定: 統計的優位性なし</div>
+                <p class="analysis-text">
+                    唯一合格したFold 4 (PF 1.50) は例外的な外れ値。<br>
+                    In-Sample (訓練期間) の平均PFですら <strong>0.67</strong> と低迷しており、戦略自体が学習期間においてすら機能していない。<br>
+                    RUN-004で見られたPF 2.012は、完全なカーブフィッティング（偶然）であったと断定。
+                </p>
+            </div>
+
+            <div class="table-container">
+                <table class="comparison-table">
+                    <thead>
+                        <tr>
+                            <th>指標</th>
+                            <th>In-Sample (訓練)</th>
+                            <th>Out-of-Sample (検証)</th>
+                            <th>劣化率</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>平均 PF</td>
+                            <td class="val-bad">0.67</td>
+                            <td class="val-bad">0.47</td>
+                            <td class="val-bad">-29.8%</td>
+                        </tr>
+                        <tr>
+                            <td>平均 勝率</td>
+                            <td class="val-bad">27.6%</td>
+                            <td class="val-bad">22.9%</td>
+                            <td class="val-bad">-17.0%</td>
+                        </tr>
+                        <tr>
+                            <td>平均 MDD</td>
+                            <td class="val-neutral">-</td>
+                            <td class="val-bad">23.0%</td>
+                            <td class="val-neutral">-</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

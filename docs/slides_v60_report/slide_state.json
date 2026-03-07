@@ -1,0 +1,96 @@
+{
+  "project_info": {
+    "title": "Yagami MTF v60 バックテスト結果レポート",
+    "created": 1772722308.1844656,
+    "last_updated": 1772722559.9764435,
+    "total_slides": 7
+  },
+  "slides": [
+    {
+      "id": "title_slide",
+      "state": "edited",
+      "pageNum": 1
+    },
+    {
+      "id": "overview",
+      "state": "edited",
+      "pageNum": 2
+    },
+    {
+      "id": "backtest_results",
+      "state": "edited",
+      "pageNum": 3
+    },
+    {
+      "id": "trade_analysis",
+      "state": "edited",
+      "pageNum": 4
+    },
+    {
+      "id": "signal_analysis",
+      "state": "edited",
+      "pageNum": 5
+    },
+    {
+      "id": "volatility_filter",
+      "state": "edited",
+      "pageNum": 6
+    },
+    {
+      "id": "conclusion",
+      "state": "edited",
+      "pageNum": 7
+    }
+  ],
+  "outline": [
+    {
+      "id": "title_slide",
+      "title": "Yagami MTF v60 バックテスト結果レポート",
+      "summary": "Yagami MTF v60戦略の2026年2月のバックテスト結果の概要",
+      "image_plan": "Use a suitable image if needed",
+      "slide_template_key": ""
+    },
+    {
+      "id": "overview",
+      "title": "戦略概要",
+      "summary": "Yagami MTF v60戦略の主要な特徴とロジック",
+      "image_plan": "Use a suitable image if needed",
+      "slide_template_key": ""
+    },
+    {
+      "id": "backtest_results",
+      "title": "バックテスト結果",
+      "summary": "2026年2月のバックテストの主要なパフォーマンス指標",
+      "image_plan": "Use a suitable image if needed",
+      "slide_template_key": ""
+    },
+    {
+      "id": "trade_analysis",
+      "title": "トレード分析",
+      "summary": "勝率、プロフィットファクター、総取引数などの詳細分析",
+      "image_plan": "Use a suitable image if needed",
+      "slide_template_key": ""
+    },
+    {
+      "id": "signal_analysis",
+      "title": "シグナル生成分析",
+      "summary": "シグナル生成ロジックの動作とデバッグログからの洞察",
+      "image_plan": "Use a suitable image if needed",
+      "slide_template_key": ""
+    },
+    {
+      "id": "volatility_filter",
+      "title": "ボラティリティフィルターの影響",
+      "summary": "ボラティリティフィルターの調整が結果に与える影響",
+      "image_plan": "Use a suitable image if needed",
+      "slide_template_key": ""
+    },
+    {
+      "id": "conclusion",
+      "title": "結論と今後の展望",
+      "summary": "バックテスト結果のまとめと今後の改善点",
+      "image_plan": "Use a suitable image if needed",
+      "slide_template_key": ""
+    }
+  ]
+}

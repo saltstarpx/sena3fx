@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>戦略概要</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+    <style>
+        body { margin: 0; padding: 0; font-family: 'Inter', sans-serif; background: #F8F8F8; }
+        .slide-container {
+            width: 1280px;
+            min-height: 720px; /* keep this as required */
+            box-sizing: border-box;
+            background: #F8F8F8;
+            padding: 60px 60px 30px; /* keep top padding (60px) for title consistency, reduce bottom */
+            display: flex;
+            flex-direction: column;
+        }
+        .page-title {
+            font-size: 32px;
+            color: #2C3E50;
+            margin-bottom: 20px; /* reduced to save vertical space */
+            text-align: center;
+        }
+        .grid-container {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px; /* reduced gap to tighten rows */
+            width: 100%;
+        }
+        .grid-item {
+            background: #FFFFFF;
+            padding: 16px; /* reduced inner padding */
+            border-radius: 8px;
+            text-align: center;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .grid-item .icon {
+            font-size: 48px;
+            color: #3498DB;
+            margin-bottom: 12px; /* tightened spacing */
+        }
+        .grid-item h3 {
+            font-size: 20px;
+            color: #2C3E50;
+            margin-bottom: 10px; /* tightened spacing */
+        }
+        .grid-item p {
+            font-size: 16px;
+            color: #34495E;
+            line-height: 1.6;
+        }
+    </style>
+</head>
+<body>
+    <div class="slide-container">
+        <h2 class="page-title">Yagami MTF v60 戦略概要</h2>
+        <div class="grid-container">
+            <div class="grid-item">
+                <div class="icon"><i class="fas fa-layer-group"></i></div>
+                <h3>マルチタイムフレーム分析</h3>
+                <p>15分足、1時間足、4時間足の3つの時間軸を監視し、相場の全体像を把握します。</p>
+            </div>
+            <div class="grid-item">
+                <div class="icon"><i class="fas fa-filter"></i></div>
+                <h3>トレンドフィルター</h3>
+                <p>1時間足と4時間足のEMA（20/75）を用いて強力なトレンド（壁）を特定し、その方向にのみエントリーします。</p>
+            </div>
+            <div class="grid-item">
+                <div class="icon"><i class="fas fa-crosshairs"></i></div>
+                <h3>エントリートリガー</h3>
+                <p>15分足のローソク足の「髭」の長さをATR（平均真の範囲）と比較し、反転の可能性が高いポイントを狙います。</p>
+            </div>
+            <div class="grid-item">
+                <div class="icon"><i class="fas fa-chart-line"></i></div>
+                <h3>エントリータイミング</h3>
+                <p>1分足まで時間軸を落とし、15分足で特定した方向への押し目や戻りを精密に捉えてエントリーします。</p>
+            </div>
+            <div class="grid-item">
+                <div class="icon"><i class="fas fa-shield-alt"></i></div>
+                <h3>リスク管理</h3>
+                <p>損切りはATRの3倍に設定し、利益確定はリスクリワード比5.0で固定。明確なルールで資金を保護します。</p>
+            </div>
+            <div class="grid-item">
+                <div class="icon"><i class="fas fa-hourglass-half"></i></div>
+                <h3>動的タイムディケイ</h3>
+                <p>相場のボラティリティ（ATR）に応じてポジションの最大保有時間を調整し、効率的な取引を目指します。</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
