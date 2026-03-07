@@ -291,7 +291,7 @@ f_c3_price_action(o_cur, h_cur, l_cur, c_cur, atr_val,
                    o_p3, h_p3, l_p3, c_p3,
                    o_p4, h_p4, l_p4, c_p4,
                    _h5, _l5, _h6, _l6, _h7, _l7,
-                   _h8, _l8, _h9, _l9, _h10, _l10) =>
+                   _h8, _l8, _h9, _l9) =>
     pa = 0
     bull = c_cur > o_cur
     bear = c_cur < o_cur
@@ -308,7 +308,7 @@ f_c3_price_action(o_cur, h_cur, l_cur, c_cur, atr_val,
         // --- ダブルボトム ---
         // 過去10本の最安値を求める
         min_low = math.min(l_cur, math.min(l_p1, math.min(l_p2, math.min(l_p3, math.min(l_p4,
-                  math.min(_l5, math.min(_l6, math.min(_l7, math.min(_l8, math.min(_l9, _l10))))))))))
+                  math.min(_l5, math.min(_l6, math.min(_l7, math.min(_l8, _l9)))))))))
 
         if math.abs(l_cur - min_low) < atr_val * 0.5 and bull and f_lower_wick(l_cur, o_cur, c_cur) > bd_cur * 0.5
             // 過去に同レベルの安値 + 中間反発があるか
@@ -338,7 +338,7 @@ f_c3_price_action(o_cur, h_cur, l_cur, c_cur, atr_val,
         // --- ダブルトップ ---
         if pa == 0
             max_high = math.max(h_cur, math.max(h_p1, math.max(h_p2, math.max(h_p3, math.max(h_p4,
-                       math.max(_h5, math.max(_h6, math.max(_h7, math.max(_h8, math.max(_h9, _h10))))))))))
+                       math.max(_h5, math.max(_h6, math.max(_h7, math.max(_h8, _h9)))))))))
             if math.abs(h_cur - max_high) < atr_val * 0.5 and bear and f_upper_wick(h_cur, o_cur, c_cur) > bd_cur * 0.5
                 found_dt = false
                 mid_low_34 = math.min(l_p1, math.min(l_p2, l_p3))
@@ -400,7 +400,7 @@ f_c3_price_action(o_cur, h_cur, l_cur, c_cur, atr_val,
 f_c4_chart_pattern(o_cur, h_cur, l_cur, c_cur, atr_val,
                     h_p1, l_p1, h_p2, l_p2, h_p3, l_p3,
                     h_p4, l_p4, _h5, _l5, _h6, _l6,
-                    _h7, _l7, _h8, _l8, _h9, _l9, _h10, _l10,
+                    _h7, _l7, _h8, _l8, _h9, _l9,
                     c_p1, c_p2, c_p3, c_p4, _c5) =>
     cp = 0
 
@@ -514,13 +514,13 @@ h4_pa = f_c3_price_action(h4_o1, h4_h1, h4_l1, h4_c1, h4_atr,
     h4_o3, h4_h3, h4_l3, h4_c3,
     h4_o4, h4_h4, h4_l4, h4_c4,
     h4_o5, h4_h5, h4_l5, h4_c5,
-    h4_h6, h4_l6, h4_h7, h4_l7,
-    h4_h8, h4_l8, h4_h9, h4_l9, h4_h10, h4_l10)
+    h4_h6, h4_l6, h4_h7, h4_l7, h4_h8, h4_l8,
+    h4_h9, h4_l9, h4_h10, h4_l10)
 
 h4_cp = f_c4_chart_pattern(h4_o1, h4_h1, h4_l1, h4_c1, h4_atr,
     h4_h2, h4_l2, h4_h3, h4_l3, h4_h4, h4_l4,
-    h4_h5, h4_l5, h4_h6, h4_l6,
-    h4_h7, h4_l7, h4_h8, h4_l8, h4_h9, h4_l9, h4_h10, h4_l10,
+    h4_h5, h4_l5, h4_h6, h4_l6, h4_h7, h4_l7,
+    h4_h8, h4_l8, h4_h9, h4_l9, h4_h10, h4_l10,
     h4_c2, h4_c3, h4_c4, h4_c5, h4_c6)
 
 // スコア計算 + 方向判定
@@ -610,9 +610,9 @@ h1_pa = f_c3_price_action(h1_o1, h1_h1, h1_l1, h1_c1, h1_atr,
     h1_o2, h1_h2, h1_l2, h1_c2,
     h1_o3, h1_h3, h1_l3, h1_c3,
     h1_o4, h1_h4, h1_l4, h1_c4,
-    0.0, 0.0, 0.0, 0.0,   // 1Hでは5~10本前は省略
-    0.0, 0.0, 0.0, 0.0,
-    0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+    0.0, 0.0, 0.0, 0.0,       // 1Hでは5~9本前は省略
+    0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+    0.0, 0.0, 0.0, 0.0)
 
 // 1Hスコア (簡易: C2+C3+C5 の3条件で判定)
 h1_score = 0
