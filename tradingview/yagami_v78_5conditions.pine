@@ -608,8 +608,7 @@ h4_swing_low = h4_sw3_low > 0 ? h4_sw3_low :
 h4_long_sl   = math.min(h4_swing_low, close - h4_atr * sl_min_atr)
 h4_long_risk = close - h4_long_sl
 h4_long_tp   = close + h4_long_risk * rr_ratio
-h4_long_valid = h4_long_risk > 0 and h4_long_risk <= h4_atr * risk_max_4h
-                and h4_long_risk >= h4_atr * 0.3  // Python min_sl_atr_mult=0.3
+h4_long_valid = h4_long_risk > 0 and h4_long_risk <= h4_atr * risk_max_4h and h4_long_risk >= h4_atr * 0.3
 
 // --- Swing High (Short SL用) ---
 h4_sw3_high = (h4_h4 < h4_h3 and h4_h5 < h4_h3 and h4_h2 < h4_h3 and h4_h1 < h4_h3) ? h4_h3 : 0.0
@@ -632,8 +631,7 @@ h4_swing_high = h4_sw3_high > 0 ? h4_sw3_high :
 h4_short_sl   = math.max(h4_swing_high, close + h4_atr * sl_min_atr)
 h4_short_risk = h4_short_sl - close
 h4_short_tp   = close - h4_short_risk * rr_ratio
-h4_short_valid = h4_short_risk > 0 and h4_short_risk <= h4_atr * risk_max_4h
-                 and h4_short_risk >= h4_atr * 0.3
+h4_short_valid = h4_short_risk > 0 and h4_short_risk <= h4_atr * risk_max_4h and h4_short_risk >= h4_atr * 0.3
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // セッションフィルター (lib/timing.py session_filter 移植)
@@ -723,8 +721,7 @@ h1_swing_low = h1_sw2_low > 0 ? h1_sw2_low :
 h1_long_sl   = math.min(h1_swing_low, close - h1_atr * sl_min_atr)
 h1_long_risk = close - h1_long_sl
 h1_long_tp   = close + h1_long_risk * rr_ratio
-h1_long_valid = h1_long_risk > 0 and h1_long_risk <= h4_atr * risk_max_1h
-                and h1_long_risk >= h1_atr * 0.3
+h1_long_valid = h1_long_risk > 0 and h1_long_risk <= h4_atr * risk_max_1h and h1_long_risk >= h1_atr * 0.3
 
 h1_sw2_high = (h1_h3 < h1_h2 and h1_h1 < h1_h2) ? h1_h2 : 0.0
 h1_sw3_high = (h1_h4 < h1_h3 and h1_h2 < h1_h3) ? h1_h3 : 0.0
@@ -735,8 +732,7 @@ h1_swing_high = h1_sw2_high > 0 ? h1_sw2_high :
 h1_short_sl   = math.max(h1_swing_high, close + h1_atr * sl_min_atr)
 h1_short_risk = h1_short_sl - close
 h1_short_tp   = close - h1_short_risk * rr_ratio
-h1_short_valid = h1_short_risk > 0 and h1_short_risk <= h4_atr * risk_max_1h
-                 and h1_short_risk >= h1_atr * 0.3
+h1_short_valid = h1_short_risk > 0 and h1_short_risk <= h4_atr * risk_max_1h and h1_short_risk >= h1_atr * 0.3
 
 sig_1h_long  = tf_valid and show_1h and h1_is_new and h1_score >= 2 and h1_dir > 0
                and h4_trend_dir == 1 and h1_long_valid
