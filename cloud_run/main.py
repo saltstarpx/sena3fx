@@ -2,7 +2,7 @@
 main.py - Cloud Run用ペーパートレードbot
 =========================================
 Cloud Schedulerから1分ごとにHTTP POSTを受け取り、
-v76ロジックで1サイクルのシグナル判定・注文処理を実行する。
+v77ロジックで1サイクルのシグナル判定・注文処理を実行する。
 
 ポジション状態はGCS（Cloud Storage）に保存して永続化する。
 ログ（trades/signals）もGCSに追記保存する。
@@ -131,7 +131,7 @@ def notify_entry(pair, dir_, ep, sl, tp, tf, risk, slippage):
             {"name": "スリッページ", "value": f"`{slippage:+.2f}pips`",            "inline": True},
             {"name": "時刻",         "value": now_str,                              "inline": True},
         ],
-        "footer": {"text": "sena3fx paper trading v76 | Cloud Run"}
+        "footer": {"text": "sena3fx paper trading v77 | Cloud Run"}
     }
     send_discord("", embeds=[embed])
 
@@ -151,7 +151,7 @@ def notify_close(pair, dir_, ep, exit_price, exit_type, pnl, tf):
             {"name": "足種",     "value": f"`{tf}`",             "inline": True},
             {"name": "時刻",     "value": now_str,               "inline": True},
         ],
-        "footer": {"text": "sena3fx paper trading v76 | Cloud Run"}
+        "footer": {"text": "sena3fx paper trading v77 | Cloud Run"}
     }
     send_discord("", embeds=[embed])
 
@@ -222,7 +222,7 @@ def send_daily_report(open_positions: dict):
             {"name": "🔓 保有中",         "value": f"`{open_count}件`",                        "inline": True},
             {"name": "📌 ポジション詳細", "value": f"```\n{pos_lines}```",                     "inline": False},
         ],
-        "footer": {"text": f"sena3fx paper trading v76 | Cloud Run | {now_str}"}
+        "footer": {"text": f"sena3fx paper trading v77 | Cloud Run | {now_str}"}
     }
     send_discord("", embeds=[embed])
     logger.info("定時レポート送信完了")
@@ -347,10 +347,10 @@ def run_cycle():
             del open_positions[tid]
 
     # ── 2. シグナル生成 ──────────────────────────────
-    # v76をインポート（Cloud Run環境ではsys.pathに追加）
+    # v77をインポート（Cloud Run環境ではsys.pathに追加）
     import sys
     sys.path.insert(0, "/app")
-    from strategies.yagami_mtf_v76 import generate_signals
+    from strategies.yagami_mtf_v77 import generate_signals
 
     for pair, cfg in PAIRS.items():
         instr  = cfg["oanda"]
