@@ -12,6 +12,7 @@ import os, json, logging, requests, sys
 import pandas as pd
 import numpy as np
 from datetime import datetime, timezone, timedelta
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from fastapi import FastAPI, Request
 from google.cloud import storage
 
@@ -298,6 +299,28 @@ def close_trade(trade_id):
     except Exception as e: logger.error(f"close {trade_id}: {e}")
     return {}
 
+# ── ペア別シグナル取得（並列化用） ───────────────────
+def fetch_pair_signal(pair, cfg, open_positions, generate_signals, now):
+    """1ペアのシグナルを取得して返す（ThreadPoolExecutor用）"""
+    if any(p["pair"]==pair for p in open_positions.values()):
+        return None
+    instr=cfg["oanda"]; ps=cfg["pip_size"]; spread_p=cfg["spread"]*ps
+    d1m=get_candles(instr,"M1",300)
+    d15m=get_candles(instr,"M15",300)
+    d4h=get_candles(instr,"H4",200)
+    if any(len(d)<50 for d in [d1m,d15m,d4h]):
+        return None
+    try:
+        sigs = generate_signals(d1m, d15m, d4h, spread_pips=spread_p)
+    except Exception as e:
+        logger.error(f"{pair} signal: {e}"); return None
+    if not sigs: return None
+    latest = max(sigs, key=lambda s: s["time"])
+    age = (now - latest["time"].replace(tzinfo=timezone.utc)).total_seconds()/60 \
+          if latest["time"].tzinfo is None else (now - latest["time"]).total_seconds()/60
+    if age > 2: return None  # 1分足戦略: 2分以上古いシグナルは無効
+    return (pair, cfg, latest)
+
 # ── メインサイクル ────────────────────────────────────
 def run_cycle():
     now = datetime.now(timezone.utc)
@@ -313,60 +336,89 @@ def run_cycle():
     except ImportError:
         logger.error("yagami_mtf_v77 import failed"); return {"status":"error","message":"import failed"}
 
-    # ── 1. 既存ポジション決済チェック ────────────────
-    for tid in list(open_positions.keys()):
-        pos = open_positions[tid]; pair = pos["pair"]
+    # ── 1. 既存ポジション決済チェック（並列） ────────
+    def check_close(tid_pos):
+        tid, pos = tid_pos
+        pair = pos["pair"]
         cfg = PAIRS.get(pair, {}); ps = cfg.get("pip_size", 0.0001)
         instr = cfg.get("oanda", pair)
         price = get_current_price(instr)
-        if price == 0.0: continue
+        if price == 0.0: return None
         ep=pos["ep"]; sl=pos["sl"]; tp=pos["tp"]; d=pos["dir"]
-        exit_type = None
         if d==1:
-            if price<=sl: exit_type="SL"
-            elif price>=tp: exit_type="TP"
+            if price<=sl: return (tid, pos, "SL", price)
+            elif price>=tp: return (tid, pos, "TP", price)
         else:
-            if price>=sl: exit_type="SL"
-            elif price<=tp: exit_type="TP"
-        if exit_type:
-            res = close_trade(tid)
-            xp = res.get("exit_price", price)
-            pnl = (xp-ep)*d/ps
-            notify_close(pair, d, ep, xp, exit_type, pnl, pos.get("tf","?"))
-            gcs_append_csv("logs/paper_trades.csv", {
-                "trade_id":tid,"pair":pair,"dir":d,"tf":pos.get("tf","?"),
-                "ep":round(ep,5),"sl":round(sl,5),"tp":round(tp,5),
-                "exit_price":round(xp,5),"exit_type":exit_type,
-                "pnl":round(pnl,1),"entry_time":pos.get("entry_time",""),"exit_time":now.isoformat()})
-            del open_positions[tid]
-            logger.info(f"CLOSED: {pair} {exit_type} pnl={pnl:.1f}p")
+            if price>=sl: return (tid, pos, "SL", price)
+            elif price<=tp: return (tid, pos, "TP", price)
+        return None
 
-    # ── 2. 新規シグナルチェック ───────────────────────
+    with ThreadPoolExecutor(max_workers=20) as ex:
+        close_results = list(ex.map(check_close, list(open_positions.items())))
+
+    for result in close_results:
+        if result is None: continue
+        tid, pos, exit_type, price = result
+        pair=pos["pair"]; cfg=PAIRS.get(pair,{}); ps=cfg.get("pip_size",0.0001)
+        ep=pos["ep"]; d=pos["dir"]
+        res = close_trade(tid)
+        xp = res.get("exit_price", price)
+        pnl = (xp-ep)*d/ps
+        notify_close(pair, d, ep, xp, exit_type, pnl, pos.get("tf","?"))
+        gcs_append_csv("logs/paper_trades.csv", {
+            "trade_id":tid,"pair":pair,"dir":d,"tf":pos.get("tf","?"),
+            "ep":round(ep,5),"sl":round(sl,5),"tp":round(tp,5),
+            "exit_price":round(xp,5),"exit_type":exit_type,
+            "pnl":round(pnl,1),"entry_time":pos.get("entry_time",""),"exit_time":now.isoformat()})
+        if tid in open_positions: del open_positions[tid]
+        logger.info(f"CLOSED: {pair} {exit_type} pnl={pnl:.1f}p")
+
+    # ── 2. 新規シグナルチェック（並列） ──────────────
     if len(open_positions) < MAX_OPEN_POSITIONS:
-        for pair, cfg in PAIRS.items():
+        # 全ペアを並列でシグナル取得（最大20スレッド）
+        candidates = []
+        pairs_to_check = [(pair, cfg) for pair, cfg in PAIRS.items()
+                          if not any(p["pair"]==pair for p in open_positions.values())]
+
+        with ThreadPoolExecutor(max_workers=20) as ex:
+            futures = {ex.submit(fetch_pair_signal, pair, cfg, open_positions, generate_signals, now): pair
+                       for pair, cfg in pairs_to_check}
+            for future in as_completed(futures, timeout=50):
+                result = future.result()
+                if result: candidates.append(result)
+
+        # シグナルが出たペアを処理
+        for pair, cfg, latest in candidates:
             if len(open_positions) >= MAX_OPEN_POSITIONS: break
             if any(p["pair"]==pair for p in open_positions.values()): continue
-            instr=cfg["oanda"]; ps=cfg["pip_size"]; spread_p=cfg["spread"]*ps
-            d1m=get_candles(instr,"M1",300); d15m=get_candles(instr,"M15",300); d4h=get_candles(instr,"H4",200)
-            if any(len(d)<50 for d in [d1m,d15m,d4h]): continue
-            try:
-                sigs = generate_signals(d1m, d15m, d4h, spread_pips=spread_p)
-            except Exception as e: logger.error(f"{pair} signal: {e}"); continue
-            if not sigs: continue
-            latest = max(sigs, key=lambda s: s["time"])
-            age = (now - latest["time"].replace(tzinfo=timezone.utc)).total_seconds()/60 if latest["time"].tzinfo is None else (now - latest["time"]).total_seconds()/60
-            if age > 5: continue
+            ps=cfg["pip_size"]; instr=cfg["oanda"]
             if sum(1 for p in open_positions.values() if p["dir"]==latest["dir"]) >= MAX_SAME_DIR:
                 gcs_append_csv("logs/paper_signals.csv",{"signal_time":latest["time"].isoformat(),"pair":pair,"dir":latest["dir"],"tf":latest.get("tf","?"),"ep":round(latest["ep"],5),"sl":round(latest["sl"],5),"tp":round(latest["tp"],5),"status":"SKIPPED_CORR"})
                 continue
-            res = place_order(instr, cfg["units"]*latest["dir"], latest["sl"], latest["tp"])
+            # エントリー前に現在価格を再取得してSL/TPを再計算（スリッページ削減）
+            current_price = get_current_price(instr)
+            if current_price == 0.0:
+                logger.warning(f"{pair}: 現在価格取得失敗、スキップ")
+                continue
+            # シグナルEPと現在価格の乖離チェック（2pip以上ずれたらスキップ）
+            price_drift = abs(current_price - latest["ep"]) / ps
+            if price_drift > 3.0:
+                logger.info(f"{pair}: 価格乖離 {price_drift:.1f}p > 3p、スキップ")
+                gcs_append_csv("logs/paper_signals.csv",{"signal_time":latest["time"].isoformat(),"pair":pair,"dir":latest["dir"],"tf":latest.get("tf","?"),"ep":round(latest["ep"],5),"sl":round(latest["sl"],5),"tp":round(latest["tp"],5),"status":"SKIPPED_DRIFT","drift_pips":round(price_drift,1)})
+                continue
+            # 現在価格ベースでSL/TP再計算
+            sl_dist = abs(latest["ep"] - latest["sl"])  # 元のSL幅を維持
+            tp_dist = abs(latest["tp"] - latest["ep"])  # 元のTP幅を維持
+            new_sl = current_price - latest["dir"] * sl_dist
+            new_tp = current_price + latest["dir"] * tp_dist
+            res = place_order(instr, cfg["units"]*latest["dir"], new_sl, new_tp)
             if res:
-                tid=res["trade_id"]; fp=res.get("fill_price",latest["ep"])
-                slip=(fp-latest["ep"])*latest["dir"]/ps
-                open_positions[tid]={"pair":pair,"dir":latest["dir"],"ep":latest["ep"],"sl":latest["sl"],"tp":latest["tp"],"tf":latest.get("tf","?"),"entry_time":now.isoformat(),"fill_price":fp,"slippage":slip}
-                gcs_append_csv("logs/paper_signals.csv",{"signal_time":latest["time"].isoformat(),"pair":pair,"dir":latest["dir"],"tf":latest.get("tf","?"),"ep":round(latest["ep"],5),"sl":round(latest["sl"],5),"tp":round(latest["tp"],5),"status":"ENTERED"})
-                notify_entry(pair, latest["dir"], latest["ep"], latest["sl"], latest["tp"], latest.get("tf","?"), slip)
-                logger.info(f"ENTERED: {pair} {'L' if latest['dir']>0 else 'S'} ep={latest['ep']:.5f}")
+                tid=res["trade_id"]; fp=res.get("fill_price", current_price)
+                slip=(fp-latest["ep"])*latest["dir"]/ps  # シグナルEPとの差をスリッページとして記録
+                open_positions[tid]={"pair":pair,"dir":latest["dir"],"ep":fp,"sl":new_sl,"tp":new_tp,"tf":latest.get("tf","?"),"entry_time":now.isoformat(),"fill_price":fp,"slippage":slip,"signal_ep":latest["ep"]}
+                gcs_append_csv("logs/paper_signals.csv",{"signal_time":latest["time"].isoformat(),"pair":pair,"dir":latest["dir"],"tf":latest.get("tf","?"),"ep":round(fp,5),"signal_ep":round(latest["ep"],5),"sl":round(new_sl,5),"tp":round(new_tp,5),"status":"ENTERED","slippage_pips":round(slip,2)})
+                notify_entry(pair, latest["dir"], fp, new_sl, new_tp, latest.get("tf","?"), slip)
+                logger.info(f"ENTERED: {pair} {'L' if latest['dir']>0 else 'S'} ep={fp:.5f} slip={slip:+.2f}p")
 
     # ── 3. 定時レポート（9時・21時 JST） ─────────────
     now_jst_h = (now.hour+9)%24
