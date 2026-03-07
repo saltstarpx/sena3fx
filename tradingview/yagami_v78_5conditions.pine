@@ -37,87 +37,55 @@ risk_max_1h = 2.0
 pivot_window = 5
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// 4H足データ取得
+// 4H足データ取得（タプル返しで request.security 呼び出し数を削減）
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-h4_open   = request.security(syminfo.tickerid, "240", open)
-h4_high   = request.security(syminfo.tickerid, "240", high)
-h4_low    = request.security(syminfo.tickerid, "240", low)
-h4_close  = request.security(syminfo.tickerid, "240", close)
-h4_atr    = request.security(syminfo.tickerid, "240", ta.atr(atr_period))
-h4_ema    = request.security(syminfo.tickerid, "240", ta.ema(close, ema_period))
+// Batch 1: 現在足 + bars[1]-[2] + ATR + EMA (14値)
+[h4_open, h4_high, h4_low, h4_close, h4_atr, h4_ema,
+ h4_o1, h4_h1, h4_l1, h4_c1,
+ h4_o2, h4_h2, h4_l2, h4_c2] = request.security(syminfo.tickerid, "240",
+    [open, high, low, close, ta.atr(atr_period), ta.ema(close, ema_period),
+     open[1], high[1], low[1], close[1],
+     open[2], high[2], low[2], close[2]])
 
-// 4H 過去足 (1~4本前)
-h4_o1 = request.security(syminfo.tickerid, "240", open[1])
-h4_h1 = request.security(syminfo.tickerid, "240", high[1])
-h4_l1 = request.security(syminfo.tickerid, "240", low[1])
-h4_c1 = request.security(syminfo.tickerid, "240", close[1])
-h4_o2 = request.security(syminfo.tickerid, "240", open[2])
-h4_h2 = request.security(syminfo.tickerid, "240", high[2])
-h4_l2 = request.security(syminfo.tickerid, "240", low[2])
-h4_c2 = request.security(syminfo.tickerid, "240", close[2])
-h4_o3 = request.security(syminfo.tickerid, "240", open[3])
-h4_h3 = request.security(syminfo.tickerid, "240", high[3])
-h4_l3 = request.security(syminfo.tickerid, "240", low[3])
-h4_c3 = request.security(syminfo.tickerid, "240", close[3])
-h4_o4 = request.security(syminfo.tickerid, "240", open[4])
-h4_h4 = request.security(syminfo.tickerid, "240", high[4])
-h4_l4 = request.security(syminfo.tickerid, "240", low[4])
-h4_c4 = request.security(syminfo.tickerid, "240", close[4])
+// Batch 2: bars[3]-[5] OHLC (12値)
+[h4_o3, h4_h3, h4_l3, h4_c3,
+ h4_o4, h4_h4, h4_l4, h4_c4,
+ h4_o5, h4_h5, h4_l5, h4_c5] = request.security(syminfo.tickerid, "240",
+    [open[3], high[3], low[3], close[3],
+     open[4], high[4], low[4], close[4],
+     open[5], high[5], low[5], close[5]])
 
-// さらに遡る足（レジサポ・パターン用）
-h4_h5  = request.security(syminfo.tickerid, "240", high[5])
-h4_l5  = request.security(syminfo.tickerid, "240", low[5])
-h4_h6  = request.security(syminfo.tickerid, "240", high[6])
-h4_l6  = request.security(syminfo.tickerid, "240", low[6])
-h4_h7  = request.security(syminfo.tickerid, "240", high[7])
-h4_l7  = request.security(syminfo.tickerid, "240", low[7])
-h4_h8  = request.security(syminfo.tickerid, "240", high[8])
-h4_l8  = request.security(syminfo.tickerid, "240", low[8])
-h4_h9  = request.security(syminfo.tickerid, "240", high[9])
-h4_l9  = request.security(syminfo.tickerid, "240", low[9])
-h4_h10 = request.security(syminfo.tickerid, "240", high[10])
-h4_l10 = request.security(syminfo.tickerid, "240", low[10])
-h4_c5  = request.security(syminfo.tickerid, "240", close[5])
-h4_o5  = request.security(syminfo.tickerid, "240", open[5])
-h4_c6  = request.security(syminfo.tickerid, "240", close[6])
-h4_o6  = request.security(syminfo.tickerid, "240", open[6])
-h4_c7  = request.security(syminfo.tickerid, "240", close[7])
-h4_o7  = request.security(syminfo.tickerid, "240", open[7])
-h4_c8  = request.security(syminfo.tickerid, "240", close[8])
-h4_o8  = request.security(syminfo.tickerid, "240", open[8])
-h4_c9  = request.security(syminfo.tickerid, "240", close[9])
-h4_o9  = request.security(syminfo.tickerid, "240", open[9])
-h4_c10 = request.security(syminfo.tickerid, "240", close[10])
-h4_o10 = request.security(syminfo.tickerid, "240", open[10])
+// Batch 3: bars[6]-[10] OHLC (20値)
+[h4_o6, h4_h6, h4_l6, h4_c6,
+ h4_o7, h4_h7, h4_l7, h4_c7,
+ h4_o8, h4_h8, h4_l8, h4_c8,
+ h4_o9, h4_h9, h4_l9, h4_c9,
+ h4_o10, h4_h10, h4_l10, h4_c10] = request.security(syminfo.tickerid, "240",
+    [open[6], high[6], low[6], close[6],
+     open[7], high[7], low[7], close[7],
+     open[8], high[8], low[8], close[8],
+     open[9], high[9], low[9], close[9],
+     open[10], high[10], low[10], close[10]])
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // 1H足データ取得
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-h1_open   = request.security(syminfo.tickerid, "60", open)
-h1_high   = request.security(syminfo.tickerid, "60", high)
-h1_low    = request.security(syminfo.tickerid, "60", low)
-h1_close  = request.security(syminfo.tickerid, "60", close)
-h1_atr    = request.security(syminfo.tickerid, "60", ta.atr(atr_period))
-h1_o1 = request.security(syminfo.tickerid, "60", open[1])
-h1_h1 = request.security(syminfo.tickerid, "60", high[1])
-h1_l1 = request.security(syminfo.tickerid, "60", low[1])
-h1_c1 = request.security(syminfo.tickerid, "60", close[1])
-h1_o2 = request.security(syminfo.tickerid, "60", open[2])
-h1_h2 = request.security(syminfo.tickerid, "60", high[2])
-h1_l2 = request.security(syminfo.tickerid, "60", low[2])
-h1_c2 = request.security(syminfo.tickerid, "60", close[2])
-h1_o3 = request.security(syminfo.tickerid, "60", open[3])
-h1_h3 = request.security(syminfo.tickerid, "60", high[3])
-h1_l3 = request.security(syminfo.tickerid, "60", low[3])
-h1_c3 = request.security(syminfo.tickerid, "60", close[3])
-h1_o4 = request.security(syminfo.tickerid, "60", open[4])
-h1_h4 = request.security(syminfo.tickerid, "60", high[4])
-h1_l4 = request.security(syminfo.tickerid, "60", low[4])
-h1_c4 = request.security(syminfo.tickerid, "60", close[4])
+// Batch 4: 現在足 + bars[1]-[2] + ATR (13値)
+[h1_open, h1_high, h1_low, h1_close, h1_atr,
+ h1_o1, h1_h1, h1_l1, h1_c1,
+ h1_o2, h1_h2, h1_l2, h1_c2] = request.security(syminfo.tickerid, "60",
+    [open, high, low, close, ta.atr(atr_period),
+     open[1], high[1], low[1], close[1],
+     open[2], high[2], low[2], close[2]])
 
-// 日足データ（上位足トレンド用）
-d1_close = request.security(syminfo.tickerid, "1D", close)
-d1_open  = request.security(syminfo.tickerid, "1D", open)
+// Batch 5: bars[3]-[4] OHLC (8値)
+[h1_o3, h1_h3, h1_l3, h1_c3,
+ h1_o4, h1_h4, h1_l4, h1_c4] = request.security(syminfo.tickerid, "60",
+    [open[3], high[3], low[3], close[3],
+     open[4], high[4], low[4], close[4]])
+
+// Batch 6: 日足データ（上位足トレンド用）
+[d1_close, d1_open] = request.security(syminfo.tickerid, "1D", [close, open])
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // EMAライン描画
