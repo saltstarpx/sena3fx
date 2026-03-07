@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1280, height=720, initial-scale=1.0">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Roboto', sans-serif; background-color: #121212; color: #FFFFFF; overflow: hidden; }
+        .slide-container {
+            width: 1280px;
+            height: 720px;
+            position: relative;
+            background-color: #121212;
+            padding: 60px 80px;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .header {
+            margin-bottom: 40px;
+            border-bottom: 2px solid #333;
+            padding-bottom: 20px;
+        }
+        
+        .title {
+            font-size: 48px;
+            font-weight: 700;
+            color: #FFFFFF;
+            margin-bottom: 10px;
+        }
+        
+        .subtitle {
+            font-size: 24px;
+            color: #888;
+            font-weight: 400;
+        }
+
+        .content-wrapper {
+            display: flex;
+            flex-direction: column;
+            gap: 40px;
+            height: 100%;
+        }
+
+        .explanation-box {
+            background-color: #1E1E1E;
+            padding: 20px;
+            border-left: 4px solid #00E676;
+        }
+
+        .explanation-text {
+            font-size: 20px;
+            color: #CCCCCC;
+            line-height: 1.5;
+        }
+
+        .comparison-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr 1fr;
+            gap: 20px;
+        }
+
+        .metric-card {
+            background-color: #1E1E1E;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            border-top: 4px solid #333;
+        }
+
+        .metric-label {
+            font-size: 16px;
+            color: #888;
+            text-transform: uppercase;
+            margin-bottom: 15px;
+            font-weight: 500;
+        }
+
+        .metric-values {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+            width: 100%;
+        }
+
+        .val-before {
+            font-size: 24px;
+            color: #666;
+            text-decoration: line-through;
+        }
+
+        .arrow {
+            color: #444;
+            font-size: 18px;
+        }
+
+        .val-after {
+            font-size: 32px;
+            font-weight: 700;
+            color: #FFFFFF;
+        }
+
+        .metric-card.positive .val-after { color: #00E676; border-top-color: #00E676; }
+        .metric-card.negative .val-after { color: #FF5252; border-top-color: #FF5252; }
+        
+        /* Specific card styling */
+        .card-c1 { border-top-color: #00E676; }
+        .card-pf { border-top-color: #00E676; }
+        .card-mdd { border-top-color: #00E676; }
+        .card-n { border-top-color: #FF5252; }
+
+        .warning-box {
+            margin-top: auto;
+            background-color: rgba(255, 82, 82, 0.1);
+            border: 1px solid rgba(255, 82, 82, 0.3);
+            padding: 25px;
+            display: flex;
+            align-items: center;
+        }
+
+        .warning-icon {
+            font-size: 32px;
+            color: #FF5252;
+            margin-right: 20px;
+        }
+
+        .warning-content h3 {
+            color: #FF5252;
+            font-size: 22px;
+            margin-bottom: 5px;
+        }
+
+        .warning-content p {
+            color: #FF8A80;
+            font-size: 18px;
+        }
+
+    </style>
+</head>
+<body>
+    <div class="slide-container">
+        <div class="header">
+            <h1 class="title">RUN-004 — P0バグ修正 (C1フィルター切替)</h1>
+            <p class="subtitle">C1充足率改善もN=7で統計的信頼性なし</p>
+        </div>
+
+        <div class="content-wrapper">
+            <div class="explanation-box">
+                <p class="explanation-text">
+                    Claude Codeのハンドオフ文書で指摘された「C1フィルターが無効（充足率99.7%）」なバグを修正。<br>
+                    <code>extract_levels</code> から <code>extract_levels_binned</code> へ切り替え、フィルター機能を正常化。
+                </p>
+            </div>
+
+            <div class="comparison-container">
+                <div class="metric-card card-c1">
+                    <span class="metric-label">C1 充足率</span>
+                    <div class="metric-values">
+                        <span class="val-before">88.5%</span>
+                        <i class="fas fa-arrow-right arrow"></i>
+                        <span class="val-after" style="color: #00E676;">25.6%</span>
+                    </div>
+                </div>
+
+                <div class="metric-card card-pf">
+                    <span class="metric-label">Yagami_A PF</span>
+                    <div class="metric-values">
+                        <span class="val-before">1.501</span>
+                        <i class="fas fa-arrow-right arrow"></i>
+                        <span class="val-after" style="color: #00E676;">2.012</span>
+                    </div>
+                </div>
+
+                <div class="metric-card card-mdd">
+                    <span class="metric-label">Yagami_A MDD</span>
+                    <div class="metric-values">
+                        <span class="val-before">5.9%</span>
+                        <i class="fas fa-arrow-right arrow"></i>
+                        <span class="val-after" style="color: #00E676;">2.5%</span>
+                    </div>
+                </div>
+
+                <div class="metric-card card-n">
+                    <span class="metric-label">トレード数 (N)</span>
+                    <div class="metric-values">
+                        <span class="val-before">18</span>
+                        <i class="fas fa-arrow-right arrow"></i>
+                        <span class="val-after" style="color: #FF5252;">7</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="warning-box">
+                <i class="fas fa-exclamation-triangle warning-icon"></i>
+                <div class="warning-content">
+                    <h3>統計的信頼性の欠如</h3>
+                    <p>
+                        PF 2.012 という数値は魅力的だが、トレード数 (N) が 7件 に激減。<br>
+                        統計的に有意なサンプル数 (N>30) を大きく下回っており、この結果は「偶然」である可能性が極めて高い。
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

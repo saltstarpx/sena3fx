@@ -1,0 +1,132 @@
+{
+  "project_info": {
+    "title": "やがみプライスアクション 検証総括",
+    "created": 1772694678.3044617,
+    "last_updated": 1772694938.4059992,
+    "total_slides": 10
+  },
+  "slides": [
+    {
+      "id": "title_slide",
+      "state": "edited",
+      "pageNum": 1
+    },
+    {
+      "id": "yagami_method_overview",
+      "state": "edited",
+      "pageNum": 2
+    },
+    {
+      "id": "run001_initial_test",
+      "state": "edited",
+      "pageNum": 3
+    },
+    {
+      "id": "run002_htf_filter",
+      "state": "edited",
+      "pageNum": 4
+    },
+    {
+      "id": "run003_signal_improvement",
+      "state": "edited",
+      "pageNum": 5
+    },
+    {
+      "id": "run004_p0_fix",
+      "state": "edited",
+      "pageNum": 6
+    },
+    {
+      "id": "run005_walk_forward",
+      "state": "edited",
+      "pageNum": 7
+    },
+    {
+      "id": "run008_final_verification",
+      "state": "edited",
+      "pageNum": 8
+    },
+    {
+      "id": "learning_summary",
+      "state": "edited",
+      "pageNum": 9
+    },
+    {
+      "id": "conclusion_future",
+      "state": "edited",
+      "pageNum": 10
+    }
+  ],
+  "outline": [
+    {
+      "id": "title_slide",
+      "title": "やがみプライスアクション 検証総括",
+      "summary": "RUN-001〜008の検証総括（2026年3月5日時点）",
+      "image_plan": "",
+      "slide_template_key": ""
+    },
+    {
+      "id": "yagami_method_overview",
+      "title": "やがみメソッドとは何か",
+      "summary": "5条件スコアリングによるプライスアクション判定と充足率の現状",
+      "image_plan": "",
+      "slide_template_key": ""
+    },
+    {
+      "id": "run001_initial_test",
+      "title": "RUN-001 — 初回バックテスト",
+      "summary": "PA1リバーサルのみが損益分岐点に到達、他は全滅",
+      "image_plan": "/home/ubuntu/sena3fx/results/figures/fig1_backtest_comparison.png - The slide presents a table of strategies and their performance metrics, which is directly visualized in Image 1 with profit factor, win rate, and drawdown charts.",
+      "slide_template_key": ""
+    },
+    {
+      "id": "run002_htf_filter",
+      "title": "RUN-002 — 4時間足ゾーンフィルター",
+      "summary": "「上位足レジサポ確認」フィルターは逆効果で仮説棄却",
+      "image_plan": "/home/ubuntu/sena3fx/results/figures/fig5_htf_comparison.png - The slide discusses the impact of a 4-hour zone filter and presents a table of results. Image 5 directly visualizes the comparison of profit factor, win rate, and total return with and without the filter.",
+      "slide_template_key": ""
+    },
+    {
+      "id": "run003_signal_improvement",
+      "title": "RUN-003 — シグナル精度向上",
+      "summary": "ボリューム確認のみ有効、EMAトレンドフィルターは論理矛盾",
+      "image_plan": "/home/ubuntu/sena3fx/results/figures/fig8_run003_overview.png - The slide details the results of improving signal accuracy and parallel A/B direction. Image 7 visualizes the profit factor, win rate, and trade count for different strategies.",
+      "slide_template_key": ""
+    },
+    {
+      "id": "run004_p0_fix",
+      "title": "RUN-004 — P0バグ修正",
+      "summary": "C1充足率改善もN=7で統計的信頼性なし",
+      "image_plan": "",
+      "slide_template_key": ""
+    },
+    {
+      "id": "run005_walk_forward",
+      "title": "RUN-005 — Walk-Forward検証",
+      "summary": "11 fold中1 foldのみ合格、Yagami_Aは偶然と判定",
+      "image_plan": "",
+      "slide_template_key": ""
+    },
+    {
+      "id": "run008_final_verification",
+      "title": "RUN-008 — C4見直し・B緩和",
+      "summary": "8パラメータセット全て不合格、やがみ4Hは構造的に機能しない",
+      "image_plan": "",
+      "slide_template_key": ""
+    },
+    {
+      "id": "learning_summary",
+      "title": "8サイクルの学習成果まとめ",
+      "summary": "全アプローチ失敗、問題はシグナル生成ロジック全体にある",
+      "image_plan": "/home/ubuntu/sena3fx/results/figures/fig10_pdca_progress.png - The slide summarizes the learning outcomes of 8 cycles. Image 9 provides a summary table of RUN-001 to RUN-003, which aligns with the slide's content.",
+      "slide_template_key": ""
+    },
+    {
+      "id": "conclusion_future",
+      "title": "結論と今後の方針",
+      "summary": "やがみメソッドはフィルター活用へ、主軸はMaedai DC+EMA200へ",
+      "image_plan": "",
+      "slide_template_key": ""
+    }
+  ]
+}

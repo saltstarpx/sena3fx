@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>トレード分析</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1"></script>
+    <style>
+        body { margin: 0; padding: 0; font-family: 'Inter', sans-serif; background: #F8F8F8; }
+        .slide-container {
+            width: 1280px;
+            min-height: 720px;
+            box-sizing: border-box;
+            background: #F8F8F8;
+            padding: 60px 80px 0;
+            display: flex;
+            flex-direction: column;
+        }
+        .page-title {
+            font-size: 32px;
+            color: #2C3E50;
+            margin-bottom: 40px;
+            text-align: center;
+        }
+        .content-wrapper {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 60px;
+        }
+        .chart-section {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .chart-container {
+            width: 400px;
+            height: 400px;
+            position: relative;
+        }
+        .table-section {
+            flex: 1;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: #FFFFFF;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        th, td {
+            padding: 20px;
+            text-align: left;
+            border-bottom: 1px solid #EEEEEE;
+            font-size: 18px;
+            color: #34495E;
+        }
+        th {
+            background-color: #2C3E50;
+            color: #FFFFFF;
+            font-weight: 700;
+        }
+        .value-cell {
+            text-align: right;
+            font-weight: 700;
+        }
+        .negative { color: #E74C3C; }
+        .positive { color: #3498DB; }
+    </style>
+</head>
+<body>
+    <div class="slide-container">
+        <h2 class="page-title">詳細トレード分析</h2>
+        <div class="content-wrapper">
+            <div class="chart-section">
+                <div class="chart-container">
+                    <canvas id="winLossChart"></canvas>
+                </div>
+                <p style="margin-top: 20px; font-size: 18px; color: #34495E;">勝敗比率の視覚化</p>
+            </div>
+            <div class="table-section">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>項目</th>
+                            <th class="value-cell">数値</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>総取引数</td>
+                            <td class="value-cell">115 回</td>
+                        </tr>
+                        <tr>
+                            <td>勝ちトレード数</td>
+                            <td class="value-cell positive">10 回</td>
+                        </tr>
+                        <tr>
+                            <td>負けトレード数</td>
+                            <td class="value-cell negative">105 回</td>
+                        </tr>
+                        <tr>
+                            <td>勝率</td>
+                            <td class="value-cell">8.70 %</td>
+                        </tr>
+                        <tr>
+                            <td>プロフィットファクター</td>
+                            <td class="value-cell negative">0.0461</td>
+                        </tr>
+                        <tr>
+                            <td>最終損益</td>
+                            <td class="value-cell negative">-13.94 pips</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <script>
+        const ctx = document.getElementById('winLossChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'pie',
+            data: {
+                labels: ['勝ち (8.7%)', '負け (91.3%)'],
+                datasets: [{
+                    data: [10, 105],
+                    backgroundColor: ['#3498DB', '#E74C3C'],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            font: { size: 16, family: 'Inter' },
+                            color: '#34495E'
+                        }
+                    }
+                }
+            }
+        });
+    </script>
+</body>
+</html>

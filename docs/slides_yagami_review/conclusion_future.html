@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1280, height=720, initial-scale=1.0">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Roboto', sans-serif; background-color: #121212; color: #FFFFFF; overflow: hidden; }
+        .slide-container {
+            width: 1280px;
+            height: 720px;
+            position: relative;
+            background-color: #121212;
+            padding: 60px 80px;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .header {
+            margin-bottom: 40px;
+            border-bottom: 2px solid #333;
+            padding-bottom: 20px;
+        }
+        
+        .title {
+            font-size: 48px;
+            font-weight: 700;
+            color: #FFFFFF;
+            margin-bottom: 10px;
+        }
+        
+        .subtitle {
+            font-size: 24px;
+            color: #888;
+            font-weight: 400;
+        }
+
+        .strategy-container {
+            display: flex;
+            gap: 40px;
+            flex: 1;
+            margin-bottom: 30px;
+        }
+
+        .strategy-card {
+            flex: 1;
+            background-color: #1E1E1E;
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .strategy-card.downgrade {
+            border-top: 6px solid #FFC107; /* Amber */
+        }
+
+        .strategy-card.promote {
+            border-top: 6px solid #00E676; /* Green */
+            background: linear-gradient(180deg, rgba(0, 230, 118, 0.05) 0%, #1E1E1E 100%);
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .strategy-name {
+            font-size: 28px;
+            font-weight: 700;
+            color: #FFFFFF;
+        }
+
+        .status-badge {
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-weight: 700;
+            font-size: 14px;
+            text-transform: uppercase;
+        }
+
+        .status-downgrade { background-color: rgba(255, 193, 7, 0.2); color: #FFC107; }
+        .status-promote { background-color: rgba(0, 230, 118, 0.2); color: #00E676; }
+
+        .role-change {
+            display: flex;
+            align-items: center;
+            margin-bottom: 25px;
+            font-size: 18px;
+            color: #CCC;
+        }
+
+        .role-arrow {
+            margin: 0 15px;
+            color: #666;
+        }
+
+        .reason-list {
+            list-style: none;
+        }
+
+        .reason-list li {
+            margin-bottom: 15px;
+            font-size: 18px;
+            color: #AAA;
+            display: flex;
+            align-items: flex-start;
+        }
+
+        .reason-list li::before {
+            content: "•";
+            margin-right: 10px;
+            font-weight: bold;
+        }
+
+        .downgrade .reason-list li::before { color: #FFC107; }
+        .promote .reason-list li::before { color: #00E676; }
+
+        .next-action-bar {
+            background-color: #333;
+            padding: 20px 30px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-radius: 4px;
+        }
+
+        .action-label {
+            font-size: 18px;
+            font-weight: 700;
+            color: #FFF;
+            display: flex;
+            align-items: center;
+        }
+
+        .action-steps {
+            display: flex;
+            gap: 30px;
+        }
+
+        .step {
+            color: #CCC;
+            font-size: 18px;
+        }
+
+        .step strong {
+            color: #00E676;
+        }
+
+    </style>
+</head>
+<body>
+    <div class="slide-container">
+        <div class="header">
+            <h1 class="title">結論と今後の方針</h1>
+            <p class="subtitle">リソース配分の抜本的見直し: "Alpha"への集中</p>
+        </div>
+
+        <div class="strategy-container">
+            <!-- Yagami Method -->
+            <div class="strategy-card downgrade">
+                <div class="card-header">
+                    <div class="strategy-name">やがみメソッド</div>
+                    <div class="status-badge status-downgrade">DOWNGRADE</div>
+                </div>
+                <div class="role-change">
+                    <span>Signal Generator</span>
+                    <i class="fas fa-arrow-right role-arrow"></i>
+                    <span style="color: #FFC107; font-weight: 700;">Environment Filter</span>
+                </div>
+                <ul class="reason-list">
+                    <li>8サイクルの検証で PF > 1.0 を安定維持できず。</li>
+                    <li>シグナル生成器としての優位性は「なし」と断定。</li>
+                    <li>今後は C1/C2 を環境認識フィルターとしてのみ活用。</li>
+                </ul>
+            </div>
+
+            <!-- Maedai Method -->
+            <div class="strategy-card promote">
+                <div class="card-header">
+                    <div class="strategy-name">Maedai (DC+EMA)</div>
+                    <div class="status-badge status-promote">PROMOTE</div>
+                </div>
+                <div class="role-change">
+                    <span>Candidate</span>
+                    <i class="fas fa-arrow-right role-arrow"></i>
+                    <span style="color: #00E676; font-weight: 700;">Main Strategy</span>
+                </div>
+                <ul class="reason-list">
+                    <li>RUN-006にて <strong>PF 3.76, WR 76.5%</strong> を記録。</li>
+                    <li>シンプルなロジックで堅牢性が高い。</li>
+                    <li>XAUUSD D1/4H との相性が抜群。</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="next-action-bar">
+            <div class="action-label">
+                <i class="fas fa-forward" style="margin-right: 15px; color: #00E676;"></i>
+                NEXT ACTIONS
+            </div>
+            <div class="action-steps">
+                <div class="step">1. <strong>RUN-007</strong>: Maedai Walk-Forward検証</div>
+                <div class="step">2. <strong>RUN-010</strong>: OANDA Forward Test開始</div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

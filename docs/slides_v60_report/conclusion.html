@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>結論と今後の展望</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+    <style>
+        body { margin: 0; padding: 0; font-family: 'Inter', sans-serif; background: #F8F8F8; }
+        .slide-container {
+            width: 1280px;
+            min-height: 720px;
+            box-sizing: border-box;
+            background: #F8F8F8;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            overflow: hidden;
+        }
+        .header {
+            padding-top: 60px;
+            text-align: center;
+        }
+        .page-title {
+            font-size: 32px;
+            color: #2C3E50;
+            margin: 0;
+        }
+        .content-wrapper {
+            display: flex;
+            justify-content: space-between;
+            padding-top: 50px;
+            padding-left: 80px;
+            padding-right: 80px;
+            flex-grow: 1;
+        }
+        .column {
+            width: 45%;
+            display: flex;
+            flex-direction: column;
+        }
+        .section-title {
+            font-size: 24px;
+            color: #3498DB;
+            margin-top: 0;
+            margin-bottom: 30px;
+            display: flex;
+            align-items: center;
+        }
+        .section-title i {
+            margin-right: 15px;
+        }
+        .list-item {
+            background: #FFFFFF;
+            padding-top: 20px;
+            padding-left: 25px;
+            padding-right: 25px;
+            margin-top: 20px;
+            border-left: 5px solid #3498DB;
+            min-height: 120px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .list-item.alert {
+            border-left-color: #E74C3C;
+        }
+        .list-item h4 {
+            font-size: 18px;
+            color: #2C3E50;
+            margin-top: 0;
+            margin-bottom: 10px;
+        }
+        .list-item p {
+            font-size: 15px;
+            color: #34495E;
+            line-height: 1.5;
+            margin: 0;
+            padding-bottom: 20px;
+        }
+        .footer-note {
+            padding-top: 40px;
+            text-align: center;
+            font-size: 14px;
+            color: #95A5A6;
+        }
+    </style>
+</head>
+<body>
+    <div class="slide-container">
+        <div class="header">
+            <h2 class="page-title">結論と今後の展望</h2>
+        </div>
+        
+        <div class="content-wrapper">
+            <!-- 左カラム: 結論 -->
+            <div class="column">
+                <h3 class="section-title"><i class="fas fa-search"></i>現状の分析結果</h3>
+                
+                <div class="list-item alert">
+                    <h4>ボラティリティフィルターの課題</h4>
+                    <p>デフォルトの閾値（スプレッドの3倍）では、2月の相場環境においてほぼ全てのシグナルが遮断され、機会損失が極めて大きいことが判明しました。</p>
+                </div>
+                
+                <div class="list-item alert">
+                    <h4>パラメータの不適合</h4>
+                    <p>フィルター解除後のPF 0.0461という結果は、現在のエントリー条件や利確・損切り幅が直近の市場ボラティリティに適合していないことを示しています。</p>
+                </div>
+            </div>
+            
+            <!-- 右カラム: 展望 -->
+            <div class="column">
+                <h3 class="section-title"><i class="fas fa-rocket"></i>今後の改善ステップ</h3>
+                
+                <div class="list-item">
+                    <h4>適応型フィルターの導入</h4>
+                    <p>固定倍率ではなく、過去24時間の平均ATRに基づいた動的なボラティリティ閾値を採用し、市場の変化に柔軟に対応するロジックへ進化させます。</p>
+                </div>
+                
+                <div class="list-item">
+                    <h4>上位足フィルターの再定義</h4>
+                    <p>EMAの並び順だけでなく、傾きや乖離率を条件に加えることで、より精度の高い「壁」の判定ロジックを構築し、勝率の向上を目指します。</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="footer-note">
+            Yagami MTF v60 Strategy Report - Next Version: v61 Development Phase
+        </div>
+    </div>
+</body>
+</html>

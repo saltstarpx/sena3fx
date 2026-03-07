@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1280, height=720, initial-scale=1.0">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Roboto', sans-serif; background-color: #121212; color: #FFFFFF; overflow: hidden; }
+        .slide-container {
+            width: 1280px;
+            height: 720px;
+            position: relative;
+            background-color: #121212;
+            padding: 60px 80px;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .header {
+            margin-bottom: 40px;
+            border-bottom: 2px solid #333;
+            padding-bottom: 20px;
+        }
+        
+        .title {
+            font-size: 48px;
+            font-weight: 700;
+            color: #FFFFFF;
+            margin-bottom: 10px;
+        }
+        
+        .subtitle {
+            font-size: 24px;
+            color: #00E676;
+            font-weight: 400;
+        }
+
+        .content-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 60px;
+            height: 100%;
+        }
+
+        .text-panel {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .concept-box {
+            background-color: #1E1E1E;
+            padding: 30px;
+            border-left: 4px solid #00E676;
+            margin-bottom: 30px;
+        }
+
+        .concept-title {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 15px;
+            color: #FFFFFF;
+        }
+
+        .concept-text {
+            font-size: 18px;
+            line-height: 1.6;
+            color: #CCCCCC;
+        }
+
+        .data-panel {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 18px;
+        }
+
+        .data-table th {
+            text-align: left;
+            padding: 15px;
+            border-bottom: 2px solid #444;
+            color: #888;
+            font-weight: 500;
+            text-transform: uppercase;
+        }
+
+        .data-table td {
+            padding: 20px 15px;
+            border-bottom: 1px solid #333;
+            color: #EEE;
+        }
+
+        .data-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .highlight-row {
+            background-color: rgba(0, 230, 118, 0.1);
+        }
+
+        .highlight-text {
+            color: #00E676;
+            font-weight: 700;
+        }
+
+        .warning-text {
+            color: #FF5252;
+            font-weight: 700;
+        }
+
+        .metric-bar-container {
+            width: 100%;
+            height: 6px;
+            background-color: #333;
+            margin-top: 10px;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .metric-bar {
+            height: 100%;
+            background-color: #00E676;
+        }
+        
+        .metric-bar.low {
+            background-color: #FF5252;
+        }
+
+        .insight-box {
+            margin-top: 30px;
+            padding: 20px;
+            background-color: rgba(255, 82, 82, 0.1);
+            border: 1px solid rgba(255, 82, 82, 0.3);
+            color: #FF8A80;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+        }
+        
+        .insight-icon {
+            margin-right: 15px;
+            font-size: 24px;
+        }
+
+    </style>
+</head>
+<body>
+    <div class="slide-container">
+        <div class="header">
+            <h1 class="title">やがみメソッドとは何か</h1>
+            <p class="subtitle">5条件スコアリングによるプライスアクション判定</p>
+        </div>
+
+        <div class="content-grid">
+            <div class="text-panel">
+                <div class="concept-box">
+                    <div class="concept-title">基本ロジック</div>
+                    <p class="concept-text">
+                        5つの条件（C1〜C5）を各1点としてスコアリング。<br><br>
+                        <strong>A評価（4〜5点）</strong>: 高確度エントリー<br>
+                        <strong>B評価（3点以上）</strong>: 標準エントリー
+                    </p>
+                </div>
+                <div class="concept-box" style="border-left-color: #FF5252;">
+                    <div class="concept-title">現状の課題</div>
+                    <p class="concept-text">
+                        C4（チャートパターン）とC5（足更新）の出現率が極端に低く、高スコア（A評価）の発生を構造的に阻害している。
+                    </p>
+                </div>
+            </div>
+
+            <div class="data-panel">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>条件</th>
+                            <th>内容</th>
+                            <th>充足率 (XAUUSD 4H)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>C1</td>
+                            <td>レジサポ一致</td>
+                            <td>
+                                25.6% <span style="font-size: 0.8em; color: #888;">(修正後)</span>
+                                <div class="metric-bar-container"><div class="metric-bar" style="width: 25.6%"></div></div>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>C2</td>
+                            <td>ローソク足強弱</td>
+                            <td>
+                                41.9%
+                                <div class="metric-bar-container"><div class="metric-bar" style="width: 41.9%"></div></div>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>C3</td>
+                            <td>PAパターン</td>
+                            <td>
+                                42.8%
+                                <div class="metric-bar-container"><div class="metric-bar" style="width: 42.8%"></div></div>
+                            </td>
+                        </tr>
+                        <tr class="highlight-row">
+                            <td class="warning-text">C4</td>
+                            <td>チャートパターン</td>
+                            <td>
+                                <span class="warning-text">15.6% (ボトルネック)</span>
+                                <div class="metric-bar-container"><div class="metric-bar low" style="width: 15.6%"></div></div>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>C5</td>
+                            <td>足更新タイミング</td>
+                            <td>
+                                15.9%
+                                <div class="metric-bar-container"><div class="metric-bar low" style="width: 15.9%"></div></div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
