@@ -431,6 +431,48 @@ async def notify_test_endpoint():
         "footer":{"text":f"sena3fx v77 | {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}"}}])
     return {"status":"ok"}
 
+@app.post("/notify_pairs")
+async def notify_pairs_endpoint():
+    """監視対象の全ペアをDiscordに通知する"""
+    now_str = datetime.now(timezone.utc).strftime("%Y/%m/%d %H:%M UTC")
+
+    # カテゴリ別に分類
+    categories = {
+        "AUD系": [p for p in PAIRS if p.startswith("AUD")],
+        "EUR系": [p for p in PAIRS if p.startswith("EUR")],
+        "GBP系": [p for p in PAIRS if p.startswith("GBP")],
+        "USD系": [p for p in PAIRS if p.startswith("USD")],
+        "CAD/CHF/NZD系": [p for p in PAIRS if p.startswith(("CAD","CHF","NZD"))],
+        "JPY/SGD/その他": [p for p in PAIRS if p.startswith(("HKD","SGD","TRY","ZAR"))],
+    }
+
+    fields = []
+    for cat, pairs_list in categories.items():
+        if pairs_list:
+            fields.append({
+                "name": f"{cat} ({len(pairs_list)}ペア)",
+                "value": "  ".join(f"`{p}`" for p in sorted(pairs_list)),
+                "inline": False
+            })
+
+    # 概要フィールドを先頭に追加
+    fields.insert(0, {
+        "name": "📊 監視概要",
+        "value": f"合計 **{len(PAIRS)}ペア** を毎分監視中\n同時オープン上限: **{MAX_OPEN_POSITIONS}件** / 同方向上限: **{MAX_SAME_DIR}件**\nRR比: **{RR_RATIO}** / 週次FB: **毎週月曜0時(JST)**",
+        "inline": False
+    })
+
+    embed = {
+        "title": "🚀 sena3fx v77 ペーパートレード 監視開始",
+        "description": "以下の全通貨ペアでv77ロジックによる自動売買を開始しました。",
+        "color": 0x00bfff,
+        "fields": fields,
+        "footer": {"text": f"sena3fx v77 | Cloud Run | {now_str}"}
+    }
+    send_discord("", embeds=[embed])
+    logger.info(f"監視開始通知送信: {len(PAIRS)}ペア")
+    return {"status": "ok", "pairs_notified": len(PAIRS), "pairs": list(PAIRS.keys())}
+
 @app.get("/status")
 async def status():
     op = gcs_read_json("state/open_positions.json",default={})
