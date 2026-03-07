@@ -594,15 +594,8 @@ h4_sw7_low = (h4_l8 > h4_l7 and h4_l9 > h4_l7 and h4_l6 > h4_l7 and h4_l5 > h4_l
 h4_sw8_low = (h4_l9 > h4_l8 and h4_l10 > h4_l8 and h4_l7 > h4_l8 and h4_l6 > h4_l8) ? h4_l8 : 0.0
 
 // 最も直近のスイングローを採用 (Python: 後ろから探索)
-h4_swing_low = h4_sw3_low > 0 ? h4_sw3_low :
-               h4_sw4_low > 0 ? h4_sw4_low :
-               h4_sw5_low > 0 ? h4_sw5_low :
-               h4_sw6_low > 0 ? h4_sw6_low :
-               h4_sw7_low > 0 ? h4_sw7_low :
-               h4_sw8_low > 0 ? h4_sw8_low :
-               math.min(h4_l1, math.min(h4_l2, math.min(h4_l3, math.min(h4_l4,
-               math.min(h4_l5, math.min(h4_l6, math.min(h4_l7, math.min(h4_l8,
-               math.min(h4_l9, h4_l10)))))))))  // フォールバック: 直近10本の最安値
+h4_fb_low = math.min(h4_l1, math.min(h4_l2, math.min(h4_l3, math.min(h4_l4, math.min(h4_l5, math.min(h4_l6, math.min(h4_l7, math.min(h4_l8, math.min(h4_l9, h4_l10)))))))))
+h4_swing_low = h4_sw3_low > 0 ? h4_sw3_low : h4_sw4_low > 0 ? h4_sw4_low : h4_sw5_low > 0 ? h4_sw5_low : h4_sw6_low > 0 ? h4_sw6_low : h4_sw7_low > 0 ? h4_sw7_low : h4_sw8_low > 0 ? h4_sw8_low : h4_fb_low
 
 // ATR下限保証: Python sl = min(sl, close - atr * sl_min_atr)
 h4_long_sl   = math.min(h4_swing_low, close - h4_atr * sl_min_atr)
@@ -618,15 +611,8 @@ h4_sw6_high = (h4_h7 < h4_h6 and h4_h8 < h4_h6 and h4_h5 < h4_h6 and h4_h4 < h4_
 h4_sw7_high = (h4_h8 < h4_h7 and h4_h9 < h4_h7 and h4_h6 < h4_h7 and h4_h5 < h4_h7) ? h4_h7 : 0.0
 h4_sw8_high = (h4_h9 < h4_h8 and h4_h10 < h4_h8 and h4_h7 < h4_h8 and h4_h6 < h4_h8) ? h4_h8 : 0.0
 
-h4_swing_high = h4_sw3_high > 0 ? h4_sw3_high :
-                h4_sw4_high > 0 ? h4_sw4_high :
-                h4_sw5_high > 0 ? h4_sw5_high :
-                h4_sw6_high > 0 ? h4_sw6_high :
-                h4_sw7_high > 0 ? h4_sw7_high :
-                h4_sw8_high > 0 ? h4_sw8_high :
-                math.max(h4_h1, math.max(h4_h2, math.max(h4_h3, math.max(h4_h4,
-                math.max(h4_h5, math.max(h4_h6, math.max(h4_h7, math.max(h4_h8,
-                math.max(h4_h9, h4_h10)))))))))  // フォールバック: 直近10本の最高値
+h4_fb_high = math.max(h4_h1, math.max(h4_h2, math.max(h4_h3, math.max(h4_h4, math.max(h4_h5, math.max(h4_h6, math.max(h4_h7, math.max(h4_h8, math.max(h4_h9, h4_h10)))))))))
+h4_swing_high = h4_sw3_high > 0 ? h4_sw3_high : h4_sw4_high > 0 ? h4_sw4_high : h4_sw5_high > 0 ? h4_sw5_high : h4_sw6_high > 0 ? h4_sw6_high : h4_sw7_high > 0 ? h4_sw7_high : h4_sw8_high > 0 ? h4_sw8_high : h4_fb_high
 
 h4_short_sl   = math.max(h4_swing_high, close + h4_atr * sl_min_atr)
 h4_short_risk = h4_short_sl - close
@@ -714,9 +700,8 @@ h4_trend_dir = h4_close > h4_ema ? 1 : -1
 // bar2が左右1本より低ければスイングロー（1Hは確認本数を1に緩和）
 h1_sw2_low = (h1_l3 > h1_l2 and h1_l1 > h1_l2) ? h1_l2 : 0.0
 h1_sw3_low = (h1_l4 > h1_l3 and h1_l2 > h1_l3) ? h1_l3 : 0.0
-h1_swing_low = h1_sw2_low > 0 ? h1_sw2_low :
-               h1_sw3_low > 0 ? h1_sw3_low :
-               math.min(h1_l1, math.min(h1_l2, math.min(h1_l3, h1_l4)))
+h1_fb_low = math.min(h1_l1, math.min(h1_l2, math.min(h1_l3, h1_l4)))
+h1_swing_low = h1_sw2_low > 0 ? h1_sw2_low : h1_sw3_low > 0 ? h1_sw3_low : h1_fb_low
 
 h1_long_sl   = math.min(h1_swing_low, close - h1_atr * sl_min_atr)
 h1_long_risk = close - h1_long_sl
@@ -725,9 +710,8 @@ h1_long_valid = h1_long_risk > 0 and h1_long_risk <= h4_atr * risk_max_1h and h1
 
 h1_sw2_high = (h1_h3 < h1_h2 and h1_h1 < h1_h2) ? h1_h2 : 0.0
 h1_sw3_high = (h1_h4 < h1_h3 and h1_h2 < h1_h3) ? h1_h3 : 0.0
-h1_swing_high = h1_sw2_high > 0 ? h1_sw2_high :
-                h1_sw3_high > 0 ? h1_sw3_high :
-                math.max(h1_h1, math.max(h1_h2, math.max(h1_h3, h1_h4)))
+h1_fb_high = math.max(h1_h1, math.max(h1_h2, math.max(h1_h3, h1_h4)))
+h1_swing_high = h1_sw2_high > 0 ? h1_sw2_high : h1_sw3_high > 0 ? h1_sw3_high : h1_fb_high
 
 h1_short_sl   = math.max(h1_swing_high, close + h1_atr * sl_min_atr)
 h1_short_risk = h1_short_sl - close
