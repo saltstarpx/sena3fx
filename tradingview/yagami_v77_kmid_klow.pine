@@ -1,0 +1,256 @@
+// This Pine Script® code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © Senna0215
+// Yagami MTF v77 — Double Bottom/Top + KMID & KLOW Filter
+// 4H EMAトレンド × 二番底/天井 × ローソク足方向フィルター
+
+//@version=6
+indicator("Yagami v77 KMID+KLOW", overlay=true, max_labels_count=500, max_lines_count=500)
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 入力パラメータ
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+rr_ratio    = input.float(2.5, "リスクリワード比", minval=1.0, step=0.1, group="トレード設定")
+atr_period  = input.int(14, "ATR期間", minval=1, group="トレード設定")
+ema_period  = input.int(20, "EMA期間 (4H)", minval=1, group="トレード設定")
+tol_mult    = input.float(0.3, "二番底/天井 許容幅 (ATR倍)", minval=0.1, step=0.05, group="トレード設定")
+sl_buffer   = input.float(0.15, "SLバッファ (ATR倍)", minval=0.0, step=0.05, group="トレード設定")
+risk_max_4h = input.float(3.0, "最大リスク幅 4H (ATR倍)", minval=1.0, group="トレード設定")
+risk_max_1h = input.float(2.0, "最大リスク幅 1H (ATR倍)", minval=1.0, group="トレード設定")
+klow_thresh = input.float(0.0015, "KLOW閾値", minval=0.0001, step=0.0001, group="v77フィルター")
+use_kmid    = input.bool(true, "KMIDフィルター有効", group="v77フィルター")
+use_klow    = input.bool(true, "KLOWフィルター有効", group="v77フィルター")
+show_1h     = input.bool(true, "1Hシグナルも表示", group="表示設定")
+show_tp_sl  = input.bool(true, "TP/SLラインを表示", group="表示設定")
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 4時間足データ取得
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+h4_open  = request.security(syminfo.tickerid, "240", open)
+h4_high  = request.security(syminfo.tickerid, "240", high)
+h4_low   = request.security(syminfo.tickerid, "240", low)
+h4_close = request.security(syminfo.tickerid, "240", close)
+h4_atr   = request.security(syminfo.tickerid, "240", ta.atr(atr_period))
+h4_ema   = request.security(syminfo.tickerid, "240", ta.ema(close, ema_period))
+
+// 4Hの前の足データ
+h4_open_1  = request.security(syminfo.tickerid, "240", open[1])
+h4_high_1  = request.security(syminfo.tickerid, "240", high[1])
+h4_low_1   = request.security(syminfo.tickerid, "240", low[1])
+h4_close_1 = request.security(syminfo.tickerid, "240", close[1])
+h4_open_2  = request.security(syminfo.tickerid, "240", open[2])
+h4_high_2  = request.security(syminfo.tickerid, "240", high[2])
+h4_low_2   = request.security(syminfo.tickerid, "240", low[2])
+h4_close_2 = request.security(syminfo.tickerid, "240", close[2])
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 1時間足データ取得
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+h1_open  = request.security(syminfo.tickerid, "60", open)
+h1_high  = request.security(syminfo.tickerid, "60", high)
+h1_low   = request.security(syminfo.tickerid, "60", low)
+h1_close = request.security(syminfo.tickerid, "60", close)
+h1_atr   = request.security(syminfo.tickerid, "60", ta.atr(atr_period))
+
+h1_open_1  = request.security(syminfo.tickerid, "60", open[1])
+h1_high_1  = request.security(syminfo.tickerid, "60", high[1])
+h1_low_1   = request.security(syminfo.tickerid, "60", low[1])
+h1_close_1 = request.security(syminfo.tickerid, "60", close[1])
+h1_open_2  = request.security(syminfo.tickerid, "60", open[2])
+h1_high_2  = request.security(syminfo.tickerid, "60", high[2])
+h1_low_2   = request.security(syminfo.tickerid, "60", low[2])
+h1_close_2 = request.security(syminfo.tickerid, "60", close[2])
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// トレンド判定
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+h4_trend = h4_close > h4_ema ? 1 : -1
+
+// EMAラインを表示
+plot(h4_ema, "4H EMA20", color=color.new(color.orange, 30), linewidth=2)
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// v77フィルター: KMID（実体方向一致）+ KLOW（下ヒゲ小）
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 直前の確定4H足に対して計算
+h4_kmid = (h4_close_1 - h4_open_1) / (h4_open_1 + 1e-12)
+h4_klow = (math.min(h4_open_1, h4_close_1) - h4_low_1) / (h4_open_1 + 1e-12)
+
+// 方向一致チェック（ロングなら陽線、ショートなら陰線）
+kmid_long_ok  = not use_kmid or h4_kmid > 0
+kmid_short_ok = not use_kmid or h4_kmid < 0
+
+// 下ヒゲ小チェック
+klow_ok = not use_klow or h4_klow < klow_thresh
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 4H 二番底・二番天井検出
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+h4_tol = h4_atr * tol_mult
+
+// 4H足更新を検出（新しい4H足が始まったタイミング）
+h4_is_new = ta.change(time("240")) != 0
+
+// ロング: 二番底（上昇トレンド + prev2とprev1の安値が近い + prev1が陽線）
+h4_double_bottom = h4_trend == 1
+     and math.abs(h4_low_2 - h4_low_1) <= h4_tol
+     and h4_close_1 > h4_open_1
+     and h4_atr > 0
+
+h4_long_sl   = math.min(h4_low_2, h4_low_1) - h4_atr * sl_buffer
+h4_long_risk = close - h4_long_sl
+h4_long_tp   = close + h4_long_risk * rr_ratio
+h4_long_valid = h4_long_risk > 0 and h4_long_risk <= h4_atr * risk_max_4h
+
+// ショート: 二番天井（下降トレンド + prev2とprev1の高値が近い + prev1が陰線）
+h4_double_top = h4_trend == -1
+     and math.abs(h4_high_2 - h4_high_1) <= h4_tol
+     and h4_close_1 < h4_open_1
+     and h4_atr > 0
+
+h4_short_sl   = math.max(h4_high_2, h4_high_1) + h4_atr * sl_buffer
+h4_short_risk = h4_short_sl - close
+h4_short_tp   = close - h4_short_risk * rr_ratio
+h4_short_valid = h4_short_risk > 0 and h4_short_risk <= h4_atr * risk_max_4h
+
+// 最終シグナル（4H足更新タイミング + v77フィルター通過）
+sig_4h_long  = h4_is_new and h4_double_bottom and h4_long_valid and kmid_long_ok and klow_ok
+sig_4h_short = h4_is_new and h4_double_top and h4_short_valid and kmid_short_ok and klow_ok
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 1H 二番底・二番天井検出
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+h1_tol = h1_atr * tol_mult
+h1_is_new = ta.change(time("60")) != 0
+
+// ロング: 二番底（4Hが上昇トレンド）
+h1_double_bottom = h4_trend == 1
+     and math.abs(h1_low_2 - h1_low_1) <= h1_tol
+     and h1_close_1 > h1_open_1
+     and h1_atr > 0
+
+h1_long_sl   = math.min(h1_low_2, h1_low_1) - h1_atr * sl_buffer
+h1_long_risk = close - h1_long_sl
+h1_long_tp   = close + h1_long_risk * rr_ratio
+h1_long_valid = h1_long_risk > 0 and h1_long_risk <= h4_atr * risk_max_1h
+
+// ショート: 二番天井（4Hが下降トレンド）
+h1_double_top = h4_trend == -1
+     and math.abs(h1_high_2 - h1_high_1) <= h1_tol
+     and h1_close_1 < h1_open_1
+     and h1_atr > 0
+
+h1_short_sl   = math.max(h1_high_2, h1_high_1) + h1_atr * sl_buffer
+h1_short_risk = h1_short_sl - close
+h1_short_tp   = close - h1_short_risk * rr_ratio
+h1_short_valid = h1_short_risk > 0 and h1_short_risk <= h4_atr * risk_max_1h
+
+// 最終シグナル（1H足更新タイミング + v77フィルター通過）
+sig_1h_long  = show_1h and h1_is_new and h1_double_bottom and h1_long_valid and kmid_long_ok and klow_ok
+sig_1h_short = show_1h and h1_is_new and h1_double_top and h1_short_valid and kmid_short_ok and klow_ok
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// シグナル表示
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+// 4H ロングシグナル
+plotshape(sig_4h_long, title="4H Long", location=location.belowbar,
+     style=shape.triangleup, size=size.normal, color=color.new(color.lime, 0),
+     text="4H▲L")
+
+// 4H ショートシグナル
+plotshape(sig_4h_short, title="4H Short", location=location.abovebar,
+     style=shape.triangledown, size=size.normal, color=color.new(color.red, 0),
+     text="4H▼S")
+
+// 1H ロングシグナル
+plotshape(sig_1h_long, title="1H Long", location=location.belowbar,
+     style=shape.triangleup, size=size.small, color=color.new(color.aqua, 0),
+     text="1H▲L")
+
+// 1H ショートシグナル
+plotshape(sig_1h_short, title="1H Short", location=location.abovebar,
+     style=shape.triangledown, size=size.small, color=color.new(color.fuchsia, 0),
+     text="1H▼S")
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// TP/SLライン描画
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+line_len = 20  // ライン表示幅（足数）
+
+if show_tp_sl and sig_4h_long
+    line.new(bar_index, h4_long_tp, bar_index + line_len, h4_long_tp,
+         color=color.new(color.lime, 40), width=2, style=line.style_dashed)
+    line.new(bar_index, h4_long_sl, bar_index + line_len, h4_long_sl,
+         color=color.new(color.red, 40), width=2, style=line.style_dashed)
+    label.new(bar_index + line_len, h4_long_tp,
+         "TP " + str.tostring(h4_long_tp, format.mintick),
+         style=label.style_label_left, color=color.new(color.lime, 80), textcolor=color.lime, size=size.tiny)
+    label.new(bar_index + line_len, h4_long_sl,
+         "SL " + str.tostring(h4_long_sl, format.mintick),
+         style=label.style_label_left, color=color.new(color.red, 80), textcolor=color.red, size=size.tiny)
+
+if show_tp_sl and sig_4h_short
+    line.new(bar_index, h4_short_tp, bar_index + line_len, h4_short_tp,
+         color=color.new(color.lime, 40), width=2, style=line.style_dashed)
+    line.new(bar_index, h4_short_sl, bar_index + line_len, h4_short_sl,
+         color=color.new(color.red, 40), width=2, style=line.style_dashed)
+    label.new(bar_index + line_len, h4_short_tp,
+         "TP " + str.tostring(h4_short_tp, format.mintick),
+         style=label.style_label_left, color=color.new(color.lime, 80), textcolor=color.lime, size=size.tiny)
+    label.new(bar_index + line_len, h4_short_sl,
+         "SL " + str.tostring(h4_short_sl, format.mintick),
+         style=label.style_label_left, color=color.new(color.red, 80), textcolor=color.red, size=size.tiny)
+
+if show_tp_sl and sig_1h_long
+    line.new(bar_index, h1_long_tp, bar_index + line_len, h1_long_tp,
+         color=color.new(color.aqua, 40), width=1, style=line.style_dotted)
+    line.new(bar_index, h1_long_sl, bar_index + line_len, h1_long_sl,
+         color=color.new(color.orange, 40), width=1, style=line.style_dotted)
+
+if show_tp_sl and sig_1h_short
+    line.new(bar_index, h1_short_tp, bar_index + line_len, h1_short_tp,
+         color=color.new(color.aqua, 40), width=1, style=line.style_dotted)
+    line.new(bar_index, h1_short_sl, bar_index + line_len, h1_short_sl,
+         color=color.new(color.orange, 40), width=1, style=line.style_dotted)
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// アラート条件
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+alertcondition(sig_4h_long, title="4H Long Entry", message="Yagami v77: 4H二番底ロング\nTP={{plot_2}} SL={{plot_3}}")
+alertcondition(sig_4h_short, title="4H Short Entry", message="Yagami v77: 4H二番天井ショート\nTP={{plot_4}} SL={{plot_5}}")
+alertcondition(sig_1h_long, title="1H Long Entry", message="Yagami v77: 1H二番底ロング")
+alertcondition(sig_1h_short, title="1H Short Entry", message="Yagami v77: 1H二番天井ショート")
+alertcondition(sig_4h_long or sig_4h_short or sig_1h_long or sig_1h_short,
+     title="Any Entry", message="Yagami v77: エントリーシグナル発生")
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 情報テーブル
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+var table infoTable = table.new(position.top_right, 2, 7, bgcolor=color.new(color.black, 80), border_width=1)
+
+if barstate.islast
+    table.cell(infoTable, 0, 0, "Yagami v77", text_color=color.white, text_size=size.normal)
+    table.cell(infoTable, 1, 0, "KMID+KLOW", text_color=color.yellow, text_size=size.normal)
+
+    table.cell(infoTable, 0, 1, "4H Trend", text_color=color.gray, text_size=size.small)
+    table.cell(infoTable, 1, 1, h4_trend == 1 ? "UP" : "DOWN",
+         text_color=h4_trend == 1 ? color.lime : color.red, text_size=size.small)
+
+    table.cell(infoTable, 0, 2, "4H ATR", text_color=color.gray, text_size=size.small)
+    table.cell(infoTable, 1, 2, str.tostring(h4_atr, format.mintick), text_color=color.white, text_size=size.small)
+
+    table.cell(infoTable, 0, 3, "KMID", text_color=color.gray, text_size=size.small)
+    table.cell(infoTable, 1, 3, str.tostring(h4_kmid, "#.#####"),
+         text_color=h4_kmid > 0 ? color.lime : color.red, text_size=size.small)
+
+    table.cell(infoTable, 0, 4, "KLOW", text_color=color.gray, text_size=size.small)
+    table.cell(infoTable, 1, 4, str.tostring(h4_klow, "#.#####"),
+         text_color=h4_klow < klow_thresh ? color.lime : color.orange, text_size=size.small)
+
+    table.cell(infoTable, 0, 5, "KMID Filter", text_color=color.gray, text_size=size.small)
+    table.cell(infoTable, 1, 5, use_kmid ? "ON" : "OFF",
+         text_color=use_kmid ? color.lime : color.gray, text_size=size.small)
+
+    table.cell(infoTable, 0, 6, "KLOW Filter", text_color=color.gray, text_size=size.small)
+    table.cell(infoTable, 1, 6, use_klow ? "ON" : "OFF",
+         text_color=use_klow ? color.lime : color.gray, text_size=size.small)
