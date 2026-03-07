@@ -122,7 +122,7 @@ f_c1_resisup(cur_close, atr_val,
              _o9, _c9, _o10, _c10) =>
     // 価格点を集めてクラスタリングの代わりに、
     // 直近のスイングハイ/ロー + 実体端が現在価格近辺にあるかチェック
-    prox = atr_val * 0.8
+    prox = atr_val * 0.5
     at_support = false
     at_resist  = false
 
@@ -171,7 +171,7 @@ f_c1_resisup(cur_close, atr_val,
         lv = array.get(sup_candidates, idx)
         if lv < cur_close and math.abs(cur_close - lv) < prox
             sup_count += 1
-    if sup_count >= 2
+    if sup_count >= 3
         at_support := true
 
     res_count = 0
@@ -179,7 +179,7 @@ f_c1_resisup(cur_close, atr_val,
         lv = array.get(res_candidates, idx)
         if lv > cur_close and math.abs(lv - cur_close) < prox
             res_count += 1
-    if res_count >= 2
+    if res_count >= 3
         at_resist := true
 
     [at_support, at_resist]
@@ -503,19 +503,18 @@ if h4_at_res
     h4_score += 1
     h4_dir   -= 1.0
 
-// C2: ローソク足強弱
+// C2: ローソク足強弱（強いパターンのみスコア加算）
+// pullback(6/-6)は弱い足なのでスコアには加算せず方向ヒントのみ
 if h4_ctype == 1 or h4_ctype == 2 or h4_ctype == 3 or h4_ctype == 4
     h4_score += 1
     h4_dir   += 1.0
 else if h4_ctype == -1 or h4_ctype == -2 or h4_ctype == -3 or h4_ctype == -4
     h4_score += 1
     h4_dir   -= 1.0
-else if h4_ctype == 6    // pullback_bull → ショート寄り
-    h4_score += 1
-    h4_dir   -= 1.0
-else if h4_ctype == -6   // pullback_bear → ロング寄り
-    h4_score += 1
-    h4_dir   += 1.0
+else if h4_ctype == 6    // pullback_bull → 方向ヒントのみ
+    h4_dir   -= 0.5
+else if h4_ctype == -6   // pullback_bear → 方向ヒントのみ
+    h4_dir   += 0.5
 
 // C3: プライスアクション
 if h4_pa == 1 or h4_pa == 2 or h4_pa == 3 or h4_pa == 4
@@ -533,8 +532,11 @@ else if h4_cp == -1 or h4_cp == -2 or h4_cp == -3
     h4_score += 1
     h4_dir   -= 1.0
 
-// C5: 足更新タイミング
-if h4_is_new
+// C5: 足更新タイミング（上位足の更新時のみ加点）
+// 4Hチャートで見ている場合、4H更新は毎足trueなので日足更新のみカウント
+// 下位足で見ている場合、4H更新タイミングをカウント
+h4_timing_valid = tf_seconds >= 14400 ? d1_is_new : h4_is_new
+if h4_timing_valid
     h4_score += 1
     h4_dir   += htf_dir
 
@@ -561,10 +563,14 @@ h4_short_valid = h4_short_risk > 0 and h4_short_risk <= h4_atr * risk_max_4h
 h4_anti_long  = h4_ctype == -1  // 直前が大陰線ならロング禁止
 h4_anti_short = h4_ctype == 1   // 直前が大陽線ならショート禁止
 
-sig_4h_long  = tf_valid and h4_is_new and h4_score >= min_score_input and h4_dir > 0
-               and h4_long_valid and not h4_trendless and not h4_anti_long
-sig_4h_short = tf_valid and h4_is_new and h4_score >= min_score_input and h4_dir < 0
-               and h4_short_valid and not h4_trendless and not h4_anti_short
+// EMAトレンド方向一致を必須にする
+h4_ema_bull = h4_close > h4_ema
+h4_ema_bear = h4_close < h4_ema
+
+sig_4h_long  = tf_valid and h4_is_new and h4_score >= min_score_input and h4_dir >= 1.5
+               and h4_long_valid and not h4_trendless and not h4_anti_long and h4_ema_bull
+sig_4h_short = tf_valid and h4_is_new and h4_score >= min_score_input and h4_dir <= -1.5
+               and h4_short_valid and not h4_trendless and not h4_anti_short and h4_ema_bear
 
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -593,11 +599,9 @@ else if h1_ctype == -1 or h1_ctype == -2 or h1_ctype == -3 or h1_ctype == -4
     h1_score += 1
     h1_dir   -= 1.0
 else if h1_ctype == 6
-    h1_score += 1
-    h1_dir   -= 1.0
+    h1_dir   -= 0.5
 else if h1_ctype == -6
-    h1_score += 1
-    h1_dir   += 1.0
+    h1_dir   += 0.5
 
 if h1_pa == 1 or h1_pa == 2 or h1_pa == 3 or h1_pa == 4
     h1_score += 1
