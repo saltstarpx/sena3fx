@@ -11,7 +11,7 @@ import os
 OANDA_TOKEN = "b3c7db048d5b6d1ac77e4263bd8bfb8b-1222fbcaf7d9ffe642692a226f7e7467"
 BASE_URL    = "https://api-fxpractice.oanda.com"
 HEADERS     = {"Authorization": f"Bearer {OANDA_TOKEN}", "Content-Type": "application/json"}
-DATA_DIR    = "/home/ubuntu/sena3fx/data"
+DATA_DIR    = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
 
 # 取得対象
 TARGETS = [
