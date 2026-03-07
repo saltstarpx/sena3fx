@@ -205,6 +205,22 @@ class OandaBroker:
         self.client.request(r)
         return r.response
 
+    def close_trade_partial(self, trade_id: str, units: int) -> dict:
+        """
+        トレードの一部ユニットを決済する。
+
+        Args:
+            trade_id: OANDAトレードID
+            units:    決済ユニット数（正数で指定）
+
+        Returns:
+            OANDA APIレスポンス dict
+        """
+        data = {'units': str(units)}
+        r = v20_trades.TradeClose(self.account_id, tradeID=trade_id, data=data)
+        self.client.request(r)
+        return r.response
+
     def close_position(self, instrument: str, side: str = 'long') -> dict:
         """
         ポジションをクローズ。

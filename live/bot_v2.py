@@ -392,8 +392,93 @@ class TradingBotV2:
             self.log.info(
                 f"[{instrument}] ✓ 発注完了 | OrderID={oid} | 約定={fpx}"
             )
+
+            # --- スリッページ補正: 約定後にユニット削減で1Rを維持 --- #
+            self._adjust_units_for_slippage(
+                instrument, sig, resp, sl_price,
+                balance, risk_pct, lot_divisor, max_units,
+            )
+
         except Exception as e:
             self.log.error(f"[{instrument}] 発注エラー: {e}")
+
+    # ---- スリッページ補正 ------------------------------------------ #
+
+    def _adjust_units_for_slippage(
+        self,
+        instrument: str,
+        sig: str,
+        order_resp: dict,
+        sl_price: float,
+        balance: float,
+        risk_pct: float,
+        lot_divisor: float,
+        max_units: int,
+    ):
+        """
+        約定後のスリッページ補正。
+
+        実約定価格でSL距離を再計算し、リスクが1Rを超えている場合は
+        超過ユニットを即座に成行決済して1Rに戻す。
+
+        有利スリップ（SL距離が縮んだ）場合は何もしない（リスク < 1R で安全側）。
+        """
+        fill_tx = order_resp.get('orderFillTransaction')
+        if not fill_tx:
+            return
+
+        try:
+            fill_price = float(fill_tx['price'])
+            filled_units = abs(int(fill_tx.get('units', 0)))
+            trade_id = fill_tx.get('tradeOpened', {}).get('tradeID')
+        except (KeyError, ValueError, TypeError):
+            self.log.debug(f"[{instrument}] 約定情報の解析に失敗、補正スキップ")
+            return
+
+        if not trade_id or filled_units <= 0:
+            return
+
+        actual_sl_dist = abs(fill_price - sl_price)
+        if actual_sl_dist <= 0:
+            return
+
+        ideal_units = calc_units(
+            balance, risk_pct, fill_price, sl_price,
+            lot_divisor, max_units,
+        )
+
+        excess = filled_units - ideal_units
+        if excess <= 0:
+            # 有利スリップ or ちょうど → 補正不要
+            if excess < 0:
+                self.log.info(
+                    f"[{instrument}] 有利スリップ: "
+                    f"約定={fill_price:.3f} SL距離={actual_sl_dist:.3f} "
+                    f"→ リスク < 1R（補正不要）"
+                )
+            return
+
+        # 超過分を即座に決済
+        self.log.info(
+            f"[{instrument}] スリッページ補正:\n"
+            f"  約定価格:     {fill_price:.3f}\n"
+            f"  実SL距離:     {actual_sl_dist:.3f}\n"
+            f"  約定units:    {filled_units}\n"
+            f"  適正units:    {ideal_units}\n"
+            f"  超過units:    {excess} → 即時決済"
+        )
+
+        try:
+            self.broker.close_trade_partial(trade_id, excess)
+            self.log.info(
+                f"[{instrument}] ✓ スリッページ補正完了: "
+                f"{excess} units 決済 → 残 {ideal_units} units (1R維持)"
+            )
+        except Exception as e:
+            self.log.error(
+                f"[{instrument}] スリッページ補正の部分決済失敗: {e}\n"
+                f"  手動で {excess} units を決済してください"
+            )
 
 
 # ------------------------------------------------------------------ #
