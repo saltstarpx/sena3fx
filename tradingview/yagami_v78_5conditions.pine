@@ -1,0 +1,781 @@
+// This Pine Script® code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © Senna0215
+// Yagami v78 — 5条件スコアリング完全版
+// Python lib/yagami.py の5条件判定を Pine Script に移植
+
+//@version=6
+indicator("Yagami v78 5Cond", overlay=true, max_labels_count=500, max_lines_count=500)
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// タイムフレーム制限
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+tf_seconds  = timeframe.in_seconds()
+tf_valid    = tf_seconds <= 14400
+
+var table tfWarnTable = table.new(position.middle_center, 1, 1, bgcolor=color.new(color.red, 70))
+if barstate.islast and not tf_valid
+    table.cell(tfWarnTable, 0, 0, "⚠ Yagami v78: 4H以下の時間足で表示してください",
+         text_color=color.white, text_size=size.large)
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ユーザー設定
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+rr_ratio    = input.float(2.5, "リスクリワード比", minval=1.0, step=0.1, group="トレード設定")
+min_score_input = input.int(3, "最低スコア (3=B評価, 4=A評価)", minval=2, maxval=5, group="トレード設定")
+show_1h     = input.bool(false, "1Hシグナルも表示", group="表示設定")
+show_tp_sl  = input.bool(true, "TP/SLラインを表示", group="表示設定")
+show_score  = input.bool(true, "スコア内訳を表示", group="表示設定")
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 内部パラメータ
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+atr_period  = 14
+ema_period  = 50       // v77の20→50に変更（大局トレンド用）
+sl_buffer   = 0.15
+risk_max_4h = 3.0
+risk_max_1h = 2.0
+pivot_window = 5
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 4H足データ取得
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+h4_open   = request.security(syminfo.tickerid, "240", open)
+h4_high   = request.security(syminfo.tickerid, "240", high)
+h4_low    = request.security(syminfo.tickerid, "240", low)
+h4_close  = request.security(syminfo.tickerid, "240", close)
+h4_atr    = request.security(syminfo.tickerid, "240", ta.atr(atr_period))
+h4_ema    = request.security(syminfo.tickerid, "240", ta.ema(close, ema_period))
+
+// 4H 過去足 (1~4本前)
+h4_o1 = request.security(syminfo.tickerid, "240", open[1])
+h4_h1 = request.security(syminfo.tickerid, "240", high[1])
+h4_l1 = request.security(syminfo.tickerid, "240", low[1])
+h4_c1 = request.security(syminfo.tickerid, "240", close[1])
+h4_o2 = request.security(syminfo.tickerid, "240", open[2])
+h4_h2 = request.security(syminfo.tickerid, "240", high[2])
+h4_l2 = request.security(syminfo.tickerid, "240", low[2])
+h4_c2 = request.security(syminfo.tickerid, "240", close[2])
+h4_o3 = request.security(syminfo.tickerid, "240", open[3])
+h4_h3 = request.security(syminfo.tickerid, "240", high[3])
+h4_l3 = request.security(syminfo.tickerid, "240", low[3])
+h4_c3 = request.security(syminfo.tickerid, "240", close[3])
+h4_o4 = request.security(syminfo.tickerid, "240", open[4])
+h4_h4 = request.security(syminfo.tickerid, "240", high[4])
+h4_l4 = request.security(syminfo.tickerid, "240", low[4])
+h4_c4 = request.security(syminfo.tickerid, "240", close[4])
+
+// さらに遡る足（レジサポ・パターン用）
+h4_h5  = request.security(syminfo.tickerid, "240", high[5])
+h4_l5  = request.security(syminfo.tickerid, "240", low[5])
+h4_h6  = request.security(syminfo.tickerid, "240", high[6])
+h4_l6  = request.security(syminfo.tickerid, "240", low[6])
+h4_h7  = request.security(syminfo.tickerid, "240", high[7])
+h4_l7  = request.security(syminfo.tickerid, "240", low[7])
+h4_h8  = request.security(syminfo.tickerid, "240", high[8])
+h4_l8  = request.security(syminfo.tickerid, "240", low[8])
+h4_h9  = request.security(syminfo.tickerid, "240", high[9])
+h4_l9  = request.security(syminfo.tickerid, "240", low[9])
+h4_h10 = request.security(syminfo.tickerid, "240", high[10])
+h4_l10 = request.security(syminfo.tickerid, "240", low[10])
+h4_c5  = request.security(syminfo.tickerid, "240", close[5])
+h4_o5  = request.security(syminfo.tickerid, "240", open[5])
+h4_c6  = request.security(syminfo.tickerid, "240", close[6])
+h4_o6  = request.security(syminfo.tickerid, "240", open[6])
+h4_c7  = request.security(syminfo.tickerid, "240", close[7])
+h4_o7  = request.security(syminfo.tickerid, "240", open[7])
+h4_c8  = request.security(syminfo.tickerid, "240", close[8])
+h4_o8  = request.security(syminfo.tickerid, "240", open[8])
+h4_c9  = request.security(syminfo.tickerid, "240", close[9])
+h4_o9  = request.security(syminfo.tickerid, "240", open[9])
+h4_c10 = request.security(syminfo.tickerid, "240", close[10])
+h4_o10 = request.security(syminfo.tickerid, "240", open[10])
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 1H足データ取得
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+h1_open   = request.security(syminfo.tickerid, "60", open)
+h1_high   = request.security(syminfo.tickerid, "60", high)
+h1_low    = request.security(syminfo.tickerid, "60", low)
+h1_close  = request.security(syminfo.tickerid, "60", close)
+h1_atr    = request.security(syminfo.tickerid, "60", ta.atr(atr_period))
+h1_o1 = request.security(syminfo.tickerid, "60", open[1])
+h1_h1 = request.security(syminfo.tickerid, "60", high[1])
+h1_l1 = request.security(syminfo.tickerid, "60", low[1])
+h1_c1 = request.security(syminfo.tickerid, "60", close[1])
+h1_o2 = request.security(syminfo.tickerid, "60", open[2])
+h1_h2 = request.security(syminfo.tickerid, "60", high[2])
+h1_l2 = request.security(syminfo.tickerid, "60", low[2])
+h1_c2 = request.security(syminfo.tickerid, "60", close[2])
+h1_o3 = request.security(syminfo.tickerid, "60", open[3])
+h1_h3 = request.security(syminfo.tickerid, "60", high[3])
+h1_l3 = request.security(syminfo.tickerid, "60", low[3])
+h1_c3 = request.security(syminfo.tickerid, "60", close[3])
+h1_o4 = request.security(syminfo.tickerid, "60", open[4])
+h1_h4 = request.security(syminfo.tickerid, "60", high[4])
+h1_l4 = request.security(syminfo.tickerid, "60", low[4])
+h1_c4 = request.security(syminfo.tickerid, "60", close[4])
+
+// 日足データ（上位足トレンド用）
+d1_close = request.security(syminfo.tickerid, "1D", close)
+d1_open  = request.security(syminfo.tickerid, "1D", open)
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// EMAライン描画
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+plot(tf_valid ? h4_ema : na, "4H EMA50", color=color.new(color.orange, 30), linewidth=2)
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ヘルパー関数
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+f_body(o_val, c_val) =>
+    math.abs(c_val - o_val)
+
+f_upper_wick(h_val, o_val, c_val) =>
+    h_val - math.max(o_val, c_val)
+
+f_lower_wick(l_val, o_val, c_val) =>
+    math.min(o_val, c_val) - l_val
+
+f_range(h_val, l_val) =>
+    h_val - l_val
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 条件1: レジサポの位置 (lib/levels.py 移植)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ピボットハイ/ロー方式で過去10本からS/Rレベルを検出
+// is_at_level() の proximity_mult=0.8 に相当
+
+f_c1_resisup(cur_close, atr_val,
+             _h1, _l1, _h2, _l2, _h3, _l3, _h4, _l4,
+             _h5, _l5, _h6, _l6, _h7, _l7, _h8, _l8,
+             _h9, _l9, _h10, _l10,
+             _o1, _c1, _o2, _c2, _o3, _c3, _o4, _c4,
+             _o5, _c5, _o6, _c6, _o7, _c7, _o8, _c8,
+             _o9, _c9, _o10, _c10) =>
+    // 価格点を集めてクラスタリングの代わりに、
+    // 直近のスイングハイ/ロー + 実体端が現在価格近辺にあるかチェック
+    prox = atr_val * 0.8
+    at_support = false
+    at_resist  = false
+
+    // ヒゲ先の安値群（サポート候補）
+    float[] sup_candidates = array.new_float()
+    array.push(sup_candidates, _l1)
+    array.push(sup_candidates, _l2)
+    array.push(sup_candidates, _l3)
+    array.push(sup_candidates, _l4)
+    array.push(sup_candidates, _l5)
+    array.push(sup_candidates, _l6)
+    array.push(sup_candidates, _l7)
+    array.push(sup_candidates, _l8)
+    array.push(sup_candidates, _l9)
+    array.push(sup_candidates, _l10)
+    // 実体下端
+    array.push(sup_candidates, math.min(_o1, _c1))
+    array.push(sup_candidates, math.min(_o2, _c2))
+    array.push(sup_candidates, math.min(_o3, _c3))
+    array.push(sup_candidates, math.min(_o4, _c4))
+    array.push(sup_candidates, math.min(_o5, _c5))
+
+    // ヒゲ先の高値群（レジスタンス候補）
+    float[] res_candidates = array.new_float()
+    array.push(res_candidates, _h1)
+    array.push(res_candidates, _h2)
+    array.push(res_candidates, _h3)
+    array.push(res_candidates, _h4)
+    array.push(res_candidates, _h5)
+    array.push(res_candidates, _h6)
+    array.push(res_candidates, _h7)
+    array.push(res_candidates, _h8)
+    array.push(res_candidates, _h9)
+    array.push(res_candidates, _h10)
+    // 実体上端
+    array.push(res_candidates, math.max(_o1, _c1))
+    array.push(res_candidates, math.max(_o2, _c2))
+    array.push(res_candidates, math.max(_o3, _c3))
+    array.push(res_candidates, math.max(_o4, _c4))
+    array.push(res_candidates, math.max(_o5, _c5))
+
+    // 同じ価格帯に2回以上タッチしていればS/R (extract_levels_binned の min_freq_pct=0.06 相当)
+    // 簡易: 現在価格 ± prox 内にある価格点が2つ以上あればレベル認定
+    sup_count = 0
+    for idx = 0 to array.size(sup_candidates) - 1
+        lv = array.get(sup_candidates, idx)
+        if lv < cur_close and math.abs(cur_close - lv) < prox
+            sup_count += 1
+    if sup_count >= 2
+        at_support := true
+
+    res_count = 0
+    for idx = 0 to array.size(res_candidates) - 1
+        lv = array.get(res_candidates, idx)
+        if lv > cur_close and math.abs(lv - cur_close) < prox
+            res_count += 1
+    if res_count >= 2
+        at_resist := true
+
+    [at_support, at_resist]
+
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 条件2: ローソク足の強弱 (lib/candle.py detect_single_candle 移植)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 返り値: candle_type (文字列の代わりに数値コード)
+//  0=neutral, 1=big_bull, -1=big_bear, 2=engulf_bull, -2=engulf_bear,
+//  3=hammer, -3=inv_hammer, 4=pinbar_bull, -4=pinbar_bear,
+//  5=doji, 6=pullback_bull, -6=pullback_bear
+
+f_c2_candle(o_cur, h_cur, l_cur, c_cur, atr_val,
+            o_prev, h_prev, l_prev, c_prev,
+            o_p2, c_p2, o_p3, c_p3) =>
+    bd = f_body(o_cur, c_cur)
+    cr = f_range(h_cur, l_cur)
+    uw = f_upper_wick(h_cur, o_cur, c_cur)
+    lw = f_lower_wick(l_cur, o_cur, c_cur)
+    bull = c_cur > o_cur
+    bear = c_cur < o_cur
+
+    body_ratio = cr > 0 ? bd / cr : 0.0
+    body_atr   = atr_val > 0 ? bd / atr_val : 0.0
+    uw_ratio   = cr > 0 ? uw / cr : 0.0
+    lw_ratio   = cr > 0 ? lw / cr : 0.0
+
+    ctype = 0
+
+    // ④ Doji
+    if body_ratio < 0.2 and uw_ratio > 0.3 and lw_ratio > 0.3
+        ctype := 5
+    // ① 大陽線/大陰線
+    else if body_atr > 1.5 and body_ratio > 0.65
+        ctype := bull ? 1 : -1
+    // ③ 包み足
+    else if bull and c_cur > math.max(o_prev, c_prev) and o_cur < math.min(o_prev, c_prev) and bd > f_body(o_prev, c_prev) * 1.1
+        ctype := 2
+    else if bear and c_cur < math.min(o_prev, c_prev) and o_cur > math.max(o_prev, c_prev) and bd > f_body(o_prev, c_prev) * 1.1
+        ctype := -2
+    // ⑤ ハンマー / 逆ハンマー
+    else if bull and lw_ratio > 0.55 and uw_ratio < 0.15 and body_ratio > 0.15
+        ctype := 3
+    else if bear and uw_ratio > 0.55 and lw_ratio < 0.15 and body_ratio > 0.15
+        ctype := -3
+    // ⑥ ピンバー
+    else if bull and lw_ratio > 0.45 and body_ratio > 0.25 and body_atr > 0.8
+        ctype := 4
+    else if bear and uw_ratio > 0.45 and body_ratio > 0.25 and body_atr > 0.8
+        ctype := -4
+    // ⑦ プルバック（直近3本中2本が逆方向 + 弱い足）
+    else if bull and body_atr < 0.6
+        bear_cnt = (c_prev < o_prev ? 1 : 0) + (c_p2 < o_p2 ? 1 : 0) + (c_p3 < o_p3 ? 1 : 0)
+        if bear_cnt >= 2
+            ctype := 6   // pullback_bull → ショート寄り
+    else if bear and body_atr < 0.6
+        bull_cnt = (c_prev > o_prev ? 1 : 0) + (c_p2 > o_p2 ? 1 : 0) + (c_p3 > o_p3 ? 1 : 0)
+        if bull_cnt >= 2
+            ctype := -6  // pullback_bear → ロング寄り
+
+    ctype
+
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 条件3: プライスアクション (lib/candle.py detect_price_action 移植)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 返り値: pa_type
+//  0=none, 1=reversal_low, -1=reversal_high,
+//  2=double_bottom, -2=double_top,
+//  3=wick_fill_bull, -3=wick_fill_bear,
+//  4=body_align_support, -4=body_align_resist
+
+f_c3_price_action(o_cur, h_cur, l_cur, c_cur, atr_val,
+                   o_p1, h_p1, l_p1, c_p1,
+                   o_p2, h_p2, l_p2, c_p2,
+                   o_p3, h_p3, l_p3, c_p3,
+                   o_p4, h_p4, l_p4, c_p4,
+                   _h5, _l5, _h6, _l6, _h7, _l7,
+                   _h8, _l8, _h9, _l9, _h10, _l10) =>
+    pa = 0
+    bull = c_cur > o_cur
+    bear = c_cur < o_cur
+    bd_cur  = f_body(o_cur, c_cur)
+    bd_prev = f_body(o_p1, c_p1)
+
+    // --- リバーサルロー ---
+    if c_p1 < o_p1 and bd_prev > atr_val * 1.2 and bull and bd_cur > atr_val * 1.0 and c_cur > (o_p1 + c_p1) / 2
+        pa := 1
+    // --- リバーサルハイ ---
+    else if c_p1 > o_p1 and bd_prev > atr_val * 1.2 and bear and bd_cur > atr_val * 1.0 and c_cur < (o_p1 + c_p1) / 2
+        pa := -1
+    else
+        // --- ダブルボトム ---
+        // 過去10本の最安値を求める
+        min_low = math.min(l_cur, math.min(l_p1, math.min(l_p2, math.min(l_p3, math.min(l_p4,
+                  math.min(_l5, math.min(_l6, math.min(_l7, math.min(_l8, math.min(_l9, _l10))))))))))
+
+        if math.abs(l_cur - min_low) < atr_val * 0.5 and bull and f_lower_wick(l_cur, o_cur, c_cur) > bd_cur * 0.5
+            // 過去に同レベルの安値 + 中間反発があるか
+            found_db = false
+            // l_p3〜l_p10を順にチェック
+            mid_high_34 = math.max(h_p1, math.max(h_p2, h_p3))
+            if math.abs(l_p3 - l_cur) < atr_val * 1.0 and mid_high_34 > min_low + atr_val * 1.5
+                found_db := true
+            mid_high_45 = math.max(h_p1, math.max(h_p2, math.max(h_p3, h_p4)))
+            if not found_db and math.abs(l_p4 - l_cur) < atr_val * 1.0 and mid_high_45 > min_low + atr_val * 1.5
+                found_db := true
+            mid_high_56 = math.max(h_p1, math.max(h_p2, math.max(h_p3, math.max(h_p4, _h5))))
+            if not found_db and math.abs(_l5 - l_cur) < atr_val * 1.0 and mid_high_56 > min_low + atr_val * 1.5
+                found_db := true
+            mid_high_67 = math.max(mid_high_56, _h6)
+            if not found_db and math.abs(_l6 - l_cur) < atr_val * 1.0 and mid_high_67 > min_low + atr_val * 1.5
+                found_db := true
+            mid_high_78 = math.max(mid_high_67, _h7)
+            if not found_db and math.abs(_l7 - l_cur) < atr_val * 1.0 and mid_high_78 > min_low + atr_val * 1.5
+                found_db := true
+            mid_high_89 = math.max(mid_high_78, _h8)
+            if not found_db and math.abs(_l8 - l_cur) < atr_val * 1.0 and mid_high_89 > min_low + atr_val * 1.5
+                found_db := true
+            if found_db
+                pa := 2
+
+        // --- ダブルトップ ---
+        if pa == 0
+            max_high = math.max(h_cur, math.max(h_p1, math.max(h_p2, math.max(h_p3, math.max(h_p4,
+                       math.max(_h5, math.max(_h6, math.max(_h7, math.max(_h8, math.max(_h9, _h10))))))))))
+            if math.abs(h_cur - max_high) < atr_val * 0.5 and bear and f_upper_wick(h_cur, o_cur, c_cur) > bd_cur * 0.5
+                found_dt = false
+                mid_low_34 = math.min(l_p1, math.min(l_p2, l_p3))
+                if math.abs(h_p3 - h_cur) < atr_val * 1.0 and max_high - mid_low_34 > atr_val * 1.5
+                    found_dt := true
+                mid_low_45 = math.min(mid_low_34, l_p4)
+                if not found_dt and math.abs(h_p4 - h_cur) < atr_val * 1.0 and max_high - mid_low_45 > atr_val * 1.5
+                    found_dt := true
+                mid_low_56 = math.min(mid_low_45, _l5)
+                if not found_dt and math.abs(_h5 - h_cur) < atr_val * 1.0 and max_high - mid_low_56 > atr_val * 1.5
+                    found_dt := true
+                mid_low_67 = math.min(mid_low_56, _l6)
+                if not found_dt and math.abs(_h6 - h_cur) < atr_val * 1.0 and max_high - mid_low_67 > atr_val * 1.5
+                    found_dt := true
+                mid_low_78 = math.min(mid_low_67, _l7)
+                if not found_dt and math.abs(_h7 - h_cur) < atr_val * 1.0 and max_high - mid_low_78 > atr_val * 1.5
+                    found_dt := true
+                mid_low_89 = math.min(mid_low_78, _l8)
+                if not found_dt and math.abs(_h8 - h_cur) < atr_val * 1.0 and max_high - mid_low_89 > atr_val * 1.5
+                    found_dt := true
+                if found_dt
+                    pa := -2
+
+        // --- ヒゲ埋めムーブ ---
+        if pa == 0
+            prev_body_top = math.max(o_p1, c_p1)
+            prev_body_bot = math.min(o_p1, c_p1)
+            if h_p1 - prev_body_top > atr_val * 0.3 and c_cur > prev_body_top and math.min(o_cur, c_cur) < h_p1
+                pa := 3   // wick_fill_bull
+            else if prev_body_bot - l_p1 > atr_val * 0.3 and c_cur < prev_body_bot and math.max(o_cur, c_cur) > l_p1
+                pa := -3  // wick_fill_bear
+
+        // --- 実体揃い ---
+        if pa == 0
+            bl0 = math.min(o_cur, c_cur)
+            bl1 = math.min(o_p1, c_p1)
+            bl2 = math.min(o_p2, c_p2)
+            bl3 = math.min(o_p3, c_p3)
+            bh0 = math.max(o_cur, c_cur)
+            bh1 = math.max(o_p1, c_p1)
+            bh2 = math.max(o_p2, c_p2)
+            bh3 = math.max(o_p3, c_p3)
+            low_range  = math.max(bl0, math.max(bl1, math.max(bl2, bl3))) - math.min(bl0, math.min(bl1, math.min(bl2, bl3)))
+            high_range = math.max(bh0, math.max(bh1, math.max(bh2, bh3))) - math.min(bh0, math.min(bh1, math.min(bh2, bh3)))
+            if low_range < atr_val * 0.3 and bull
+                pa := 4   // body_align_support
+            else if high_range < atr_val * 0.3 and bear
+                pa := -4  // body_align_resist
+
+    pa
+
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 条件4: チャートパターン (lib/patterns.py 移植 — 簡易版)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Pine Scriptではpolyfit等が使えないため、
+// 逆三尊/三尊とフラッグをスイングポイントベースで検出
+
+f_c4_chart_pattern(o_cur, h_cur, l_cur, c_cur, atr_val,
+                    h_p1, l_p1, h_p2, l_p2, h_p3, l_p3,
+                    h_p4, l_p4, _h5, _l5, _h6, _l6,
+                    _h7, _l7, _h8, _l8, _h9, _l9, _h10, _l10,
+                    c_p1, c_p2, c_p3, c_p4, _c5) =>
+    cp = 0
+
+    // --- 逆三尊 (3つのスイングローで中央が最も低い) ---
+    // スイングロー候補: l_p2, l_p4〜l_p8の中から3つのパターンを探す
+    // 簡易版: (l_p4 or l_p5), l_p3 or l_p2(head), (l_p1) のパターン
+    // 右肩=l_p1, ヘッド=l_p3, 左肩=l_p5
+    if l_p3 < l_p1 and l_p3 < _l5 and math.abs(l_p1 - _l5) < atr_val * 2.0
+        head_depth = math.min(l_p1, _l5) - l_p3
+        if head_depth > atr_val * 1.0
+            neckline = (math.max(h_p2, h_p4) + math.max(h_p2, h_p4)) / 2
+            if c_cur > neckline and c_p1 <= neckline
+                cp := 1  // inv_hs_long
+    // 別パターン: 右肩=l_p2, ヘッド=l_p4, 左肩=l_p6
+    if cp == 0 and l_p4 < l_p2 and l_p4 < _l6 and math.abs(l_p2 - _l6) < atr_val * 2.0
+        head_depth2 = math.min(l_p2, _l6) - l_p4
+        if head_depth2 > atr_val * 1.0
+            neckline2 = math.max(h_p3, _h5)
+            if c_cur > neckline2 and c_p1 <= neckline2
+                cp := 1
+
+    // --- 三尊 ---
+    if cp == 0
+        if h_p3 > h_p1 and h_p3 > _h5 and math.abs(h_p1 - _h5) < atr_val * 2.0
+            head_h = h_p3 - math.max(h_p1, _h5)
+            if head_h > atr_val * 1.0
+                neckline3 = math.min(l_p2, l_p4)
+                if c_cur < neckline3 and c_p1 >= neckline3
+                    cp := -1  // hs_short
+        if cp == 0 and h_p4 > h_p2 and h_p4 > _h6 and math.abs(h_p2 - _h6) < atr_val * 2.0
+            head_h2 = h_p4 - math.max(h_p2, _h6)
+            if head_h2 > atr_val * 1.0
+                neckline4 = math.min(l_p3, _l5)
+                if c_cur < neckline4 and c_p1 >= neckline4
+                    cp := -1
+
+    // --- ブルフラッグ（安値切り下がり → 上抜け）---
+    if cp == 0
+        // 直近5本の安値が徐々に下がっている + 今足で反発上抜け
+        lows_descending = l_p4 > _l5 and l_p3 > l_p4 and l_p2 > l_p3 and l_p1 < l_p2
+        highs_descending = h_p4 > _h5 and h_p3 > h_p4
+        if lows_descending and highs_descending
+            upper_approx = h_p1
+            if c_cur > upper_approx + atr_val * 0.3
+                cp := 2  // flag_bull
+
+    // --- ベアフラッグ（高値切り上がり → 下抜け）---
+    if cp == 0
+        lows_ascending = l_p4 < _l5 and l_p3 < l_p4 and l_p2 < l_p3 and l_p1 > l_p2
+        highs_ascending = h_p4 < _h5 and h_p3 < h_p4
+        if lows_ascending and highs_ascending
+            lower_approx = l_p1
+            if c_cur < lower_approx - atr_val * 0.3
+                cp := -2  // flag_bear
+
+    // --- 三角持ち合いブレイク ---
+    if cp == 0
+        // 高値切り下げ + 安値切り上げ → 収束後ブレイク
+        h_contracting = _h5 > h_p4 and h_p4 > h_p3 and h_p3 > h_p2
+        l_expanding   = _l5 < l_p4 and l_p4 < l_p3 and l_p3 < l_p2
+        if h_contracting and l_expanding
+            if c_cur > h_p1 + atr_val * 0.2
+                cp := 3  // triangle_break_bull
+            else if c_cur < l_p1 - atr_val * 0.2
+                cp := -3 // triangle_break_bear
+
+    cp
+
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 条件5: 足更新タイミング (lib/timing.py 移植)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+h4_is_new = ta.change(time("240")) != 0
+h1_is_new = ta.change(time("60")) != 0
+d1_is_new = ta.change(time("1D")) != 0
+
+// 上位足の色による方向加点
+htf_dir = d1_close > d1_open ? 0.5 : d1_close < d1_open ? -0.5 : 0.0
+
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// フィルター: トレンドレス (Doji 4本連続)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+f_is_doji(o_val, h_val, l_val, c_val) =>
+    cr = f_range(h_val, l_val)
+    bd = f_body(o_val, c_val)
+    cr > 0 and bd / cr < 0.3 and f_upper_wick(h_val, o_val, c_val) / cr > 0.25 and f_lower_wick(l_val, o_val, c_val) / cr > 0.25
+
+h4_trendless = f_is_doji(h4_o1, h4_h1, h4_l1, h4_c1) and f_is_doji(h4_o2, h4_h2, h4_l2, h4_c2) and
+               f_is_doji(h4_o3, h4_h3, h4_l3, h4_c3) and f_is_doji(h4_o4, h4_h4, h4_l4, h4_c4)
+
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 4H シグナル: 5条件スコアリング
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 直前の確定4H足 (h4_*1) に対して評価
+[h4_at_sup, h4_at_res] = f_c1_resisup(h4_c1, h4_atr,
+    h4_h1, h4_l1, h4_h2, h4_l2, h4_h3, h4_l3, h4_h4, h4_l4,
+    h4_h5, h4_l5, h4_h6, h4_l6, h4_h7, h4_l7, h4_h8, h4_l8,
+    h4_h9, h4_l9, h4_h10, h4_l10,
+    h4_o1, h4_c1, h4_o2, h4_c2, h4_o3, h4_c3, h4_o4, h4_c4,
+    h4_o5, h4_c5, h4_o6, h4_c6, h4_o7, h4_c7, h4_o8, h4_c8,
+    h4_o9, h4_c9, h4_o10, h4_c10)
+
+h4_ctype = f_c2_candle(h4_o1, h4_h1, h4_l1, h4_c1, h4_atr,
+    h4_o2, h4_h2, h4_l2, h4_c2,
+    h4_o3, h4_c3, h4_o4, h4_c4)
+
+h4_pa = f_c3_price_action(h4_o1, h4_h1, h4_l1, h4_c1, h4_atr,
+    h4_o2, h4_h2, h4_l2, h4_c2,
+    h4_o3, h4_h3, h4_l3, h4_c3,
+    h4_o4, h4_h4, h4_l4, h4_c4,
+    h4_o5, h4_h5, h4_l5, h4_c5,
+    h4_h6, h4_l6, h4_h7, h4_l7,
+    h4_h8, h4_l8, h4_h9, h4_l9, h4_h10, h4_l10)
+
+h4_cp = f_c4_chart_pattern(h4_o1, h4_h1, h4_l1, h4_c1, h4_atr,
+    h4_h2, h4_l2, h4_h3, h4_l3, h4_h4, h4_l4,
+    h4_h5, h4_l5, h4_h6, h4_l6,
+    h4_h7, h4_l7, h4_h8, h4_l8, h4_h9, h4_l9, h4_h10, h4_l10,
+    h4_c2, h4_c3, h4_c4, h4_c5, h4_c6)
+
+// スコア計算 + 方向判定
+h4_score = 0
+h4_dir   = 0.0
+
+// C1: レジサポ
+if h4_at_sup
+    h4_score += 1
+    h4_dir   += 1.0
+if h4_at_res
+    h4_score += 1
+    h4_dir   -= 1.0
+
+// C2: ローソク足強弱
+if h4_ctype == 1 or h4_ctype == 2 or h4_ctype == 3 or h4_ctype == 4
+    h4_score += 1
+    h4_dir   += 1.0
+else if h4_ctype == -1 or h4_ctype == -2 or h4_ctype == -3 or h4_ctype == -4
+    h4_score += 1
+    h4_dir   -= 1.0
+else if h4_ctype == 6    // pullback_bull → ショート寄り
+    h4_score += 1
+    h4_dir   -= 1.0
+else if h4_ctype == -6   // pullback_bear → ロング寄り
+    h4_score += 1
+    h4_dir   += 1.0
+
+// C3: プライスアクション
+if h4_pa == 1 or h4_pa == 2 or h4_pa == 3 or h4_pa == 4
+    h4_score += 1
+    h4_dir   += 1.0
+else if h4_pa == -1 or h4_pa == -2 or h4_pa == -3 or h4_pa == -4
+    h4_score += 1
+    h4_dir   -= 1.0
+
+// C4: チャートパターン
+if h4_cp == 1 or h4_cp == 2 or h4_cp == 3
+    h4_score += 1
+    h4_dir   += 1.0
+else if h4_cp == -1 or h4_cp == -2 or h4_cp == -3
+    h4_score += 1
+    h4_dir   -= 1.0
+
+// C5: 足更新タイミング
+if h4_is_new
+    h4_score += 1
+    h4_dir   += htf_dir
+
+// グレード
+h4_grade = h4_score >= 4 ? "A" : h4_score >= 3 ? "B" : "C"
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 4H TP/SL計算
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+h4_long_sl   = math.min(h4_l1, h4_l2) - h4_atr * sl_buffer
+h4_long_risk = close - h4_long_sl
+h4_long_tp   = close + h4_long_risk * rr_ratio
+h4_long_valid = h4_long_risk > 0 and h4_long_risk <= h4_atr * risk_max_4h
+
+h4_short_sl   = math.max(h4_h1, h4_h2) + h4_atr * sl_buffer
+h4_short_risk = h4_short_sl - close
+h4_short_tp   = close - h4_short_risk * rr_ratio
+h4_short_valid = h4_short_risk > 0 and h4_short_risk <= h4_atr * risk_max_4h
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 4H 最終シグナル（フィルター適用）
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 大陽線/大陰線への逆張り禁止
+h4_anti_long  = h4_ctype == -1  // 直前が大陰線ならロング禁止
+h4_anti_short = h4_ctype == 1   // 直前が大陽線ならショート禁止
+
+sig_4h_long  = tf_valid and h4_is_new and h4_score >= min_score_input and h4_dir > 0
+               and h4_long_valid and not h4_trendless and not h4_anti_long
+sig_4h_short = tf_valid and h4_is_new and h4_score >= min_score_input and h4_dir < 0
+               and h4_short_valid and not h4_trendless and not h4_anti_short
+
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 1H シグナル（同じ5条件を1Hデータで評価）
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+h1_ctype = f_c2_candle(h1_o1, h1_h1, h1_l1, h1_c1, h1_atr,
+    h1_o2, h1_h2, h1_l2, h1_c2,
+    h1_o3, h1_c3, h1_o4, h1_c4)
+
+h1_pa = f_c3_price_action(h1_o1, h1_h1, h1_l1, h1_c1, h1_atr,
+    h1_o2, h1_h2, h1_l2, h1_c2,
+    h1_o3, h1_h3, h1_l3, h1_c3,
+    h1_o4, h1_h4, h1_l4, h1_c4,
+    0.0, 0.0, 0.0, 0.0,   // 1Hでは5~10本前は省略
+    0.0, 0.0, 0.0, 0.0,
+    0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+
+// 1Hスコア (簡易: C2+C3+C5 の3条件で判定)
+h1_score = 0
+h1_dir   = 0.0
+
+if h1_ctype == 1 or h1_ctype == 2 or h1_ctype == 3 or h1_ctype == 4
+    h1_score += 1
+    h1_dir   += 1.0
+else if h1_ctype == -1 or h1_ctype == -2 or h1_ctype == -3 or h1_ctype == -4
+    h1_score += 1
+    h1_dir   -= 1.0
+else if h1_ctype == 6
+    h1_score += 1
+    h1_dir   -= 1.0
+else if h1_ctype == -6
+    h1_score += 1
+    h1_dir   += 1.0
+
+if h1_pa == 1 or h1_pa == 2 or h1_pa == 3 or h1_pa == 4
+    h1_score += 1
+    h1_dir   += 1.0
+else if h1_pa == -1 or h1_pa == -2 or h1_pa == -3 or h1_pa == -4
+    h1_score += 1
+    h1_dir   -= 1.0
+
+if h1_is_new
+    h1_score += 1
+    // 4Hの色に順張り
+    h1_dir += h4_close > h4_open ? 0.5 : h4_close < h4_open ? -0.5 : 0.0
+
+// 4Hトレンド方向一致を必須にする
+h4_trend_dir = h4_close > h4_ema ? 1 : -1
+
+h1_long_sl   = math.min(h1_l1, h1_l2) - h1_atr * sl_buffer
+h1_long_risk = close - h1_long_sl
+h1_long_tp   = close + h1_long_risk * rr_ratio
+h1_long_valid = h1_long_risk > 0 and h1_long_risk <= h4_atr * risk_max_1h
+
+h1_short_sl   = math.max(h1_h1, h1_h2) + h1_atr * sl_buffer
+h1_short_risk = h1_short_sl - close
+h1_short_tp   = close - h1_short_risk * rr_ratio
+h1_short_valid = h1_short_risk > 0 and h1_short_risk <= h4_atr * risk_max_1h
+
+sig_1h_long  = tf_valid and show_1h and h1_is_new and h1_score >= 2 and h1_dir > 0
+               and h4_trend_dir == 1 and h1_long_valid
+sig_1h_short = tf_valid and show_1h and h1_is_new and h1_score >= 2 and h1_dir < 0
+               and h4_trend_dir == -1 and h1_short_valid
+
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// シグナル表示
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 4Hシグナル — グレード付き
+plotshape(sig_4h_long and h4_score >= 4, title="4H Long A", location=location.belowbar,
+     style=shape.triangleup, size=size.normal, color=color.new(color.lime, 0),
+     text="4H▲A")
+plotshape(sig_4h_long and h4_score == 3, title="4H Long B", location=location.belowbar,
+     style=shape.triangleup, size=size.small, color=color.new(color.lime, 30),
+     text="4H▲B")
+
+plotshape(sig_4h_short and h4_score >= 4, title="4H Short A", location=location.abovebar,
+     style=shape.triangledown, size=size.normal, color=color.new(color.red, 0),
+     text="4H▼A")
+plotshape(sig_4h_short and h4_score == 3, title="4H Short B", location=location.abovebar,
+     style=shape.triangledown, size=size.small, color=color.new(color.red, 30),
+     text="4H▼B")
+
+// 1Hシグナル
+plotshape(sig_1h_long, title="1H Long", location=location.belowbar,
+     style=shape.triangleup, size=size.tiny, color=color.new(color.aqua, 0),
+     text="1H▲")
+plotshape(sig_1h_short, title="1H Short", location=location.abovebar,
+     style=shape.triangledown, size=size.tiny, color=color.new(color.fuchsia, 0),
+     text="1H▼")
+
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// TP/SLライン描画
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+line_len = 20
+
+if show_tp_sl and sig_4h_long
+    line.new(bar_index, h4_long_tp, bar_index + line_len, h4_long_tp,
+         color=color.new(color.lime, 40), width=2, style=line.style_dashed)
+    line.new(bar_index, h4_long_sl, bar_index + line_len, h4_long_sl,
+         color=color.new(color.red, 40), width=2, style=line.style_dashed)
+    label.new(bar_index + line_len, h4_long_tp,
+         "TP " + str.tostring(h4_long_tp, format.mintick),
+         style=label.style_label_left, color=color.new(color.lime, 80), textcolor=color.lime, size=size.tiny)
+
+if show_tp_sl and sig_4h_short
+    line.new(bar_index, h4_short_tp, bar_index + line_len, h4_short_tp,
+         color=color.new(color.lime, 40), width=2, style=line.style_dashed)
+    line.new(bar_index, h4_short_sl, bar_index + line_len, h4_short_sl,
+         color=color.new(color.red, 40), width=2, style=line.style_dashed)
+    label.new(bar_index + line_len, h4_short_tp,
+         "TP " + str.tostring(h4_short_tp, format.mintick),
+         style=label.style_label_left, color=color.new(color.lime, 80), textcolor=color.lime, size=size.tiny)
+
+if show_tp_sl and sig_1h_long
+    line.new(bar_index, h1_long_tp, bar_index + line_len, h1_long_tp,
+         color=color.new(color.aqua, 40), width=1, style=line.style_dotted)
+    line.new(bar_index, h1_long_sl, bar_index + line_len, h1_long_sl,
+         color=color.new(color.orange, 40), width=1, style=line.style_dotted)
+
+if show_tp_sl and sig_1h_short
+    line.new(bar_index, h1_short_tp, bar_index + line_len, h1_short_tp,
+         color=color.new(color.aqua, 40), width=1, style=line.style_dotted)
+    line.new(bar_index, h1_short_sl, bar_index + line_len, h1_short_sl,
+         color=color.new(color.orange, 40), width=1, style=line.style_dotted)
+
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// スコア内訳ラベル（オプション）
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+if show_score and (sig_4h_long or sig_4h_short)
+    c1_txt = h4_at_sup ? "S" : h4_at_res ? "R" : "-"
+    c2_txt = h4_ctype != 0 and h4_ctype != 5 ? "●" : "-"
+    c3_txt = h4_pa != 0 ? "●" : "-"
+    c4_txt = h4_cp != 0 ? "●" : "-"
+    c5_txt = h4_is_new ? "●" : "-"
+    detail = h4_grade + str.tostring(h4_score) + " [" + c1_txt + c2_txt + c3_txt + c4_txt + c5_txt + "]"
+
+    lbl_y = sig_4h_long ? low - h4_atr * 0.5 : high + h4_atr * 0.5
+    lbl_style = sig_4h_long ? label.style_label_up : label.style_label_down
+    lbl_clr = h4_score >= 4 ? color.new(color.yellow, 20) : color.new(color.gray, 40)
+    label.new(bar_index, lbl_y, detail,
+         style=lbl_style, color=lbl_clr, textcolor=color.white, size=size.tiny)
+
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// アラート条件
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+alertcondition(sig_4h_long, title="4H Long Entry", message="Yagami v78: 4H Long (" + h4_grade + ")\nScore: " + str.tostring(h4_score))
+alertcondition(sig_4h_short, title="4H Short Entry", message="Yagami v78: 4H Short (" + h4_grade + ")\nScore: " + str.tostring(h4_score))
+alertcondition(sig_1h_long, title="1H Long Entry", message="Yagami v78: 1H Long")
+alertcondition(sig_1h_short, title="1H Short Entry", message="Yagami v78: 1H Short")
+alertcondition(sig_4h_long or sig_4h_short or sig_1h_long or sig_1h_short,
+     title="Any Entry", message="Yagami v78: エントリーシグナル発生")
+
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 情報テーブル
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+var table infoTable = table.new(position.top_right, 2, 6, bgcolor=color.new(color.black, 80), border_width=1)
+
+if barstate.islast and tf_valid
+    table.cell(infoTable, 0, 0, "Yagami v78", text_color=color.white, text_size=size.normal)
+    table.cell(infoTable, 1, 0, "5Cond", text_color=color.yellow, text_size=size.normal)
+
+    table.cell(infoTable, 0, 1, "4H Trend", text_color=color.gray, text_size=size.small)
+    h4_trend_up = h4_close > h4_ema
+    table.cell(infoTable, 1, 1, h4_trend_up ? "UP" : "DOWN",
+         text_color=h4_trend_up ? color.lime : color.red, text_size=size.small)
+
+    table.cell(infoTable, 0, 2, "4H ATR", text_color=color.gray, text_size=size.small)
+    table.cell(infoTable, 1, 2, str.tostring(h4_atr, format.mintick), text_color=color.white, text_size=size.small)
+
+    table.cell(infoTable, 0, 3, "Min Score", text_color=color.gray, text_size=size.small)
+    table.cell(infoTable, 1, 3, str.tostring(min_score_input), text_color=color.white, text_size=size.small)
+
+    table.cell(infoTable, 0, 4, "RR", text_color=color.gray, text_size=size.small)
+    table.cell(infoTable, 1, 4, str.tostring(rr_ratio, "#.#"), text_color=color.white, text_size=size.small)
+
+    table.cell(infoTable, 0, 5, "TF", text_color=color.gray, text_size=size.small)
+    table.cell(infoTable, 1, 5, timeframe.period, text_color=color.aqua, text_size=size.small)
