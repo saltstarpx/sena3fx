@@ -1,0 +1,7 @@
+pair,strategy,trades,profit_factor,win_rate_pct,max_drawdown_pct,net_pnl,avg_rr
+USDJPY,v76,2,0.0,0.0,0.07,-3502.22,0.0
+USDJPY,v76_qlib,1,99.9,100.0,0.0,4218.85,2583.87
+EURJPY,v76,5,0.0,0.0,0.2,-9964.25,0.0
+EURJPY,v76_qlib,0,0.0,0.0,0.0,0.0,0.0
+GBPJPY,v76,6,0.6534,33.33,0.21,-3595.7,1.31
+GBPJPY,v76_qlib,4,1.8702,50.0,0.06,4715.56,1.87
