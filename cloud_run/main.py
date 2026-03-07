@@ -101,6 +101,44 @@ MAX_SAME_DIR       = 5
 RR_RATIO           = 2.5
 CANDLE_COUNT       = 200
 
+# ── リスク管理設定 ────────────────────────────────────
+ACCOUNT_BALANCE_JPY = 3_000_000   # 証拠金 300万円
+RISK_PCT            = 0.02        # 1トレードあたりリスク 2%
+RISK_AMOUNT_JPY     = ACCOUNT_BALANCE_JPY * RISK_PCT  # = 60,000円
+MIN_UNITS           = 100         # 最小発注単位
+MAX_UNITS           = 100_000     # 最大発注単位（安全上限）
+
+def calc_units_from_risk(ep: float, sl: float, pip_size: float, oanda_pair: str) -> int:
+    """
+    証拠金300万円の2%（6万円）をリスク上限としてロット数を計算する。
+
+    計算式:
+        SL幅(円換算) = |EP - SL| / pip_size × pip_value_jpy
+        units = RISK_AMOUNT_JPY / SL幅(円換算)
+
+    pip_value_jpy（1pip = 何円か）:
+        - JPYクロス（XXX/JPY）: 1pip = 1円 × units
+        - USD建て（XXX/USD）:  1pip ≈ 0.01USD × 145円 = 約1.45円 × units
+        - その他:              1pip ≈ 0.01 × 145円 = 約1.45円 × units
+    """
+    sl_pips = abs(ep - sl) / pip_size
+    if sl_pips <= 0:
+        return MIN_UNITS
+
+    # pip1本あたりの円価値（1unitあたり）を推定
+    pair = oanda_pair.replace("_", "")
+    if pair.endswith("JPY"):
+        # JPYクロス: 1pip = pip_size × 1円 = 0.01円/unit
+        pip_val_per_unit = pip_size  # 例: 0.01円/unit
+    else:
+        # USD建て・その他: 1pip ≈ pip_size × 145円
+        pip_val_per_unit = pip_size * 145.0
+
+    # units = リスク額(円) / (SL幅pips × pip価値/unit)
+    units = RISK_AMOUNT_JPY / (sl_pips * pip_val_per_unit)
+    units = int(units)
+    return max(MIN_UNITS, min(units, MAX_UNITS))
+
 logging.basicConfig(level=logging.INFO,
     format="%(asctime)s UTC [%(levelname)s] %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S")
@@ -149,8 +187,9 @@ def send_discord(content, embeds=None):
         if r.status_code not in (200, 204): logger.warning(f"Discord: {r.status_code}")
     except Exception as e: logger.warning(f"Discord error: {e}")
 
-def notify_entry(pair, dir_, ep, sl, tp, tf, slippage):
+def notify_entry(pair, dir_, ep, sl, tp, tf, slippage, units=None):
     cfg = PAIRS.get(pair, {}); ps = cfg.get("pip_size", 0.0001)
+    risk_jpy = int(abs(ep - sl) / ps * (ps * (145.0 if not cfg.get("oanda","").endswith("JPY") else 1.0)) * (units or 1000))
     embed = {"title": f"📈 {'🟢 LONG' if dir_>0 else '🔴 SHORT'}: {pair}",
              "color": 0x00c853 if dir_>0 else 0xd50000,
              "fields": [
@@ -158,6 +197,8 @@ def notify_entry(pair, dir_, ep, sl, tp, tf, slippage):
                  {"name":"SL","value":f"`{sl:.5f}` (-{abs(ep-sl)/ps:.1f}p)","inline":True},
                  {"name":"TP","value":f"`{tp:.5f}` (+{abs(tp-ep)/ps:.1f}p)","inline":True},
                  {"name":"足種","value":f"`{tf}`","inline":True},
+                 {"name":"ロット","value":f"`{units or '?'} units`","inline":True},
+                 {"name":"リスク額","value":f"≈ `{risk_jpy:,}円` (2%)","inline":True},
                  {"name":"Slip","value":f"`{slippage:+.2f}p`","inline":True},
                  {"name":"時刻","value":datetime.now(timezone.utc).strftime("%m/%d %H:%M UTC"),"inline":True},
              ], "footer":{"text":"sena3fx v77 | 全68ペア"}}
@@ -411,14 +452,16 @@ def run_cycle():
             tp_dist = abs(latest["tp"] - latest["ep"])  # 元のTP幅を維持
             new_sl = current_price - latest["dir"] * sl_dist
             new_tp = current_price + latest["dir"] * tp_dist
-            res = place_order(instr, cfg["units"]*latest["dir"], new_sl, new_tp)
+            # 証拠金300万円×2%リスクベースでロット計算
+            order_units = calc_units_from_risk(current_price, new_sl, ps, instr)
+            res = place_order(instr, order_units * latest["dir"], new_sl, new_tp)
             if res:
                 tid=res["trade_id"]; fp=res.get("fill_price", current_price)
                 slip=(fp-latest["ep"])*latest["dir"]/ps  # シグナルEPとの差をスリッページとして記録
                 open_positions[tid]={"pair":pair,"dir":latest["dir"],"ep":fp,"sl":new_sl,"tp":new_tp,"tf":latest.get("tf","?"),"entry_time":now.isoformat(),"fill_price":fp,"slippage":slip,"signal_ep":latest["ep"]}
                 gcs_append_csv("logs/paper_signals.csv",{"signal_time":latest["time"].isoformat(),"pair":pair,"dir":latest["dir"],"tf":latest.get("tf","?"),"ep":round(fp,5),"signal_ep":round(latest["ep"],5),"sl":round(new_sl,5),"tp":round(new_tp,5),"status":"ENTERED","slippage_pips":round(slip,2)})
-                notify_entry(pair, latest["dir"], fp, new_sl, new_tp, latest.get("tf","?"), slip)
-                logger.info(f"ENTERED: {pair} {'L' if latest['dir']>0 else 'S'} ep={fp:.5f} slip={slip:+.2f}p")
+                notify_entry(pair, latest["dir"], fp, new_sl, new_tp, latest.get("tf","?"), slip, units=order_units)
+                logger.info(f"ENTERED: {pair} {'L' if latest['dir']>0 else 'S'} ep={fp:.5f} units={order_units} slip={slip:+.2f}p")
 
     # ── 3. 定時レポート（9時・21時 JST） ─────────────
     now_jst_h = (now.hour+9)%24
@@ -454,10 +497,16 @@ async def health():
 
 @app.post("/report")
 async def report_endpoint():
+    """手動呼び出し専用。送信後にlast_reportを更新して/runからの重複送信を防ぐ。"""
     try:
-        send_daily_report(gcs_read_json("state/open_positions.json",default={}))
-        return {"status":"ok"}
-    except Exception as e: return {"status":"error","message":str(e)}
+        open_positions = gcs_read_json("state/open_positions.json", default={})
+        send_daily_report(open_positions)
+        # last_report を更新して /run からの重複送信を防ぐ
+        now_jst_h = (datetime.now(timezone.utc).hour + 9) % 24
+        gcs_write_json("state/last_report.json", {"hour": now_jst_h})
+        return {"status": "ok"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
 
 @app.post("/weekly_feedback")
 async def weekly_feedback_endpoint():
