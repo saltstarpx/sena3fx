@@ -7,20 +7,36 @@
 indicator("Yagami v77 KMID+KLOW", overlay=true, max_labels_count=500, max_lines_count=500)
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// 入力パラメータ
+// タイムフレーム制限（1分足〜4時間足のみ表示）
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+tf_seconds  = timeframe.in_seconds()
+tf_valid    = tf_seconds <= 14400  // 4H = 240min = 14400秒 以下のみ許可
+
+// 日足以上ではメッセージ表示して終了
+var table tfWarnTable = table.new(position.middle_center, 1, 1, bgcolor=color.new(color.red, 70))
+if barstate.islast and not tf_valid
+    table.cell(tfWarnTable, 0, 0, "⚠ Yagami v77: 4H以下の時間足で表示してください",
+         text_color=color.white, text_size=size.large)
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 表示設定（ユーザーに公開するパラメータ）
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 rr_ratio    = input.float(2.5, "リスクリワード比", minval=1.0, step=0.1, group="トレード設定")
-atr_period  = input.int(14, "ATR期間", minval=1, group="トレード設定")
-ema_period  = input.int(20, "EMA期間 (4H)", minval=1, group="トレード設定")
-tol_mult    = input.float(0.3, "二番底/天井 許容幅 (ATR倍)", minval=0.1, step=0.05, group="トレード設定")
-sl_buffer   = input.float(0.15, "SLバッファ (ATR倍)", minval=0.0, step=0.05, group="トレード設定")
-risk_max_4h = input.float(3.0, "最大リスク幅 4H (ATR倍)", minval=1.0, group="トレード設定")
-risk_max_1h = input.float(2.0, "最大リスク幅 1H (ATR倍)", minval=1.0, group="トレード設定")
-klow_thresh = input.float(0.0015, "KLOW閾値", minval=0.0001, step=0.0001, group="v77フィルター")
-use_kmid    = input.bool(true, "KMIDフィルター有効", group="v77フィルター")
-use_klow    = input.bool(true, "KLOWフィルター有効", group="v77フィルター")
 show_1h     = input.bool(true, "1Hシグナルも表示", group="表示設定")
 show_tp_sl  = input.bool(true, "TP/SLラインを表示", group="表示設定")
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 内部パラメータ（ハードコード — 設定UIに表示しない）
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+atr_period  = 14
+ema_period  = 20
+tol_mult    = 0.3
+sl_buffer   = 0.15
+risk_max_4h = 3.0
+risk_max_1h = 2.0
+klow_thresh = 0.0015
+use_kmid    = true
+use_klow    = true
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // 4時間足データ取得
@@ -65,8 +81,8 @@ h1_close_2 = request.security(syminfo.tickerid, "60", close[2])
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 h4_trend = h4_close > h4_ema ? 1 : -1
 
-// EMAラインを表示
-plot(h4_ema, "4H EMA20", color=color.new(color.orange, 30), linewidth=2)
+// EMAラインを表示（対応TFのみ）
+plot(tf_valid ? h4_ema : na, "4H EMA20", color=color.new(color.orange, 30), linewidth=2)
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // v77フィルター: KMID（実体方向一致）+ KLOW（下ヒゲ小）
@@ -112,9 +128,9 @@ h4_short_risk = h4_short_sl - close
 h4_short_tp   = close - h4_short_risk * rr_ratio
 h4_short_valid = h4_short_risk > 0 and h4_short_risk <= h4_atr * risk_max_4h
 
-// 最終シグナル（4H足更新タイミング + v77フィルター通過）
-sig_4h_long  = h4_is_new and h4_double_bottom and h4_long_valid and kmid_long_ok and klow_ok
-sig_4h_short = h4_is_new and h4_double_top and h4_short_valid and kmid_short_ok and klow_ok
+// 最終シグナル（4H足更新タイミング + v77フィルター通過 + TFガード）
+sig_4h_long  = tf_valid and h4_is_new and h4_double_bottom and h4_long_valid and kmid_long_ok and klow_ok
+sig_4h_short = tf_valid and h4_is_new and h4_double_top and h4_short_valid and kmid_short_ok and klow_ok
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // 1H 二番底・二番天井検出
@@ -144,9 +160,9 @@ h1_short_risk = h1_short_sl - close
 h1_short_tp   = close - h1_short_risk * rr_ratio
 h1_short_valid = h1_short_risk > 0 and h1_short_risk <= h4_atr * risk_max_1h
 
-// 最終シグナル（1H足更新タイミング + v77フィルター通過）
-sig_1h_long  = show_1h and h1_is_new and h1_double_bottom and h1_long_valid and kmid_long_ok and klow_ok
-sig_1h_short = show_1h and h1_is_new and h1_double_top and h1_short_valid and kmid_short_ok and klow_ok
+// 最終シグナル（1H足更新タイミング + v77フィルター通過 + TFガード）
+sig_1h_long  = tf_valid and show_1h and h1_is_new and h1_double_bottom and h1_long_valid and kmid_long_ok and klow_ok
+sig_1h_short = tf_valid and show_1h and h1_is_new and h1_double_top and h1_short_valid and kmid_short_ok and klow_ok
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // シグナル表示
@@ -224,11 +240,11 @@ alertcondition(sig_4h_long or sig_4h_short or sig_1h_long or sig_1h_short,
      title="Any Entry", message="Yagami v77: エントリーシグナル発生")
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// 情報テーブル
+// 情報テーブル（対応TFのみ表示）
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-var table infoTable = table.new(position.top_right, 2, 7, bgcolor=color.new(color.black, 80), border_width=1)
+var table infoTable = table.new(position.top_right, 2, 5, bgcolor=color.new(color.black, 80), border_width=1)
 
-if barstate.islast
+if barstate.islast and tf_valid
     table.cell(infoTable, 0, 0, "Yagami v77", text_color=color.white, text_size=size.normal)
     table.cell(infoTable, 1, 0, "KMID+KLOW", text_color=color.yellow, text_size=size.normal)
 
@@ -239,18 +255,8 @@ if barstate.islast
     table.cell(infoTable, 0, 2, "4H ATR", text_color=color.gray, text_size=size.small)
     table.cell(infoTable, 1, 2, str.tostring(h4_atr, format.mintick), text_color=color.white, text_size=size.small)
 
-    table.cell(infoTable, 0, 3, "KMID", text_color=color.gray, text_size=size.small)
-    table.cell(infoTable, 1, 3, str.tostring(h4_kmid, "#.#####"),
-         text_color=h4_kmid > 0 ? color.lime : color.red, text_size=size.small)
+    table.cell(infoTable, 0, 3, "RR", text_color=color.gray, text_size=size.small)
+    table.cell(infoTable, 1, 3, str.tostring(rr_ratio, "#.#"), text_color=color.white, text_size=size.small)
 
-    table.cell(infoTable, 0, 4, "KLOW", text_color=color.gray, text_size=size.small)
-    table.cell(infoTable, 1, 4, str.tostring(h4_klow, "#.#####"),
-         text_color=h4_klow < klow_thresh ? color.lime : color.orange, text_size=size.small)
-
-    table.cell(infoTable, 0, 5, "KMID Filter", text_color=color.gray, text_size=size.small)
-    table.cell(infoTable, 1, 5, use_kmid ? "ON" : "OFF",
-         text_color=use_kmid ? color.lime : color.gray, text_size=size.small)
-
-    table.cell(infoTable, 0, 6, "KLOW Filter", text_color=color.gray, text_size=size.small)
-    table.cell(infoTable, 1, 6, use_klow ? "ON" : "OFF",
-         text_color=use_klow ? color.lime : color.gray, text_size=size.small)
+    table.cell(infoTable, 0, 4, "TF", text_color=color.gray, text_size=size.small)
+    table.cell(infoTable, 1, 4, timeframe.period, text_color=color.aqua, text_size=size.small)
