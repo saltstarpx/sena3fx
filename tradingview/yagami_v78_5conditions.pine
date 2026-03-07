@@ -746,8 +746,8 @@ if show_score and (sig_4h_long or sig_4h_short)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // アラート条件
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-alertcondition(sig_4h_long, title="4H Long Entry", message="Yagami v78: 4H Long (" + h4_grade + ")\nScore: " + str.tostring(h4_score))
-alertcondition(sig_4h_short, title="4H Short Entry", message="Yagami v78: 4H Short (" + h4_grade + ")\nScore: " + str.tostring(h4_score))
+alertcondition(sig_4h_long, title="4H Long Entry", message="Yagami v78: 4H Long エントリー")
+alertcondition(sig_4h_short, title="4H Short Entry", message="Yagami v78: 4H Short エントリー")
 alertcondition(sig_1h_long, title="1H Long Entry", message="Yagami v78: 1H Long")
 alertcondition(sig_1h_short, title="1H Short Entry", message="Yagami v78: 1H Short")
 alertcondition(sig_4h_long or sig_4h_short or sig_1h_long or sig_1h_short,
