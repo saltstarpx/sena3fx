@@ -415,6 +415,22 @@ def calc_stats(trades: list[dict], symbol: str, strategy: str) -> dict:
     monthly_sharpe  = monthly.mean() / monthly.std() * np.sqrt(12) \
                       if monthly.std() > 0 else 0.0
 
+    # 最終利益（円）
+    final_equity  = eq[-1]
+    final_profit  = final_equity - INIT_CASH
+    final_profit_pct = final_profit / INIT_CASH * 100
+
+    # MDD円
+    mdd_jpy_val = mdd_jpy  # already computed above
+
+    # CR = 年率リターン / MDD%（Calmar Ratio）
+    # データ期間を trade の entry_time から推定
+    t_start = df["entry_time"].min()
+    t_end   = df["entry_time"].max()
+    years   = max((t_end - t_start).days / 365.25, 1/12)
+    annual_ret_pct = (((final_equity / INIT_CASH) ** (1 / years)) - 1) * 100
+    calmar = annual_ret_pct / mdd_pct if mdd_pct > 0 else float("inf")
+
     # Kelly
     avg_win  = wins["pnl_pips"].mean() if len(wins) > 0 else 0
     avg_loss = abs(losses["pnl_pips"].mean()) if len(losses) > 0 else 1
@@ -441,30 +457,35 @@ def calc_stats(trades: list[dict], symbol: str, strategy: str) -> dict:
     tf_counts = df["tf"].value_counts().to_dict()
 
     return {
-        "symbol":          symbol,
-        "strategy":        strategy,
-        "n":               n,
-        "win_rate":        round(win_rate, 1),
-        "pf":              round(pf, 2),
-        "mdd_pct":         round(mdd_pct, 1),
-        "kelly":           round(kelly, 3),
-        "plus_months":     round(plus_months_pct, 1),
-        "monthly_sharpe":  round(monthly_sharpe, 2),
-        "max_consec_loss": max_consec,
-        "avg_win_pips":    round(avg_win, 1),
-        "avg_loss_pips":   round(avg_loss, 1),
-        "spread_pips":     SYMBOL_CONFIG[symbol]["spread"],
-        "tf_1h":           tf_counts.get("1h", 0),
-        "tf_4h":           tf_counts.get("4h", 0),
-        "pass_pf":         passed["pf"],
-        "pass_winrate":    passed["win_rate"],
-        "pass_mdd":        passed["mdd_pct"],
-        "pass_kelly":      passed["kelly"],
-        "pass_months":     passed["plus_months"],
-        "pass_count":      pass_count,
-        "all_pass":        all(passed.values()),
-        "status":          "PASS" if all(passed.values()) else f"FAIL({pass_count}/5)",
-        "equity_curve":    df["equity_after"].tolist(),
+        "symbol":           symbol,
+        "strategy":         strategy,
+        "n":                n,
+        "win_rate":         round(win_rate, 1),
+        "pf":               round(pf, 2),
+        "mdd_pct":          round(mdd_pct, 1),
+        "mdd_jpy":          round(mdd_jpy_val),
+        "final_profit_jpy": round(final_profit),
+        "final_profit_pct": round(final_profit_pct, 1),
+        "annual_ret_pct":   round(annual_ret_pct, 1),
+        "calmar":           round(calmar, 2),
+        "kelly":            round(kelly, 3),
+        "plus_months":      round(plus_months_pct, 1),
+        "monthly_sharpe":   round(monthly_sharpe, 2),
+        "max_consec_loss":  max_consec,
+        "avg_win_pips":     round(avg_win, 1),
+        "avg_loss_pips":    round(avg_loss, 1),
+        "spread_pips":      SYMBOL_CONFIG[symbol]["spread"],
+        "tf_1h":            tf_counts.get("1h", 0),
+        "tf_4h":            tf_counts.get("4h", 0),
+        "pass_pf":          passed["pf"],
+        "pass_winrate":     passed["win_rate"],
+        "pass_mdd":         passed["mdd_pct"],
+        "pass_kelly":       passed["kelly"],
+        "pass_months":      passed["plus_months"],
+        "pass_count":       pass_count,
+        "all_pass":         all(passed.values()),
+        "status":           "PASS" if all(passed.values()) else f"FAIL({pass_count}/5)",
+        "equity_curve":     df["equity_after"].tolist(),
     }
 
 
@@ -491,9 +512,14 @@ def plot_comparison(all_results: list[dict], symbols: list[str]):
                 ax.plot(eq, color=colors[strat], linewidth=1.2)
                 ax.axhline(y=INIT_CASH, color="gray", linestyle="--", alpha=0.4, lw=0.8)
                 status_mark = "✅" if r["all_pass"] else "❌"
+                profit_str = f"+{r['final_profit_jpy']/1e4:.0f}万" \
+                             if r['final_profit_jpy'] >= 0 \
+                             else f"{r['final_profit_jpy']/1e4:.0f}万"
                 ax.set_title(f"{sym} [{strat}] {status_mark}\n"
-                             f"PF={r['pf']} WR={r['win_rate']}% MDD={r['mdd_pct']}%",
-                             fontsize=7)
+                             f"PF={r['pf']} WR={r['win_rate']}% "
+                             f"MDD={r['mdd_pct']}% CR={r['calmar']}\n"
+                             f"利益:{profit_str}({r['final_profit_pct']}%)",
+                             fontsize=6.5)
             else:
                 ax.set_title(f"{sym} [{strat}] — N/A", fontsize=7)
                 ax.text(0.5, 0.5, "No Data", ha="center", va="center",
@@ -551,21 +577,28 @@ def main():
             trades = simulate_trades(sym, sigs, data_1m)
             stats  = calc_stats(trades, sym, strat)
             all_results.append(stats)
-            print(f"  {strat:<8}: N={stats['n']:>4}, "
+            profit_str = f"+{stats['final_profit_jpy']/1e4:.0f}万" \
+                     if stats['final_profit_jpy'] >= 0 \
+                     else f"{stats['final_profit_jpy']/1e4:.0f}万"
+        print(f"  {strat:<8}: N={stats['n']:>4}, "
                   f"WR={stats['win_rate']:>5.1f}%, "
                   f"PF={stats['pf']:>5.2f}, "
-                  f"MDD={stats['mdd_pct']:>5.1f}%, "
-                  f"Kelly={stats['kelly']:>5.3f}, "
-                  f"+月={stats['plus_months']:>5.1f}%  "
+                  f"MDD={stats['mdd_pct']:>4.1f}%({stats['mdd_jpy']/1e4:.0f}万), "
+                  f"CR={stats['calmar']:>5.2f}, "
+                  f"Sharpe={stats['monthly_sharpe']:>5.2f}, "
+                  f"利益={profit_str}({stats['final_profit_pct']:+.1f}%)  "
                   f"→ {stats['status']}")
 
     # ── 結果テーブル ──────────────────────────────────────────
-    print("\n" + "=" * 78)
+    W = 105
+    print("\n" + "=" * W)
     print("【合格基準】 PF≥3.0 / WR≥65% / MDD≤20% / Kelly≥0.45 / +月≥90%")
-    print("=" * 78)
+    print("CR=カルマーレシオ（年率リターン÷MDD%）  Sharpe=月次シャープレシオ（×√12）")
+    print("=" * W)
     print(f"{'銘柄':<8} {'戦略':<8} {'N':>5} {'WR%':>6} {'PF':>6} "
-          f"{'MDD%':>6} {'Kelly':>7} {'+月%':>6} {'Sharpe':>7}  判定")
-    print("-" * 78)
+          f"{'MDD%':>5} {'MDD(万)':>7} {'最終利益(万)':>11} {'利益%':>6} "
+          f"{'CR':>6} {'Sharpe':>7} {'Kelly':>7} {'+月%':>6}  判定")
+    print("-" * W)
 
     best_per_symbol: dict[str, dict] = {}
 
@@ -581,10 +614,15 @@ def main():
             k_m   = "K○"  if r["pass_kelly"]    else "K×"
             mo_m  = "M○"  if r["pass_months"]   else "M×"
             flags = f"{pf_m} {wr_m} {mdd_m} {k_m} {mo_m}"
+            profit_str = f"+{r['final_profit_jpy']/1e4:.0f}" \
+                         if r['final_profit_jpy'] >= 0 \
+                         else f"{r['final_profit_jpy']/1e4:.0f}"
             print(f"{sym:<8} {r['strategy']:<8} {r['n']:>5} "
                   f"{r['win_rate']:>5.1f}% {r['pf']:>6.2f} "
-                  f"{r['mdd_pct']:>5.1f}% {r['kelly']:>7.3f} "
-                  f"{r['plus_months']:>5.1f}% {r['monthly_sharpe']:>7.2f}  "
+                  f"{r['mdd_pct']:>4.1f}% {r['mdd_jpy']/1e4:>7.1f} "
+                  f"{profit_str:>11} {r['final_profit_pct']:>+5.1f}% "
+                  f"{r['calmar']:>6.2f} {r['monthly_sharpe']:>7.2f} "
+                  f"{r['kelly']:>7.3f} {r['plus_months']:>5.1f}%  "
                   f"{mark}  [{flags}]")
 
         # 最良戦略を記録（pass_count→pf優先）
@@ -599,9 +637,14 @@ def main():
     approved = []
     for sym, r in best_per_symbol.items():
         mark = "✅" if r["all_pass"] else "❌"
+        profit_str = f"+{r['final_profit_jpy']/1e4:.0f}万" \
+                     if r['final_profit_jpy'] >= 0 \
+                     else f"{r['final_profit_jpy']/1e4:.0f}万"
         print(f"{mark} {sym:<8}: {r['strategy']:<8} "
               f"PF={r['pf']}, WR={r['win_rate']}%, "
-              f"MDD={r['mdd_pct']}%, Kelly={r['kelly']}, "
+              f"MDD={r['mdd_pct']}%, CR={r['calmar']}, "
+              f"Sharpe={r['monthly_sharpe']}, "
+              f"利益={profit_str}({r['final_profit_pct']:+.1f}%), "
               f"N={r['n']}")
         if r["all_pass"]:
             approved.append({"symbol": sym, "strategy": r["strategy"],
