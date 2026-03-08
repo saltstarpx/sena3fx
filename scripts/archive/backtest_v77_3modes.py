@@ -267,7 +267,13 @@ def generate_signals_hybrid(data_1m, data_15m, data_4h, spread_pips, pip_size, r
     combined = combined.sort_values("time").drop_duplicates(subset=["time","direction"]).reset_index(drop=True)
     return combined
 
-# ── シミュレーション ──────────────────────────────────────
+# ── シミュレーション（保守的アプローチ: 同一バー内はSL優先） ──────────
+# 同一バーで半利確ラインとSL/TPが同時に発生した場合の処理順序:
+#   ① まず現在のSL（またはBE-SL）に触れているか判定 → 触れていたら即損切
+#   ② SLに触れていない場合のみTPを判定
+#   ③ SL/TPどちらにも触れていない場合のみ半利確ラインを判定
+# これにより「半利確→同バーでSL」という楽観的シナリオを排除し、
+# 実運用より悪い結果は出ない保守的な評価が得られる。
 def simulate(signals, data_1m, init_cash=1_000_000, risk_pct=0.02, half_r=1.0):
     if signals is None or len(signals) == 0:
         return pd.DataFrame(), pd.Series([init_cash], name="equity")
@@ -285,35 +291,57 @@ def simulate(signals, data_1m, init_cash=1_000_000, risk_pct=0.02, half_r=1.0):
         exit_price = None; exit_time = None
         for bar_time, bar in future.iterrows():
             if direction == "long":
-                if not half_done and bar["high"] >= ep + risk * half_r:
-                    half_done = True; be_sl = ep
-                    equity += (ep + risk * half_r - ep) * lot_size * 0.5
                 current_sl = be_sl if half_done else sl
+
+                # ① SL判定を最優先（保守的: 同一バーでSLと半利確が重なる場合はSLを優先）
                 if bar["low"] <= current_sl:
                     exit_price = current_sl; exit_time = bar_time
                     remaining = 0.5 if half_done else 1.0
                     pnl = (exit_price - ep) * lot_size * remaining
                     equity += pnl; result = "win" if pnl > 0 else "loss"; break
+
+                # ② TP判定
                 if bar["high"] >= tp:
+                    # 同一バーで半利確ラインも超えていた場合は半利確→TP完結として処理
+                    if not half_done and bar["high"] >= ep + risk * half_r:
+                        equity += risk * half_r * lot_size * 0.5  # 半利確分 +0.5R
+                        half_done = True
                     exit_price = tp; exit_time = bar_time
                     remaining = 0.5 if half_done else 1.0
                     equity += (exit_price - ep) * lot_size * remaining
                     result = "win"; break
-            else:
-                if not half_done and bar["low"] <= ep - risk * half_r:
+
+                # ③ 半利確チェック（SL/TPどちらにも触れなかった場合のみ）
+                if not half_done and bar["high"] >= ep + risk * half_r:
                     half_done = True; be_sl = ep
-                    equity += (ep - (ep - risk * half_r)) * lot_size * 0.5
+                    equity += risk * half_r * lot_size * 0.5  # +0.5R
+
+            else:  # short
                 current_sl = be_sl if half_done else sl
+
+                # ① SL判定を最優先
                 if bar["high"] >= current_sl:
                     exit_price = current_sl; exit_time = bar_time
                     remaining = 0.5 if half_done else 1.0
                     pnl = (ep - exit_price) * lot_size * remaining
                     equity += pnl; result = "win" if pnl > 0 else "loss"; break
+
+                # ② TP判定
                 if bar["low"] <= tp:
+                    # 同一バーで半利確ラインも下抜けていた場合は半利確→TP完結として処理
+                    if not half_done and bar["low"] <= ep - risk * half_r:
+                        equity += risk * half_r * lot_size * 0.5  # 半利確分 +0.5R
+                        half_done = True
                     exit_price = tp; exit_time = bar_time
                     remaining = 0.5 if half_done else 1.0
                     equity += (ep - exit_price) * lot_size * remaining
                     result = "win"; break
+
+                # ③ 半利確チェック（SL/TPどちらにも触れなかった場合のみ）
+                if not half_done and bar["low"] <= ep - risk * half_r:
+                    half_done = True; be_sl = ep
+                    equity += risk * half_r * lot_size * 0.5  # +0.5R
+
         if result is None:
             continue
         trades.append({"entry_time": sig["time"], "exit_time": exit_time,
@@ -432,7 +460,7 @@ for pair, cfg in PAIRS.items():
 
 # ── 結果CSV保存 ───────────────────────────────────────────
 df_results = pd.DataFrame(all_results)
-csv_path = os.path.join(OUT_DIR, "v77_3modes_results.csv")
+csv_path = os.path.join(OUT_DIR, "v77_3modes_results_v2.csv")
 df_results.to_csv(csv_path, index=False)
 print(f"\n結果CSV保存: {csv_path}")
 
@@ -473,7 +501,7 @@ for ax_idx, (metric, ylabel, title, hline) in enumerate([
     ax.grid(axis="y", alpha=0.3)
 
 plt.tight_layout()
-chart1_path = os.path.join(OUT_DIR, "v77_3modes_oos_comparison.png")
+chart1_path = os.path.join(OUT_DIR, "v77_3modes_oos_comparison_v2.png")
 plt.savefig(chart1_path, dpi=150, bbox_inches="tight")
 plt.close()
 print(f"チャート1保存: {chart1_path}")
@@ -550,7 +578,7 @@ for i, row in enumerate(table_data):
 ax2.set_title("v77 全12銘柄 × 3モード スコアカード（OOS PF順）\n最低スプレッド / 初期資金100万円 / リスク2% / RR2.5",
               fontsize=12, fontweight="bold", pad=20)
 
-chart2_path = os.path.join(OUT_DIR, "v77_3modes_scorecard.png")
+chart2_path = os.path.join(OUT_DIR, "v77_3modes_scorecard_v2.png")
 plt.savefig(chart2_path, dpi=150, bbox_inches="tight")
 plt.close()
 print(f"スコアカード保存: {chart2_path}")
