@@ -36,7 +36,7 @@ utils/risk_manager.py
     ※ US30/SPX500はcfd_multiplier=1として扱う（Exness標準）
 
 【スプレッド設定（Exness ゼロ口座 生スプレッド実測値）】
-  USDJPY=0.42, EURUSD=0.04, GBPUSD=0.13, AUDUSD=0.01
+  USDJPY=0.28, EURUSD=0.04, GBPUSD=0.13, AUDUSD=0.01
   USDCAD=0.10, USDCHF=0.10, NZDUSD=0.10
   EURJPY=0.21, GBPJPY=0.35, EURGBP=0.50
   US30=3.0pt, SPX500=0.5pt, NAS100=1.0pt
@@ -55,7 +55,7 @@ from typing import Optional
 # color     : チャート用カラーコード
 
 SYMBOL_CONFIG: dict[str, dict] = {
-    "USDJPY": {"pip": 0.01,   "spread": 0.42, "quote_type": "A", "color": "#ef4444"},
+    "USDJPY": {"pip": 0.01,   "spread": 0.28, "quote_type": "A", "color": "#ef4444"},
     "EURUSD": {"pip": 0.0001, "spread": 0.04, "quote_type": "B", "color": "#f97316"},
     "GBPUSD": {"pip": 0.0001, "spread": 0.13, "quote_type": "B", "color": "#eab308"},
     "AUDUSD": {"pip": 0.0001, "spread": 0.01, "quote_type": "B", "color": "#22c55e"},
