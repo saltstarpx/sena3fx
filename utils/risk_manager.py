@@ -35,15 +35,16 @@ utils/risk_manager.py
     → lot = risk_jpy / (sl_distance × usdjpy_rate)
     ※ US30/SPX500はcfd_multiplier=1として扱う（Exness標準）
 
-【スプレッド設定（SHINCO FX / Exness 2025.12.30 計測値）】
-  採用ルール: ロースプレッド口座（手数料+0.7pips換算）とプロ口座を比較し安い方を採用
-  同程度（差0.1pips以内）はプロ口座優先
-  全銘柄ゼロ口座採用（手数料片道0.2ドル/ロット≒往復0.1pips換算で最安）
+【スプレッド設定（fxfan.club / Exness 2026.3.8 計測値）】
+  採用ルール:
+    貴金属（XAUUSD, XAGUSD）: ロースプレッド口座 平均スプレッド（手数料込み）
+    指数（US30, SPX500, NAS100）: ゼロ口座 平均スプレッド
+  出典: https://www.fxfan.club/?p=59656
   USDJPY=0.10, EURUSD=0.00, GBPUSD=0.10, AUDUSD=0.10
   USDCAD=0.20, USDCHF=0.10, NZDUSD=0.20
   EURJPY=0.20, GBPJPY=0.30, EURGBP=0.40
-  US30=0.0pt, SPX500=0.2pt, NAS100=53.8pt
-  XAUUSD=0.90, XAGUSD=0.40
+  US30=0.8pt, SPX500=0.1pt, NAS100=8.3pt
+  XAUUSD=5.2, XAGUSD=2.6
 """
 
 from __future__ import annotations
@@ -58,10 +59,10 @@ from typing import Optional
 # quote_type: 円換算タイプ（A=円建て / B=USD建て / C=逆USD建て / D=指数）
 # color     : チャート用カラーコード
 
-# スプレッド採用ルール（SHINCO FX / Exness 2025.12.30 計測値）:
-# プロ口座 / ロースプレッド口座（+0.7pips手数料換算）/ ゼロ口座（+0.1pips手数料換算）を比較
-# 全銘柄でゼロ口座が最安のためゼロ口座を採用
-# ゼロ口座手数料: 片道0.2ドル/ロット ≒ 往復0.1pips相当（FX）
+# スプレッド採用ルール（fxfan.club / Exness 2026.3.8 計測値）:
+# 貴金属: ロースプレッド口座 平均スプレッド（手数料込み）
+# 指数: ゼロ口座 平均スプレッド
+# FX主要ペア: ゼロ口座（手数料片道0.2ドル/ロット≒往復0.1pips相当）
 SYMBOL_CONFIG: dict[str, dict] = {
     # FX主要ペア（全てゼロ口座採用）
     "USDJPY": {"pip": 0.01,   "spread": 0.10, "quote_type": "A", "color": "#ef4444", "account": "zero"},
@@ -74,13 +75,13 @@ SYMBOL_CONFIG: dict[str, dict] = {
     "EURJPY": {"pip": 0.01,   "spread": 0.20, "quote_type": "A", "color": "#ec4899", "account": "zero"},
     "GBPJPY": {"pip": 0.01,   "spread": 0.30, "quote_type": "A", "color": "#f43f5e", "account": "zero"},
     "EURGBP": {"pip": 0.0001, "spread": 0.40, "quote_type": "B_GBP", "color": "#a855f7", "account": "zero"},
-    # 指数（ゼロ口座採用）
-    "US30":   {"pip": 1.0,    "spread": 0.0,  "quote_type": "D", "color": "#f59e0b", "account": "zero"},
-    "SPX500": {"pip": 0.1,    "spread": 0.2,  "quote_type": "D", "color": "#06b6d4", "account": "zero"},
-    "NAS100": {"pip": 1.0,    "spread": 53.8, "quote_type": "D", "color": "#84cc16", "account": "zero"},
-    # 貴金属（ゼロ口座採用）
-    "XAUUSD": {"pip": 0.01,   "spread": 0.90, "quote_type": "B", "color": "#d97706", "account": "zero"},
-    "XAGUSD": {"pip": 0.001,  "spread": 0.40, "quote_type": "B", "color": "#6b7280", "account": "zero"},
+    # 指数（ゼロ口座 平均スプレッド / fxfan.club 2026.3.8）
+    "US30":   {"pip": 1.0,    "spread": 0.8,  "quote_type": "D", "color": "#f59e0b", "account": "zero"},
+    "SPX500": {"pip": 0.1,    "spread": 0.1,  "quote_type": "D", "color": "#06b6d4", "account": "zero"},
+    "NAS100": {"pip": 1.0,    "spread": 8.3,  "quote_type": "D", "color": "#84cc16", "account": "zero"},
+    # 貴金属（ロースプレッド口座 平均スプレッド / fxfan.club 2026.3.8）
+    "XAUUSD": {"pip": 0.01,   "spread": 5.2,  "quote_type": "B", "color": "#d97706", "account": "raw_spread"},
+    "XAGUSD": {"pip": 0.001,  "spread": 2.6,  "quote_type": "B", "color": "#6b7280", "account": "raw_spread"},
 }
 
 
