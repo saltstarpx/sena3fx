@@ -272,6 +272,48 @@ class RiskManager:
             pass
         return 150.0
 
+    def calc_commission_jpy(
+        self,
+        lot_size: float,
+        usdjpy_rate: float = 150.0,
+        side: str = "open",
+    ) -> float:
+        """
+        ゼロ口座の片道手数料を円沿いで返す。
+
+        ゼロ口座の手数料規定: 片道0.2ドル / 100,000通貨（1標準ロット）
+        つまり 0.2ドル / 100,000通貨 × lot_size通貨 × USDJPYレート
+
+        Parameters
+        ----------
+        lot_size : float
+            ロットサイズ（通貨数）
+        usdjpy_rate : float
+            USDJPYレート（円換算用）
+        side : str
+            "open"（エントリー）または "close"（クローズ）→ 片道分のみ
+
+        Returns
+        -------
+        float
+            手数料（円）。常に正の値（資産から引く金額）。
+        """
+        # ゼロ口座: 0.2ドル / 100,000通貨
+        commission_usd = 0.2 * (lot_size / 100_000)
+        commission_jpy = commission_usd * usdjpy_rate
+        return commission_jpy
+
+    def calc_roundtrip_commission_jpy(
+        self,
+        lot_size: float,
+        usdjpy_rate: float = 150.0,
+    ) -> float:
+        """
+        ゼロ口座の往復手数料合計（円）を返す。
+        エントリー時 + クローズ時の両方をまとめて計算する際に使用。
+        """
+        return self.calc_commission_jpy(lot_size, usdjpy_rate) * 2
+
     def __repr__(self) -> str:
         return (
             f"RiskManager({self.symbol}, risk={self.risk_pct*100:.0f}%, "
