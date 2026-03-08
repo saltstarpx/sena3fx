@@ -124,7 +124,9 @@ def generate_signals_1h(data_1m, data_15m, data_4h, spread_pips, pip_size):
                 continue
             if direction == -1 and h1_prev1["close"] >= h1_prev1["open"]:
                 continue
-            if not check_kmid_klow(h1_prev1, direction):  # 1H足でKMID/KLOWチェック
+            if not check_kmid_klow(h4_latest, direction):   # 4H足フィルター（品質）
+                continue
+            if not check_kmid_klow(h1_prev1, direction):   # 1H足フィルター（タイミング）
                 continue
 
             entry_window_end = h1_ct + pd.Timedelta(minutes=2)

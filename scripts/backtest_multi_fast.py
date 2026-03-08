@@ -128,12 +128,14 @@ def generate_signals_1h(data_1m, data_15m, data_4h, spread_pips, pip_size):
             v2 = h1_prev1[low_or_high]
             if abs(v1 - v2) > tolerance:
                 continue
-            # 反転確認足（1H足でKMID/KLOWチェック）
+            # 反転確認足（4H足 AND 1H足 の両方でKMID/KLOWを満たす場合のみ通過）
             if direction == 1 and h1_prev1["close"] <= h1_prev1["open"]:
                 continue
             if direction == -1 and h1_prev1["close"] >= h1_prev1["open"]:
                 continue
-            if not check_kmid_klow(h1_prev1, direction):
+            if not check_kmid_klow(h4_latest, direction):   # 4H足フィルター（品質）
+                continue
+            if not check_kmid_klow(h1_prev1, direction):   # 1H足フィルター（タイミング）
                 continue
 
             entry_window_end = h1_ct + pd.Timedelta(minutes=2)
