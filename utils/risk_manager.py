@@ -37,14 +37,17 @@ utils/risk_manager.py
 
 【スプレッド設定（fxfan.club / Exness 2026.3.8 計測値）】
   採用ルール:
-    貴金属（XAUUSD, XAGUSD）: ロースプレッド口座 平均スプレッド（手数料込み）
+    FX主要ペア: ロースプレッド口座 最小スプレッド
+    クロス円（EURJPY等）: スタンダード口座 最小スプレッド
+    貴金属（XAUUSD, XAGUSD）: ロースプレッド口座 最小スプレッド
     指数（US30, SPX500, NAS100）: ゼロ口座 平均スプレッド
   出典: https://www.fxfan.club/?p=59656
-  USDJPY=0.10, EURUSD=0.00, GBPUSD=0.10, AUDUSD=0.10
-  USDCAD=0.20, USDCHF=0.10, NZDUSD=0.20
-  EURJPY=0.20, GBPJPY=0.30, EURGBP=0.40
-  US30=0.8pt, SPX500=0.1pt, NAS100=8.3pt
-  XAUUSD=5.2, XAGUSD=2.6
+  USDJPY=0.0,  EURUSD=0.0,  GBPUSD=0.1,  AUDUSD=0.0,  NZDUSD=0.5
+  USDCAD=0.1,  USDCHF=0.2
+  EURJPY=2.4,  GBPJPY=2.2,  AUDJPY=1.9,  NZDJPY=4.3,  CADJPY=3.8
+  CHFJPY=2.4,  HKDJPY=3.0
+  US30=0.8pt,  SPX500=0.1pt, NAS100=8.3pt
+  XAUUSD=5.2,  XAGUSD=2.6
 """
 
 from __future__ import annotations
@@ -60,20 +63,27 @@ from typing import Optional
 # color     : チャート用カラーコード
 
 # スプレッド採用ルール（fxfan.club / Exness 2026.3.8 計測値）:
-# 貴金属: ロースプレッド口座 平均スプレッド（手数料込み）
+# FX主要ペア: ロースプレッド口座 最小スプレッド
+# クロス円（EURJPY等）: スタンダード口座 最小スプレッド
+# 貴金属: ロースプレッド口座 最小スプレッド
 # 指数: ゼロ口座 平均スプレッド
-# FX主要ペア: ゼロ口座（手数料片道0.2ドル/ロット≒往復0.1pips相当）
 SYMBOL_CONFIG: dict[str, dict] = {
-    # FX主要ペア（全てゼロ口座採用）
-    "USDJPY": {"pip": 0.01,   "spread": 0.10, "quote_type": "A", "color": "#ef4444", "account": "zero"},
-    "EURUSD": {"pip": 0.0001, "spread": 0.00, "quote_type": "B", "color": "#f97316", "account": "zero"},
-    "GBPUSD": {"pip": 0.0001, "spread": 0.10, "quote_type": "B", "color": "#eab308", "account": "zero"},
-    "AUDUSD": {"pip": 0.0001, "spread": 0.10, "quote_type": "B", "color": "#22c55e", "account": "zero"},
-    "USDCAD": {"pip": 0.0001, "spread": 0.20, "quote_type": "C", "color": "#14b8a6", "account": "zero"},
-    "USDCHF": {"pip": 0.0001, "spread": 0.10, "quote_type": "C", "color": "#3b82f6", "account": "zero"},
-    "NZDUSD": {"pip": 0.0001, "spread": 0.20, "quote_type": "B", "color": "#8b5cf6", "account": "zero"},
-    "EURJPY": {"pip": 0.01,   "spread": 0.20, "quote_type": "A", "color": "#ec4899", "account": "zero"},
-    "GBPJPY": {"pip": 0.01,   "spread": 0.30, "quote_type": "A", "color": "#f43f5e", "account": "zero"},
+    # FX主要ペア（ロースプレッド口座 / fxfan.club 2026.3.8）
+    "USDJPY": {"pip": 0.01,   "spread": 0.0,  "quote_type": "A", "color": "#ef4444", "account": "raw_spread"},
+    "EURUSD": {"pip": 0.0001, "spread": 0.0,  "quote_type": "B", "color": "#f97316", "account": "raw_spread"},
+    "GBPUSD": {"pip": 0.0001, "spread": 0.1,  "quote_type": "B", "color": "#eab308", "account": "raw_spread"},
+    "AUDUSD": {"pip": 0.0001, "spread": 0.0,  "quote_type": "B", "color": "#22c55e", "account": "raw_spread"},
+    "USDCAD": {"pip": 0.0001, "spread": 0.1,  "quote_type": "C", "color": "#14b8a6", "account": "raw_spread"},
+    "USDCHF": {"pip": 0.0001, "spread": 0.2,  "quote_type": "C", "color": "#3b82f6", "account": "raw_spread"},
+    "NZDUSD": {"pip": 0.0001, "spread": 0.5,  "quote_type": "B", "color": "#8b5cf6", "account": "raw_spread"},
+    # クロス円（スタンダード口座 / fxfan.club 2026.3.8）
+    "EURJPY": {"pip": 0.01,   "spread": 2.4,  "quote_type": "A", "color": "#ec4899", "account": "standard"},
+    "GBPJPY": {"pip": 0.01,   "spread": 2.2,  "quote_type": "A", "color": "#f43f5e", "account": "standard"},
+    "AUDJPY": {"pip": 0.01,   "spread": 1.9,  "quote_type": "A", "color": "#10b981", "account": "standard"},
+    "NZDJPY": {"pip": 0.01,   "spread": 4.3,  "quote_type": "A", "color": "#6366f1", "account": "standard"},
+    "CADJPY": {"pip": 0.01,   "spread": 3.8,  "quote_type": "A", "color": "#f472b6", "account": "standard"},
+    "CHFJPY": {"pip": 0.01,   "spread": 2.4,  "quote_type": "A", "color": "#a78bfa", "account": "raw_spread"},
+    "HKDJPY": {"pip": 0.001,  "spread": 3.0,  "quote_type": "A", "color": "#fb923c", "account": "raw_spread"},
     "EURGBP": {"pip": 0.0001, "spread": 0.40, "quote_type": "B_GBP", "color": "#a855f7", "account": "zero"},
     # 指数（ゼロ口座 平均スプレッド / fxfan.club 2026.3.8）
     "US30":   {"pip": 1.0,    "spread": 0.8,  "quote_type": "D", "color": "#f59e0b", "account": "zero"},
