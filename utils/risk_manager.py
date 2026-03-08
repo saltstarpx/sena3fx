@@ -38,11 +38,12 @@ utils/risk_manager.py
 【スプレッド設定（SHINCO FX / Exness 2025.12.30 計測値）】
   採用ルール: ロースプレッド口座（手数料+0.7pips換算）とプロ口座を比較し安い方を採用
   同程度（差0.1pips以内）はプロ口座優先
-  USDJPY=0.96(pro), EURUSD=0.65(pro), GBPUSD=0.89(pro), AUDUSD=0.89(pro)
-  USDCAD=0.40(low), USDCHF=1.02(pro), NZDUSD=1.24(pro)
-  EURJPY=0.50(low), GBPJPY=0.80(low), EURGBP=1.32(pro)
-  US30=0.0pt(low), SPX500=0.2pt(low), NAS100=73.5pt(low)
-  XAUUSD=7.60(low), XAGUSD=2.90(pro)
+  全銘柄ゼロ口座採用（手数料片道0.2ドル/ロット≒往復0.1pips換算で最安）
+  USDJPY=0.10, EURUSD=0.00, GBPUSD=0.10, AUDUSD=0.10
+  USDCAD=0.20, USDCHF=0.10, NZDUSD=0.20
+  EURJPY=0.20, GBPJPY=0.30, EURGBP=0.40
+  US30=0.0pt, SPX500=0.2pt, NAS100=53.8pt
+  XAUUSD=0.90, XAGUSD=0.40
 """
 
 from __future__ import annotations
@@ -58,28 +59,28 @@ from typing import Optional
 # color     : チャート用カラーコード
 
 # スプレッド採用ルール（SHINCO FX / Exness 2025.12.30 計測値）:
-# ロースプレッド口座（手数料7ドル往復≒0.7pips相当）とプロ口座（手数料なし）を比較
-# 実質コストが安い方を採用。差が0.1pips以内なら同程度とみなしプロ口座優先
-# 指数はロースプレッド口座の生スプレッドが0〜0.2ptと圧倒的に安いためロース採用
+# プロ口座 / ロースプレッド口座（+0.7pips手数料換算）/ ゼロ口座（+0.1pips手数料換算）を比較
+# 全銘柄でゼロ口座が最安のためゼロ口座を採用
+# ゼロ口座手数料: 片道0.2ドル/ロット ≒ 往復0.1pips相当（FX）
 SYMBOL_CONFIG: dict[str, dict] = {
-    # FX主要ペア
-    "USDJPY": {"pip": 0.01,   "spread": 0.96, "quote_type": "A", "color": "#ef4444", "account": "pro"},
-    "EURUSD": {"pip": 0.0001, "spread": 0.65, "quote_type": "B", "color": "#f97316", "account": "pro"},
-    "GBPUSD": {"pip": 0.0001, "spread": 0.89, "quote_type": "B", "color": "#eab308", "account": "pro"},
-    "AUDUSD": {"pip": 0.0001, "spread": 0.89, "quote_type": "B", "color": "#22c55e", "account": "pro"},
-    "USDCAD": {"pip": 0.0001, "spread": 0.40, "quote_type": "C", "color": "#14b8a6", "account": "low"},
-    "USDCHF": {"pip": 0.0001, "spread": 1.02, "quote_type": "C", "color": "#3b82f6", "account": "pro"},
-    "NZDUSD": {"pip": 0.0001, "spread": 1.24, "quote_type": "B", "color": "#8b5cf6", "account": "pro"},
-    "EURJPY": {"pip": 0.01,   "spread": 0.50, "quote_type": "A", "color": "#ec4899", "account": "low"},
-    "GBPJPY": {"pip": 0.01,   "spread": 0.80, "quote_type": "A", "color": "#f43f5e", "account": "low"},
-    "EURGBP": {"pip": 0.0001, "spread": 1.32, "quote_type": "B_GBP", "color": "#a855f7", "account": "pro"},
-    # 指数（ロースプレッド口座が圧倒的に安い）
-    "US30":   {"pip": 1.0,    "spread": 0.0,  "quote_type": "D", "color": "#f59e0b", "account": "low"},
-    "SPX500": {"pip": 0.1,    "spread": 0.2,  "quote_type": "D", "color": "#06b6d4", "account": "low"},
-    "NAS100": {"pip": 1.0,    "spread": 73.5, "quote_type": "D", "color": "#84cc16", "account": "low"},
-    # 貴金属
-    "XAUUSD": {"pip": 0.01,   "spread": 7.60, "quote_type": "B", "color": "#d97706", "account": "low"},
-    "XAGUSD": {"pip": 0.001,  "spread": 2.90, "quote_type": "B", "color": "#6b7280", "account": "pro"},
+    # FX主要ペア（全てゼロ口座採用）
+    "USDJPY": {"pip": 0.01,   "spread": 0.10, "quote_type": "A", "color": "#ef4444", "account": "zero"},
+    "EURUSD": {"pip": 0.0001, "spread": 0.00, "quote_type": "B", "color": "#f97316", "account": "zero"},
+    "GBPUSD": {"pip": 0.0001, "spread": 0.10, "quote_type": "B", "color": "#eab308", "account": "zero"},
+    "AUDUSD": {"pip": 0.0001, "spread": 0.10, "quote_type": "B", "color": "#22c55e", "account": "zero"},
+    "USDCAD": {"pip": 0.0001, "spread": 0.20, "quote_type": "C", "color": "#14b8a6", "account": "zero"},
+    "USDCHF": {"pip": 0.0001, "spread": 0.10, "quote_type": "C", "color": "#3b82f6", "account": "zero"},
+    "NZDUSD": {"pip": 0.0001, "spread": 0.20, "quote_type": "B", "color": "#8b5cf6", "account": "zero"},
+    "EURJPY": {"pip": 0.01,   "spread": 0.20, "quote_type": "A", "color": "#ec4899", "account": "zero"},
+    "GBPJPY": {"pip": 0.01,   "spread": 0.30, "quote_type": "A", "color": "#f43f5e", "account": "zero"},
+    "EURGBP": {"pip": 0.0001, "spread": 0.40, "quote_type": "B_GBP", "color": "#a855f7", "account": "zero"},
+    # 指数（ゼロ口座採用）
+    "US30":   {"pip": 1.0,    "spread": 0.0,  "quote_type": "D", "color": "#f59e0b", "account": "zero"},
+    "SPX500": {"pip": 0.1,    "spread": 0.2,  "quote_type": "D", "color": "#06b6d4", "account": "zero"},
+    "NAS100": {"pip": 1.0,    "spread": 53.8, "quote_type": "D", "color": "#84cc16", "account": "zero"},
+    # 貴金属（ゼロ口座採用）
+    "XAUUSD": {"pip": 0.01,   "spread": 0.90, "quote_type": "B", "color": "#d97706", "account": "zero"},
+    "XAGUSD": {"pip": 0.001,  "spread": 0.40, "quote_type": "B", "color": "#6b7280", "account": "zero"},
 }
 
 
