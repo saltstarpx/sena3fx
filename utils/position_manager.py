@@ -145,6 +145,7 @@ class Position:
     is_extra:    bool  = False   # 含み益枠外で追加エントリーされたポジション
     pnl:         float = 0.0     # 現在の含み損益（円）
     in_profit:   bool  = False   # 含み益フラグ（True = 枠カウント外）
+    risk_jpy:    float = 0.0     # エントリー時のリスク額（円）。強制カット閾値計算用
     meta:        dict  = field(default_factory=dict)
 
 
@@ -302,6 +303,7 @@ class PositionManager:
         entry_price: float,
         entry_time: Optional[datetime] = None,
         is_extra: bool = False,
+        risk_jpy: float = 0.0,
         meta: Optional[dict] = None,
     ) -> Position:
         """
@@ -313,6 +315,8 @@ class PositionManager:
         is_extra : bool
             含み益ポジション枠外で追加エントリーされた場合 True。
             損失転換時の全カット対象になる。
+        risk_jpy : float
+            エントリー時のリスク額（円）。強制カット閾値（-0.5R等）の計算に使用。
         """
         sym = symbol.upper()
         if sym not in SYMBOL_GROUP:
@@ -328,6 +332,7 @@ class PositionManager:
             is_extra=is_extra,
             pnl=0.0,
             in_profit=False,
+            risk_jpy=risk_jpy,
             meta=meta or {},
         )
         self._positions[sym] = pos
@@ -351,12 +356,20 @@ class PositionManager:
     def check_and_cut(
         self,
         now: Optional[datetime] = None,
+        cut_threshold_r: float = 0.0,
     ) -> list[str]:
         """
         損失転換チェックを行い、追加ポジション全カット対象の銘柄リストを返す。
 
+        Parameters
+        ----------
+        cut_threshold_r : float
+            強制カット発動の閾値（Rの倍数）。デフォルト 0.0 = 含み損転換瞬間。
+            例: -0.5 を指定すると -0.5R（リスク額の50%）を超えた損失で発動。
+            risk_jpy が 0 の場合は従来通り pnl < 0 で判定。
+
         ロジック:
-          - 含み損に転じたポジション（in_profit=False かつ pnl < 0）が存在する場合、
+          - 閾値を超えた損失ポジションが存在する場合、
             is_extra=True のポジションを全て強制クローズ対象として返す
           - クールタイムを設定する
           - バックテスト本体側でリストを受け取り、close_position() を呼ぶこと
@@ -366,11 +379,21 @@ class PositionManager:
         list[str]
             強制クローズ対象の銘柄名リスト（空リストの場合はカットなし）
         """
-        # 含み損に転じたポジションが存在するか確認
-        has_loss = any(
-            p.pnl < 0 and not p.in_profit
-            for p in self._positions.values()
-        )
+        # 閾値を超えた損失ポジションが存在するか確認
+        has_loss = False
+        for p in self._positions.values():
+            if p.risk_jpy > 0 and cut_threshold_r != 0.0:
+                # risk_jpyが設定されている場合はRベースで判定
+                threshold_jpy = p.risk_jpy * cut_threshold_r  # 例: risk_jpy * (-0.5)
+                if p.pnl < threshold_jpy:
+                    has_loss = True
+                    break
+            else:
+                # 従来通り pnl < 0 で判定
+                if p.pnl < 0 and not p.in_profit:
+                    has_loss = True
+                    break
+
         if not has_loss:
             return []
 
