@@ -329,3 +329,194 @@ if __name__ == "__main__":
 
     print("-" * 90)
     print(f"※ リスク額は全て {equity*0.02:,.0f}円（総資産{equity:,}円の2%）になるはず")
+
+
+# ══════════════════════════════════════════════════════════════
+# AdaptiveRiskManager: 資産規模 × DD 連動型リスク逓減マネージャー
+# ══════════════════════════════════════════════════════════════
+class AdaptiveRiskManager(RiskManager):
+    """
+    資産規模とドローダウンの両方に連動してリスク%を自動調整するクラス。
+
+    【ルール】
+    - 資産規模テーブルと DD テーブルをそれぞれ評価し、
+      より低い方のリスク% を採用する（保守的な方を優先）。
+
+    【資産規模テーブル】
+    資産 〜 1,000万円:   base_risk_pct × 1.00  (例: 2.0%)
+    資産 1,000万〜3,000万円: base_risk_pct × 0.75  (例: 1.5%)
+    資産 3,000万〜5,000万円: base_risk_pct × 0.50  (例: 1.0%)
+    資産 5,000万〜1億円:     base_risk_pct × 0.375 (例: 0.75%)
+    資産 1億円〜:            base_risk_pct × 0.25  (例: 0.5%)
+
+    【DD テーブル】
+    DD  0%未満:  × 1.00  (通常)
+    DD  5%以上:  × 0.75
+    DD 10%以上:  × 0.50
+    DD 15%以上:  × 0.25  (最小)
+
+    【採用ルール】
+    effective_risk = min(資産規模テーブル値, DDテーブル値)
+    """
+
+    # 資産規模テーブル: (資産下限, リスク乗数)
+    EQUITY_STEPS = [
+        (0,           1.00),   # 〜1,000万円
+        (10_000_000,  0.75),   # 1,000万〜3,000万円
+        (30_000_000,  0.50),   # 3,000万〜5,000万円
+        (50_000_000,  0.375),  # 5,000万〜1億円
+        (100_000_000, 0.25),   # 1億円〜
+    ]
+
+    # 絶対下限リスク率（1億円超 + DD15%でも0.5%を下回らない）
+    RISK_FLOOR = 0.005
+
+    # DD テーブル: (DD閾値, リスク乗数)
+    DD_STEPS = [
+        (0.00,  1.00),   # DD  0%未満 → 通常
+        (0.05,  0.75),   # DD  5%以上 → ×0.75
+        (0.10,  0.50),   # DD 10%以上 → ×0.50
+        (0.15,  0.25),   # DD 15%以上 → ×0.25（最小）
+    ]
+
+    def __init__(self, symbol: str, base_risk_pct: float = 0.02):
+        super().__init__(symbol, risk_pct=base_risk_pct)
+        self.base_risk_pct = base_risk_pct
+        self.peak_equity   = None   # 過去最高資産額
+        self._current_dd   = 0.0   # 現在のDD率（参照用）
+
+    def update_peak(self, equity: float) -> None:
+        """資産の最高値を更新する（毎トレード後・半利確後に呼ぶ）"""
+        if self.peak_equity is None or equity > self.peak_equity:
+            self.peak_equity = equity
+
+    def current_dd_rate(self, equity: float) -> float:
+        """現在のドローダウン率を返す"""
+        if self.peak_equity is None or self.peak_equity <= 0:
+            return 0.0
+        dd = (self.peak_equity - equity) / self.peak_equity
+        self._current_dd = max(dd, 0.0)
+        return self._current_dd
+
+    def equity_risk_multiplier(self, equity: float) -> float:
+        """資産規模テーブルから乗数を返す"""
+        mult = 1.00
+        for threshold, m in self.EQUITY_STEPS:
+            if equity >= threshold:
+                mult = m
+        return mult
+
+    def dd_risk_multiplier(self, equity: float) -> float:
+        """DDテーブルから乗数を返す"""
+        dd   = self.current_dd_rate(equity)
+        mult = 1.00
+        for threshold, m in self.DD_STEPS:
+            if dd >= threshold:
+                mult = m
+        return mult
+
+    def effective_risk_pct(self, equity: float) -> tuple:
+        """
+        資産規模テーブルと DD テーブルの両方を評価し、
+        より低い方（保守的な方）のリスク% を返す。
+        RISK_FLOOR で絶対下限を保証する。
+
+        Returns
+        -------
+        tuple[float, str]
+            (effective_risk_pct, reason)
+            reason: 'equity' / 'dd' / 'floor' / 'base'
+        """
+        eq_mult = self.equity_risk_multiplier(equity)
+        dd_mult = self.dd_risk_multiplier(equity)
+
+        eq_risk = self.base_risk_pct * eq_mult
+        dd_risk = self.base_risk_pct * dd_mult
+
+        if eq_risk <= dd_risk:
+            raw    = eq_risk
+            reason = 'equity' if eq_mult < 1.0 else 'base'
+        else:
+            raw    = dd_risk
+            reason = 'dd' if dd_mult < 1.0 else 'base'
+
+        # 絶対下限保証
+        final = max(raw, self.RISK_FLOOR)
+        if final > raw:
+            reason = 'floor'
+
+        return final, reason
+
+    def calc_lot_adaptive(
+        self,
+        equity: float,
+        sl_distance: float,
+        ref_price: float,
+        usdjpy_rate: float = 150.0,
+    ) -> tuple:
+        """
+        資産規模 × DD 連動でロットを計算する。
+
+        Returns
+        -------
+        tuple[float, float, str]
+            (lot, effective_risk_pct, reason)
+            reason: 'equity' / 'dd' / 'floor' / 'base'
+        """
+        eff_risk, reason = self.effective_risk_pct(equity)
+        self.risk_pct    = eff_risk  # 親クラスの calc_lot に渡す値を一時変更
+
+        lot = self.calc_lot(
+            equity=equity,
+            sl_distance=sl_distance,
+            ref_price=ref_price,
+            usdjpy_rate=usdjpy_rate,
+        )
+
+        self.risk_pct = self.base_risk_pct  # 元に戻す
+        return lot, eff_risk, reason
+
+    def __repr__(self) -> str:
+        return (
+            f"AdaptiveRiskManager({self.symbol}, base_risk={self.base_risk_pct*100:.0f}%, "
+            f"peak={self.peak_equity}, dd={self._current_dd:.1%}, "
+            f"spread={self.spread_pips}pips, type={self.quote_type})"
+        )
+
+
+# ── 動作確認（AdaptiveRiskManager） ──────────────────────────
+if __name__ == "__main__":
+    print("\n" + "=" * 60)
+    print("AdaptiveRiskManager 動作確認")
+    print("=" * 60)
+
+    arm = AdaptiveRiskManager("NZDUSD", base_risk_pct=0.02)
+    usdjpy = 150.0
+    sl_dist = 0.00074
+    ref_price = 0.565
+
+    test_equities = [
+        (1_000_000,   0.00, "初期資産100万・DD0%"),
+        (950_000,     0.05, "資産95万・DD5%"),
+        (900_000,     0.10, "資産90万・DD10%"),
+        (850_000,     0.15, "資産85万・DD15%"),
+        (10_000_000,  0.00, "資産1,000万・DD0%"),
+        (30_000_000,  0.00, "資産3,000万・DD0%"),
+        (30_000_000,  0.08, "資産3,000万・DD8%"),
+        (100_000_000, 0.00, "資産1億・DD0%"),
+    ]
+
+    print(f"\n{'資産':>14} {'DD':>6} {'資産乗数':>8} {'DD乗数':>8} "
+          f"{'実効リスク':>10} {'損切額':>10} {'説明'}")
+    print("-" * 80)
+
+    for equity, dd_rate, desc in test_equities:
+        # ピークを設定してDDを再現
+        arm.peak_equity = equity / (1 - dd_rate) if dd_rate < 1 else equity
+        eq_mult = arm.equity_risk_multiplier(equity)
+        dd_mult = arm.dd_risk_multiplier(equity)
+        eff     = arm.effective_risk_pct(equity)
+        risk_amt = equity * eff
+        lot, _  = arm.calc_lot_adaptive(equity, sl_dist, ref_price, usdjpy)
+        print(f"{equity:>14,.0f} {dd_rate:>6.0%} {eq_mult:>8.2f} {dd_mult:>8.2f} "
+              f"{eff:>10.2%} {risk_amt:>10,.0f}円  {desc}")
