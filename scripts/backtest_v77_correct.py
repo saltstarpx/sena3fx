@@ -19,6 +19,10 @@ import os, sys, warnings
 warnings.filterwarnings("ignore")
 import numpy as np
 import pandas as pd
+
+# risk_manager をインポート（銘柄名を渡すだけで自動設定）
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from utils.risk_manager import RiskManager, SYMBOL_CONFIG
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -48,20 +52,21 @@ IS_END     = "2025-02-28"
 OOS_START  = "2025-03-03"
 OOS_END    = "2026-02-27"
 
-# 最低スプレッド（Exness ゼロ口座 生スプレッド）
+# 銘柄設定は risk_manager.py の SYMBOL_CONFIG から自動取得
+# 銘柄名を渡すだけで spread / pip_size / 円換算タイプが決まる
 PAIRS = {
-    "USDJPY": {"spread": 0.42, "pip": 0.01,   "sym": "usdjpy", "color": "#ef4444"},
-    "EURUSD": {"spread": 0.04, "pip": 0.0001, "sym": "eurusd", "color": "#f97316"},
-    "GBPUSD": {"spread": 0.13, "pip": 0.0001, "sym": "gbpusd", "color": "#eab308"},
-    "AUDUSD": {"spread": 0.01, "pip": 0.0001, "sym": "audusd", "color": "#22c55e"},
-    "USDCAD": {"spread": 0.10, "pip": 0.0001, "sym": "usdcad", "color": "#14b8a6"},
-    "USDCHF": {"spread": 0.10, "pip": 0.0001, "sym": "usdchf", "color": "#3b82f6"},
-    "NZDUSD": {"spread": 0.10, "pip": 0.0001, "sym": "nzdusd", "color": "#8b5cf6"},
-    "EURJPY": {"spread": 0.21, "pip": 0.01,   "sym": "eurjpy", "color": "#ec4899"},
-    "GBPJPY": {"spread": 0.35, "pip": 0.01,   "sym": "gbpjpy", "color": "#f43f5e"},
-    "EURGBP": {"spread": 0.50, "pip": 0.0001, "sym": "eurgbp", "color": "#a855f7"},
-    "US30":   {"spread": 3.0,  "pip": 1.0,    "sym": "us30",   "color": "#f59e0b"},
-    "SPX500": {"spread": 0.5,  "pip": 0.1,    "sym": "spx500", "color": "#06b6d4"},
+    "USDJPY": {"sym": "usdjpy"},
+    "EURUSD": {"sym": "eurusd"},
+    "GBPUSD": {"sym": "gbpusd"},
+    "AUDUSD": {"sym": "audusd"},
+    "USDCAD": {"sym": "usdcad"},
+    "USDCHF": {"sym": "usdchf"},
+    "NZDUSD": {"sym": "nzdusd"},
+    "EURJPY": {"sym": "eurjpy"},
+    "GBPJPY": {"sym": "gbpjpy"},
+    "EURGBP": {"sym": "eurgbp"},
+    "US30":   {"sym": "us30"},
+    "SPX500": {"sym": "spx500"},
 }
 
 # ── データ読み込み ─────────────────────────────────────────
@@ -291,9 +296,20 @@ def generate_signals_hybrid(data_1m, data_15m, data_4h, spread_pips, pip_size, r
 #   ① まず現在のSL（またはBE-SL）に触れているか判定 → 触れていたら即損切
 #   ② SLに触れていない場合のみTPを判定
 #   ③ SL/TPどちらにも触れていない場合のみ半利確ラインを判定
-def simulate(signals, data_1m, init_cash=1_000_000, risk_pct=0.02, half_r=1.0):
+def simulate(signals, data_1m, init_cash=1_000_000, risk_pct=0.02, half_r=1.0,
+             symbol="USDJPY", usdjpy_1m=None):
+    """
+    Parameters
+    ----------
+    symbol : str
+        銘柄名。RiskManagerが自動的に円換算ロジックを選択する。
+    usdjpy_1m : pd.DataFrame or None
+        USDJPY の1分足データ。Type B/C/D 銘柄のロットサイズ計算に使用。
+        None の場合はデフォルトレート（150.0）を使用。
+    """
     if signals is None or len(signals) == 0:
         return pd.DataFrame(), pd.Series([init_cash], name="equity")
+    rm     = RiskManager(symbol, risk_pct=risk_pct)
     trades = []
     equity = init_cash
     for _, sig in signals.iterrows():
@@ -302,8 +318,10 @@ def simulate(signals, data_1m, init_cash=1_000_000, risk_pct=0.02, half_r=1.0):
         sl   = sig["sl"]
         tp   = sig["tp"]
         risk = sig["risk"]
-        risk_amt = init_cash * risk_pct
-        lot_size = risk_amt / risk if risk > 0 else 0
+        # エントリー時点の USDJPY レートを取得（Type B/C/D 用）
+        usdjpy_rate = rm.get_usdjpy_rate(usdjpy_1m, sig["time"]) if usdjpy_1m is not None else 150.0
+        # ロットサイズ: 総資産 × risk_pct ÷ (SL距離 × 1通貨あたり円価値)
+        lot_size = rm.calc_lot(equity, risk, ep, usdjpy_rate=usdjpy_rate)
         future = data_1m[data_1m.index > sig["time"]]
         if len(future) == 0:
             continue
@@ -318,7 +336,8 @@ def simulate(signals, data_1m, init_cash=1_000_000, risk_pct=0.02, half_r=1.0):
                 if bar["low"] <= current_sl:
                     exit_price = current_sl; exit_time = bar_time
                     remaining  = 0.5 if half_done else 1.0
-                    pnl        = (exit_price - ep) * lot_size * remaining
+                    pnl        = rm.calc_pnl_jpy(direction, ep, exit_price, lot_size * remaining,
+                                                   usdjpy_rate=usdjpy_rate, ref_price=ep)
                     equity    += pnl
                     result     = "win" if pnl > 0 else "loss"
                     break
@@ -326,18 +345,21 @@ def simulate(signals, data_1m, init_cash=1_000_000, risk_pct=0.02, half_r=1.0):
                 # ② TP判定
                 if bar["high"] >= tp:
                     if not half_done and bar["high"] >= ep + risk * half_r:
-                        equity   += risk * half_r * lot_size * 0.5
+                        equity   += rm.calc_pnl_jpy(direction, ep, ep + risk * half_r,
+                                                    lot_size * 0.5, usdjpy_rate=usdjpy_rate, ref_price=ep)
                         half_done = True
                     exit_price = tp; exit_time = bar_time
                     remaining  = 0.5 if half_done else 1.0
-                    equity    += (exit_price - ep) * lot_size * remaining
+                    equity    += rm.calc_pnl_jpy(direction, ep, exit_price, lot_size * remaining,
+                                                 usdjpy_rate=usdjpy_rate, ref_price=ep)
                     result     = "win"
                     break
 
                 # ③ 半利確チェック
                 if not half_done and bar["high"] >= ep + risk * half_r:
                     half_done = True; be_sl = ep
-                    equity   += risk * half_r * lot_size * 0.5
+                    equity   += rm.calc_pnl_jpy(direction, ep, ep + risk * half_r,
+                                                lot_size * 0.5, usdjpy_rate=usdjpy_rate, ref_price=ep)
 
             else:  # ショート
                 current_sl = be_sl if half_done else sl
@@ -346,7 +368,8 @@ def simulate(signals, data_1m, init_cash=1_000_000, risk_pct=0.02, half_r=1.0):
                 if bar["high"] >= current_sl:
                     exit_price = current_sl; exit_time = bar_time
                     remaining  = 0.5 if half_done else 1.0
-                    pnl        = (ep - exit_price) * lot_size * remaining
+                    pnl        = rm.calc_pnl_jpy(direction, ep, exit_price, lot_size * remaining,
+                                                 usdjpy_rate=usdjpy_rate, ref_price=ep)
                     equity    += pnl
                     result     = "win" if pnl > 0 else "loss"
                     break
@@ -354,18 +377,21 @@ def simulate(signals, data_1m, init_cash=1_000_000, risk_pct=0.02, half_r=1.0):
                 # ② TP判定
                 if bar["low"] <= tp:
                     if not half_done and bar["low"] <= ep - risk * half_r:
-                        equity   += risk * half_r * lot_size * 0.5
+                        equity   += rm.calc_pnl_jpy(direction, ep, ep - risk * half_r,
+                                                    lot_size * 0.5, usdjpy_rate=usdjpy_rate, ref_price=ep)
                         half_done = True
                     exit_price = tp; exit_time = bar_time
                     remaining  = 0.5 if half_done else 1.0
-                    equity    += (ep - exit_price) * lot_size * remaining
+                    equity    += rm.calc_pnl_jpy(direction, ep, exit_price, lot_size * remaining,
+                                                 usdjpy_rate=usdjpy_rate, ref_price=ep)
                     result     = "win"
                     break
 
                 # ③ 半利確チェック
                 if not half_done and bar["low"] <= ep - risk * half_r:
                     half_done = True; be_sl = ep
-                    equity   += risk * half_r * lot_size * 0.5
+                    equity   += rm.calc_pnl_jpy(direction, ep, ep - risk * half_r,
+                                                lot_size * 0.5, usdjpy_rate=usdjpy_rate, ref_price=ep)
 
         if result is None:
             continue
@@ -439,11 +465,12 @@ sig_funcs = {
 }
 
 for pair, cfg in PAIRS.items():
-    sym    = cfg["sym"]
-    spread = cfg["spread"]
-    pip    = cfg["pip"]
+    sym = cfg["sym"]
+    rm  = RiskManager(pair, risk_pct=RISK_PCT)  # 銘柄名を渡すだけで自動設定
+    spread = rm.spread_pips
+    pip    = rm.pip_size
     print(f"\n{'='*60}")
-    print(f"  {pair}  スプレッド: {spread}pips")
+    print(f"  {pair}  スプレッド: {spread}pips  タイプ: {rm.quote_type}")
     print(f"{'='*60}")
 
     d1m_is   = load_csv(os.path.join(DATA_DIR, f"{sym}_is_1m.csv"))
@@ -473,8 +500,18 @@ for pair, cfg in PAIRS.items():
             ("OOS", d1m_oos, d15m_oos, d4h_oos),
         ]:
             sigs   = sig_fn(d1m, d15m, d4h, spread, pip, rr_ratio=RR_RATIO)
+            # USDJPY以外の銘柄はUSDJPYレートが必要なため1分足データを渡す
+            usdjpy_1m = load_csv(os.path.join(DATA_DIR, "usdjpy_is_1m.csv")) \
+                        if rm.quote_type != "A" and period == "IS" else \
+                        load_csv(os.path.join(DATA_DIR, "usdjpy_oos_1m.csv")) \
+                        if rm.quote_type != "A" else None
+            if usdjpy_1m is not None:
+                usdjpy_1m = slice_period(usdjpy_1m,
+                                         IS_START if period == "IS" else OOS_START,
+                                         IS_END   if period == "IS" else OOS_END)
             trades, eq = simulate(sigs, d1m, init_cash=INIT_CASH,
-                                  risk_pct=RISK_PCT, half_r=HALF_R)
+                                  risk_pct=RISK_PCT, half_r=HALF_R,
+                                  symbol=pair, usdjpy_1m=usdjpy_1m)
             label  = f"{pair}_{mode}_{period}"
             stats  = calc_stats(trades, eq, label)
             stats["pair"]   = pair

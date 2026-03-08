@@ -1,0 +1,331 @@
+"""
+utils/risk_manager.py
+=====================
+全通貨ペア対応の共通資金管理ユーティリティ
+
+【使い方】
+    from utils.risk_manager import RiskManager
+
+    rm = RiskManager("EURUSD")
+    lot = rm.calc_lot(equity=1_000_000, sl_distance=0.0005, ref_price=1.0850)
+    print(f"ロットサイズ: {lot:.0f}通貨")
+
+【設計思想】
+- 銘柄名を渡すだけで pip_size / spread / 円換算ロジックが自動設定される
+- SL距離はv77本体のATRベース（ATR × 0.15）で決まるため固定値最適化なし
+- 損切額 = 総資産 × risk_pct（デフォルト2%）を厳守
+- バックテストでも本番EAでも同一コードで動作する
+
+【通貨ペアタイプと円換算】
+  Type A: XXX/JPY  (USDJPY, EURJPY, GBPJPY)
+    → 1通貨の損益 = 価格差（円）× ロット数
+    → lot = risk_jpy / sl_distance
+
+  Type B: XXX/USD  (EURUSD, GBPUSD, AUDUSD, NZDUSD)
+    → 1通貨の損益 = 価格差（USD）× USDJPY × ロット数
+    → lot = risk_jpy / (sl_distance × usdjpy_rate)
+
+  Type C: USD/XXX  (USDCAD, USDCHF)
+    → 1通貨の損益 = 価格差（USD/XXX）× USDJPY / 現在価格 × ロット数
+    → lot = risk_jpy / (sl_distance × usdjpy_rate / ref_price)
+    ※ ref_price = エントリー時の現在価格（raw_ep）
+
+  Type D: 指数（US30, SPX500, NAS100）
+    → 1ptの損益 = USDJPY × ロット数（コントラクトサイズ依存）
+    → lot = risk_jpy / (sl_distance × usdjpy_rate)
+    ※ US30/SPX500はcfd_multiplier=1として扱う（Exness標準）
+
+【スプレッド設定（Exness ゼロ口座 生スプレッド実測値）】
+  USDJPY=0.42, EURUSD=0.04, GBPUSD=0.13, AUDUSD=0.01
+  USDCAD=0.10, USDCHF=0.10, NZDUSD=0.10
+  EURJPY=0.21, GBPJPY=0.35, EURGBP=0.50
+  US30=3.0pt, SPX500=0.5pt, NAS100=1.0pt
+"""
+
+from __future__ import annotations
+import pandas as pd
+import numpy as np
+from typing import Optional
+
+# ── 銘柄マスタ ────────────────────────────────────────────
+# key: 銘柄名（大文字）
+# pip_size  : 1pip = 何価格単位か（SL距離の最小単位）
+# spread    : Exness ゼロ口座の生スプレッド（pips）
+# quote_type: 円換算タイプ（A=円建て / B=USD建て / C=逆USD建て / D=指数）
+# color     : チャート用カラーコード
+
+SYMBOL_CONFIG: dict[str, dict] = {
+    "USDJPY": {"pip": 0.01,   "spread": 0.42, "quote_type": "A", "color": "#ef4444"},
+    "EURUSD": {"pip": 0.0001, "spread": 0.04, "quote_type": "B", "color": "#f97316"},
+    "GBPUSD": {"pip": 0.0001, "spread": 0.13, "quote_type": "B", "color": "#eab308"},
+    "AUDUSD": {"pip": 0.0001, "spread": 0.01, "quote_type": "B", "color": "#22c55e"},
+    "USDCAD": {"pip": 0.0001, "spread": 0.10, "quote_type": "C", "color": "#14b8a6"},
+    "USDCHF": {"pip": 0.0001, "spread": 0.10, "quote_type": "C", "color": "#3b82f6"},
+    "NZDUSD": {"pip": 0.0001, "spread": 0.10, "quote_type": "B", "color": "#8b5cf6"},
+    "EURJPY": {"pip": 0.01,   "spread": 0.21, "quote_type": "A", "color": "#ec4899"},
+    "GBPJPY": {"pip": 0.01,   "spread": 0.35, "quote_type": "A", "color": "#f43f5e"},
+    "EURGBP": {"pip": 0.0001, "spread": 0.50, "quote_type": "B_GBP", "color": "#a855f7"},
+    "US30":   {"pip": 1.0,    "spread": 3.0,  "quote_type": "D", "color": "#f59e0b"},
+    "SPX500": {"pip": 0.1,    "spread": 0.5,  "quote_type": "D", "color": "#06b6d4"},
+    "NAS100": {"pip": 1.0,    "spread": 1.0,  "quote_type": "D", "color": "#84cc16"},
+    "XAUUSD": {"pip": 0.01,   "spread": 2.0,  "quote_type": "B", "color": "#d97706"},
+    "XAGUSD": {"pip": 0.001,  "spread": 0.02, "quote_type": "B", "color": "#6b7280"},
+}
+
+
+class RiskManager:
+    """
+    銘柄名を渡すだけで全通貨ペア対応のロットサイズを計算するクラス。
+
+    Parameters
+    ----------
+    symbol : str
+        銘柄名（例: "EURUSD", "USDJPY"）。大文字・小文字どちらでも可。
+    risk_pct : float
+        1トレードあたりのリスク割合（デフォルト: 0.02 = 2%）
+    """
+
+    def __init__(self, symbol: str, risk_pct: float = 0.02):
+        self.symbol    = symbol.upper()
+        self.risk_pct  = risk_pct
+
+        if self.symbol not in SYMBOL_CONFIG:
+            raise ValueError(
+                f"銘柄 '{self.symbol}' はサポートされていません。"
+                f"対応銘柄: {list(SYMBOL_CONFIG.keys())}"
+            )
+
+        cfg = SYMBOL_CONFIG[self.symbol]
+        self.pip_size   = cfg["pip"]
+        self.spread_pips = cfg["spread"]
+        self.quote_type = cfg["quote_type"]
+        self.color      = cfg["color"]
+
+    @property
+    def spread(self) -> float:
+        """スプレッドを価格単位で返す（pips × pip_size）"""
+        return self.spread_pips * self.pip_size
+
+    def calc_lot(
+        self,
+        equity: float,
+        sl_distance: float,
+        ref_price: float,
+        usdjpy_rate: Optional[float] = None,
+        gbpjpy_rate: Optional[float] = None,
+    ) -> float:
+        """
+        ロットサイズ（通貨数）を計算する。
+
+        Parameters
+        ----------
+        equity : float
+            現在の総資産（円）
+        sl_distance : float
+            SLまでの価格差（チャートレベル、raw_ep - sl の絶対値）
+        ref_price : float
+            エントリー時の現在価格（raw_ep）。Type C（USDCAD等）の換算に使用。
+        usdjpy_rate : float, optional
+            USDJPY の現在レート。Type B/C/D の換算に必要。
+            バックテスト時は data_1m の直近終値から自動取得を推奨。
+            None の場合はデフォルト値（150.0）を使用。
+        gbpjpy_rate : float, optional
+            GBPJPY の現在レート。Type B_GBP（EURGBP）の換算に必要。
+            None の場合は usdjpy_rate × ref_price で近似。
+
+        Returns
+        -------
+        float
+            ロットサイズ（通貨数）。0以下の場合は0を返す。
+        """
+        if sl_distance <= 0 or equity <= 0:
+            return 0.0
+
+        risk_jpy = equity * self.risk_pct  # 許容損失額（円）
+
+        # USDJPY レートのデフォルト（バックテスト時は実データから取得を推奨）
+        if usdjpy_rate is None or usdjpy_rate <= 0:
+            usdjpy_rate = 150.0
+
+        qt = self.quote_type
+
+        if qt == "A":
+            # XXX/JPY: 価格差がそのまま円
+            # lot = risk_jpy / sl_distance
+            lot = risk_jpy / sl_distance
+
+        elif qt == "B":
+            # XXX/USD: 価格差（USD）× USDJPY → 円
+            # lot = risk_jpy / (sl_distance × usdjpy_rate)
+            lot = risk_jpy / (sl_distance * usdjpy_rate)
+
+        elif qt == "B_GBP":
+            # EUR/GBP: 価格差（GBP）× GBPJPY → 円
+            # GBPJPY ≈ USDJPY × ref_price（EURGBP価格）で近似
+            if gbpjpy_rate is None or gbpjpy_rate <= 0:
+                gbpjpy_rate = usdjpy_rate * ref_price
+            lot = risk_jpy / (sl_distance * gbpjpy_rate)
+
+        elif qt == "C":
+            # USD/XXX: 損益はUSD建て（価格差 / 現在価格 × USDJPY）
+            # 例: USDCAD で SL距離0.005、現在価格1.35、USDJPY=150
+            # 1通貨の損失 = 0.005 / 1.35 × 150 = 0.556円
+            # lot = risk_jpy / (sl_distance / ref_price × usdjpy_rate)
+            lot = risk_jpy / (sl_distance / ref_price * usdjpy_rate)
+
+        elif qt == "D":
+            # 指数（US30, SPX500, NAS100）: 1pt = USDJPY 円
+            # Exness の CFD はコントラクトサイズ1として計算
+            lot = risk_jpy / (sl_distance * usdjpy_rate)
+
+        else:
+            lot = 0.0
+
+        return max(lot, 0.0)
+
+    def calc_pnl_jpy(
+        self,
+        direction: int,
+        ep: float,
+        exit_price: float,
+        lot: float,
+        usdjpy_rate: Optional[float] = None,
+        ref_price: Optional[float] = None,
+    ) -> float:
+        """
+        損益を円で計算する。
+
+        Parameters
+        ----------
+        direction : int
+            1=ロング, -1=ショート
+        ep : float
+            エントリー価格（スプレッド込みの実約定価格）
+        exit_price : float
+            決済価格
+        lot : float
+            ロットサイズ（通貨数）
+        usdjpy_rate : float, optional
+            USDJPY レート（Type B/C/D で使用）
+        ref_price : float, optional
+            エントリー時の現在価格（Type C で使用）
+
+        Returns
+        -------
+        float
+            損益（円）。プラスが利益、マイナスが損失。
+        """
+        if usdjpy_rate is None or usdjpy_rate <= 0:
+            usdjpy_rate = 150.0
+        if ref_price is None or ref_price <= 0:
+            ref_price = ep
+
+        price_diff = (exit_price - ep) * direction  # プラスが利益方向
+        qt = self.quote_type
+
+        if qt == "A":
+            return price_diff * lot
+        elif qt == "B":
+            return price_diff * lot * usdjpy_rate
+        elif qt == "B_GBP":
+            gbpjpy = usdjpy_rate * ref_price
+            return price_diff * lot * gbpjpy
+        elif qt == "C":
+            return price_diff / ref_price * lot * usdjpy_rate
+        elif qt == "D":
+            return price_diff * lot * usdjpy_rate
+        else:
+            return 0.0
+
+    def get_usdjpy_rate(self, data_1m: pd.DataFrame, entry_time) -> float:
+        """
+        バックテスト時にエントリー時点の USDJPY レートを 1分足データから取得する。
+
+        Parameters
+        ----------
+        data_1m : pd.DataFrame
+            USDJPY の 1分足データ（close カラムが必要）
+        entry_time : pd.Timestamp
+            エントリー時刻
+
+        Returns
+        -------
+        float
+            USDJPY レート。取得できない場合は 150.0 を返す。
+        """
+        try:
+            before = data_1m[data_1m.index <= entry_time]
+            if len(before) > 0:
+                return float(before.iloc[-1]["close"])
+        except Exception:
+            pass
+        return 150.0
+
+    def __repr__(self) -> str:
+        return (
+            f"RiskManager({self.symbol}, risk={self.risk_pct*100:.0f}%, "
+            f"spread={self.spread_pips}pips, type={self.quote_type})"
+        )
+
+
+# ── 便利関数: 銘柄名からRiskManagerを生成 ─────────────────
+def get_risk_manager(symbol: str, risk_pct: float = 0.02) -> RiskManager:
+    """銘柄名からRiskManagerインスタンスを返す。"""
+    return RiskManager(symbol, risk_pct)
+
+
+# ── 便利関数: 銘柄設定の一覧を返す ───────────────────────
+def list_symbols() -> list[str]:
+    """サポートされている銘柄名の一覧を返す。"""
+    return list(SYMBOL_CONFIG.keys())
+
+
+def get_symbol_config(symbol: str) -> dict:
+    """銘柄の設定（pip_size, spread, quote_type）を返す。"""
+    return SYMBOL_CONFIG.get(symbol.upper(), {})
+
+
+# ── 動作確認 ─────────────────────────────────────────────
+if __name__ == "__main__":
+    print("=" * 60)
+    print("RiskManager 動作確認")
+    print("=" * 60)
+
+    equity     = 1_000_000  # 100万円
+    usdjpy     = 150.0
+
+    test_cases = [
+        # (symbol,   sl_distance, ref_price, 説明)
+        ("USDJPY",  0.50,   150.0,  "SL50pips"),
+        ("EURUSD",  0.0005, 1.085,  "SL5pips"),
+        ("GBPUSD",  0.0010, 1.270,  "SL10pips"),
+        ("AUDUSD",  0.0005, 0.650,  "SL5pips"),
+        ("USDCAD",  0.0010, 1.350,  "SL10pips"),
+        ("USDCHF",  0.0010, 0.900,  "SL10pips"),
+        ("NZDUSD",  0.0005, 0.600,  "SL5pips"),
+        ("EURJPY",  0.50,   163.0,  "SL50pips"),
+        ("GBPJPY",  0.50,   192.0,  "SL50pips"),
+        ("EURGBP",  0.0005, 0.850,  "SL5pips"),
+        ("US30",    50.0,   38000,  "SL50pt"),
+        ("SPX500",  5.0,    5000,   "SL5pt"),
+    ]
+
+    print(f"{'銘柄':<10} {'タイプ':<8} {'スプレッド':<12} {'SL距離':<12} "
+          f"{'ロット(通貨)':<14} {'リスク額(円)':<14} {'説明'}")
+    print("-" * 90)
+
+    for sym, sl_dist, ref, desc in test_cases:
+        rm  = RiskManager(sym)
+        lot = rm.calc_lot(equity, sl_dist, ref, usdjpy_rate=usdjpy)
+
+        # 損失額の検証（SLまで動いたときの損失が2万円になるか確認）
+        pnl = rm.calc_pnl_jpy(
+            direction=1, ep=ref, exit_price=ref - sl_dist,
+            lot=lot, usdjpy_rate=usdjpy, ref_price=ref
+        )
+
+        print(f"{sym:<10} {rm.quote_type:<8} {rm.spread_pips:<12} {sl_dist:<12} "
+              f"{lot:<14.1f} {abs(pnl):<14.0f} {desc}")
+
+    print("-" * 90)
+    print(f"※ リスク額は全て {equity*0.02:,.0f}円（総資産{equity:,}円の2%）になるはず")
