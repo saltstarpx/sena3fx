@@ -210,6 +210,10 @@ def simulate_single(symbol, signals, data_1m, init_cash, base_risk):
             ref_price=ep, usdjpy_rate=USDJPY_RATE,
         )
 
+        # エントリー時の手数料を資産から控除（SL計算には影響しない）
+        entry_commission = arm.calc_commission_jpy(lot, USDJPY_RATE)
+        equity -= entry_commission
+
         # 決済チェック（エントリーバーの次から）
         half_done = False
         be_sl     = None
@@ -234,6 +238,8 @@ def simulate_single(symbol, signals, data_1m, init_cash, base_risk):
                     pnl = arm.calc_pnl_jpy(direction, ep, exit_price,
                                             lot * remaining, USDJPY_RATE, ep)
                     equity += pnl
+                    # クローズ手数料（残ロット分）
+                    equity -= arm.calc_commission_jpy(lot * remaining, USDJPY_RATE)
                     result = "BE" if (half_done and abs(exit_price - ep) < risk * 0.01) else ("TP" if pnl > 0 else "SL")
                     break
                 # TP
@@ -242,18 +248,25 @@ def simulate_single(symbol, signals, data_1m, init_cash, base_risk):
                         hp = arm.calc_pnl_jpy(direction, ep, ep + risk * HALF_R,
                                                lot * 0.5, USDJPY_RATE, ep)
                         equity += hp; half_pnl += hp
+                        # 半利確手数料（0.5ロット分）
+                        equity -= arm.calc_commission_jpy(lot * 0.5, USDJPY_RATE)
                         half_done = True; be_sl = ep
                         arm.update_peak(equity)
                     exit_price = tp; exit_time = bar_time
                     remaining  = 0.5 if half_done else 1.0
                     pnl = arm.calc_pnl_jpy(direction, ep, exit_price,
                                             lot * remaining, USDJPY_RATE, ep)
-                    equity += pnl; result = "TP"; break
+                    equity += pnl
+                    # クローズ手数料（残ロット分）
+                    equity -= arm.calc_commission_jpy(lot * remaining, USDJPY_RATE)
+                    result = "TP"; break
                 # 半利確のみ
                 if not half_done and bar_high >= ep + risk * HALF_R:
                     hp = arm.calc_pnl_jpy(direction, ep, ep + risk * HALF_R,
                                            lot * 0.5, USDJPY_RATE, ep)
                     equity += hp; half_pnl += hp
+                    # 半利確手数料（0.5ロット分）
+                    equity -= arm.calc_commission_jpy(lot * 0.5, USDJPY_RATE)
                     half_done = True; be_sl = ep
                     arm.update_peak(equity)
 
@@ -264,6 +277,8 @@ def simulate_single(symbol, signals, data_1m, init_cash, base_risk):
                     pnl = arm.calc_pnl_jpy(direction, ep, exit_price,
                                             lot * remaining, USDJPY_RATE, ep)
                     equity += pnl
+                    # クローズ手数料（残ロット分）
+                    equity -= arm.calc_commission_jpy(lot * remaining, USDJPY_RATE)
                     result = "BE" if (half_done and abs(exit_price - ep) < risk * 0.01) else ("TP" if pnl > 0 else "SL")
                     break
                 if bar_low <= tp:
@@ -271,17 +286,24 @@ def simulate_single(symbol, signals, data_1m, init_cash, base_risk):
                         hp = arm.calc_pnl_jpy(direction, ep, ep - risk * HALF_R,
                                                lot * 0.5, USDJPY_RATE, ep)
                         equity += hp; half_pnl += hp
+                        # 半利確手数料（0.5ロット分）
+                        equity -= arm.calc_commission_jpy(lot * 0.5, USDJPY_RATE)
                         half_done = True; be_sl = ep
                         arm.update_peak(equity)
                     exit_price = tp; exit_time = bar_time
                     remaining  = 0.5 if half_done else 1.0
                     pnl = arm.calc_pnl_jpy(direction, ep, exit_price,
                                             lot * remaining, USDJPY_RATE, ep)
-                    equity += pnl; result = "TP"; break
+                    equity += pnl
+                    # クローズ手数料（残ロット分）
+                    equity -= arm.calc_commission_jpy(lot * remaining, USDJPY_RATE)
+                    result = "TP"; break
                 if not half_done and bar_low <= ep - risk * HALF_R:
                     hp = arm.calc_pnl_jpy(direction, ep, ep - risk * HALF_R,
                                            lot * 0.5, USDJPY_RATE, ep)
                     equity += hp; half_pnl += hp
+                    # 半利確手数料（0.5ロット分）
+                    equity -= arm.calc_commission_jpy(lot * 0.5, USDJPY_RATE)
                     half_done = True; be_sl = ep
                     arm.update_peak(equity)
 
