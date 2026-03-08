@@ -35,11 +35,14 @@ utils/risk_manager.py
     → lot = risk_jpy / (sl_distance × usdjpy_rate)
     ※ US30/SPX500はcfd_multiplier=1として扱う（Exness標準）
 
-【スプレッド設定（Exness ゼロ口座 生スプレッド実測値）】
-  USDJPY=0.28, EURUSD=0.04, GBPUSD=0.13, AUDUSD=0.01
-  USDCAD=0.10, USDCHF=0.10, NZDUSD=0.10
-  EURJPY=0.21, GBPJPY=0.35, EURGBP=0.50
-  US30=3.0pt, SPX500=0.5pt, NAS100=1.0pt
+【スプレッド設定（SHINCO FX / Exness 2025.12.30 計測値）】
+  採用ルール: ロースプレッド口座（手数料+0.7pips換算）とプロ口座を比較し安い方を採用
+  同程度（差0.1pips以内）はプロ口座優先
+  USDJPY=0.96(pro), EURUSD=0.65(pro), GBPUSD=0.89(pro), AUDUSD=0.89(pro)
+  USDCAD=0.40(low), USDCHF=1.02(pro), NZDUSD=1.24(pro)
+  EURJPY=0.50(low), GBPJPY=0.80(low), EURGBP=1.32(pro)
+  US30=0.0pt(low), SPX500=0.2pt(low), NAS100=73.5pt(low)
+  XAUUSD=7.60(low), XAGUSD=2.90(pro)
 """
 
 from __future__ import annotations
@@ -54,22 +57,29 @@ from typing import Optional
 # quote_type: 円換算タイプ（A=円建て / B=USD建て / C=逆USD建て / D=指数）
 # color     : チャート用カラーコード
 
+# スプレッド採用ルール（SHINCO FX / Exness 2025.12.30 計測値）:
+# ロースプレッド口座（手数料7ドル往復≒0.7pips相当）とプロ口座（手数料なし）を比較
+# 実質コストが安い方を採用。差が0.1pips以内なら同程度とみなしプロ口座優先
+# 指数はロースプレッド口座の生スプレッドが0〜0.2ptと圧倒的に安いためロース採用
 SYMBOL_CONFIG: dict[str, dict] = {
-    "USDJPY": {"pip": 0.01,   "spread": 0.28, "quote_type": "A", "color": "#ef4444"},
-    "EURUSD": {"pip": 0.0001, "spread": 0.04, "quote_type": "B", "color": "#f97316"},
-    "GBPUSD": {"pip": 0.0001, "spread": 0.13, "quote_type": "B", "color": "#eab308"},
-    "AUDUSD": {"pip": 0.0001, "spread": 0.01, "quote_type": "B", "color": "#22c55e"},
-    "USDCAD": {"pip": 0.0001, "spread": 0.10, "quote_type": "C", "color": "#14b8a6"},
-    "USDCHF": {"pip": 0.0001, "spread": 0.10, "quote_type": "C", "color": "#3b82f6"},
-    "NZDUSD": {"pip": 0.0001, "spread": 0.10, "quote_type": "B", "color": "#8b5cf6"},
-    "EURJPY": {"pip": 0.01,   "spread": 0.21, "quote_type": "A", "color": "#ec4899"},
-    "GBPJPY": {"pip": 0.01,   "spread": 0.35, "quote_type": "A", "color": "#f43f5e"},
-    "EURGBP": {"pip": 0.0001, "spread": 0.50, "quote_type": "B_GBP", "color": "#a855f7"},
-    "US30":   {"pip": 1.0,    "spread": 3.0,  "quote_type": "D", "color": "#f59e0b"},
-    "SPX500": {"pip": 0.1,    "spread": 0.5,  "quote_type": "D", "color": "#06b6d4"},
-    "NAS100": {"pip": 1.0,    "spread": 1.0,  "quote_type": "D", "color": "#84cc16"},
-    "XAUUSD": {"pip": 0.01,   "spread": 2.0,  "quote_type": "B", "color": "#d97706"},
-    "XAGUSD": {"pip": 0.001,  "spread": 0.02, "quote_type": "B", "color": "#6b7280"},
+    # FX主要ペア
+    "USDJPY": {"pip": 0.01,   "spread": 0.96, "quote_type": "A", "color": "#ef4444", "account": "pro"},
+    "EURUSD": {"pip": 0.0001, "spread": 0.65, "quote_type": "B", "color": "#f97316", "account": "pro"},
+    "GBPUSD": {"pip": 0.0001, "spread": 0.89, "quote_type": "B", "color": "#eab308", "account": "pro"},
+    "AUDUSD": {"pip": 0.0001, "spread": 0.89, "quote_type": "B", "color": "#22c55e", "account": "pro"},
+    "USDCAD": {"pip": 0.0001, "spread": 0.40, "quote_type": "C", "color": "#14b8a6", "account": "low"},
+    "USDCHF": {"pip": 0.0001, "spread": 1.02, "quote_type": "C", "color": "#3b82f6", "account": "pro"},
+    "NZDUSD": {"pip": 0.0001, "spread": 1.24, "quote_type": "B", "color": "#8b5cf6", "account": "pro"},
+    "EURJPY": {"pip": 0.01,   "spread": 0.50, "quote_type": "A", "color": "#ec4899", "account": "low"},
+    "GBPJPY": {"pip": 0.01,   "spread": 0.80, "quote_type": "A", "color": "#f43f5e", "account": "low"},
+    "EURGBP": {"pip": 0.0001, "spread": 1.32, "quote_type": "B_GBP", "color": "#a855f7", "account": "pro"},
+    # 指数（ロースプレッド口座が圧倒的に安い）
+    "US30":   {"pip": 1.0,    "spread": 0.0,  "quote_type": "D", "color": "#f59e0b", "account": "low"},
+    "SPX500": {"pip": 0.1,    "spread": 0.2,  "quote_type": "D", "color": "#06b6d4", "account": "low"},
+    "NAS100": {"pip": 1.0,    "spread": 73.5, "quote_type": "D", "color": "#84cc16", "account": "low"},
+    # 貴金属
+    "XAUUSD": {"pip": 0.01,   "spread": 7.60, "quote_type": "B", "color": "#d97706", "account": "low"},
+    "XAGUSD": {"pip": 0.001,  "spread": 2.90, "quote_type": "B", "color": "#6b7280", "account": "pro"},
 }
 
 
