@@ -1,13 +1,14 @@
 """
 utils/position_manager.py
 =========================
-ポジション管理システム（全体・グループ・サブグループ制約）
+ポジション管理システム（全体・グループ・サブグループ・相関グループ制約）
 
 【設計仕様】
   全体ポジション上限    : 6ポジ
   全体トータルリスク上限 : 8%
   グループ内上限        : 2ポジ（FX / 貴金属 / 指数）
   サブグループ内上限    : 1ポジ（相関の高い銘柄群）
+  相関グループ内上限    : 1ポジ（最優先フィルター）
 
 【グループ × サブグループ定義】
   FX
@@ -19,6 +20,16 @@ utils/position_manager.py
     sub_metals   : XAUUSD, XAGUSD
   指数 (index)
     sub_us_index : US30, SPX500, NAS100
+
+【相関グループ定義（最優先フィルター）】
+  equity_risk : US30, SPX500, NAS100
+  risk_on_fx  : EURJPY, GBPJPY, AUDJPY
+  eur_pairs   : EURUSD, EURJPY, EURGBP
+  gbp_pairs   : GBPUSD, GBPJPY, EURGBP
+
+  → 同グループ内では1ポジション限定
+  → US30保有中はSPX500/NAS100の新規エントリー禁止
+  → EURJPYとEURGBPは同時保有禁止（eur_pairs）
 
 【使い方】
     from utils.position_manager import PositionManager
@@ -67,11 +78,31 @@ for _grp, _subs in _GROUPS.items():
             SYMBOL_GROUP[_sym]    = _grp
             SYMBOL_SUBGROUP[_sym] = _sub
 
+# ── 相関グループ定義（最優先フィルター） ──────────────────────
+# 同グループ内では1ポジション限定
+# 1銘柄が複数グループに属する場合、いずれかのグループで1ポジ保有中なら
+# 同グループの他銘柄はエントリー禁止
+CORRELATION_GROUPS: dict[str, list[str]] = {
+    "equity_risk": ["US30", "SPX500", "NAS100"],
+    "risk_on_fx":  ["EURJPY", "GBPJPY", "AUDJPY"],
+    "eur_pairs":   ["EURUSD", "EURJPY", "EURGBP"],
+    "gbp_pairs":   ["GBPUSD", "GBPJPY", "EURGBP"],
+}
+
+# 銘柄 → 所属する相関グループ名リスト（複数可）
+SYMBOL_CORR_GROUPS: dict[str, list[str]] = {}
+for _cgrp, _syms in CORRELATION_GROUPS.items():
+    for _sym in _syms:
+        if _sym not in SYMBOL_CORR_GROUPS:
+            SYMBOL_CORR_GROUPS[_sym] = []
+        SYMBOL_CORR_GROUPS[_sym].append(_cgrp)
+
 # ── 制約定数 ────────────────────────────────────────────────
-MAX_TOTAL_POSITIONS  = 6      # 全体ポジション上限
-MAX_TOTAL_RISK_PCT   = 0.08   # 全体トータルリスク上限（8%）
-MAX_GROUP_POSITIONS  = 2      # グループ内上限
-MAX_SUBGROUP_POSITIONS = 1    # サブグループ内上限
+MAX_TOTAL_POSITIONS    = 6      # 全体ポジション上限
+MAX_TOTAL_RISK_PCT     = 0.08   # 全体トータルリスク上限（8%）
+MAX_GROUP_POSITIONS    = 2      # グループ内上限
+MAX_SUBGROUP_POSITIONS = 1      # サブグループ内上限
+MAX_CORR_POSITIONS     = 1      # 相関グループ内上限（最優先）
 
 
 @dataclass
@@ -110,6 +141,11 @@ class PositionManager:
     def subgroup_positions(self, subgroup: str) -> int:
         return sum(1 for p in self._positions.values() if p.subgroup == subgroup)
 
+    def corr_group_positions(self, corr_group: str) -> int:
+        """相関グループ内の保有ポジション数を返す"""
+        members = CORRELATION_GROUPS.get(corr_group, [])
+        return sum(1 for s in self._positions if s in members)
+
     def has_position(self, symbol: str) -> bool:
         return symbol in self._positions
 
@@ -118,6 +154,14 @@ class PositionManager:
     def can_enter(self, symbol: str, risk_pct: float) -> tuple[bool, str]:
         """
         エントリー可否を判定する。
+
+        チェック順序（最優先から）:
+          1. 同銘柄保有中チェック
+          2. 相関グループ内上限（最優先フィルター）
+          3. 全体ポジション上限
+          4. 全体トータルリスク上限
+          5. グループ内上限
+          6. サブグループ内上限
 
         Parameters
         ----------
@@ -131,9 +175,21 @@ class PositionManager:
         """
         sym = symbol.upper()
 
-        # 既に同銘柄を保有中
+        # 1. 既に同銘柄を保有中
         if self.has_position(sym):
             return False, f"{sym}: 既に保有中"
+
+        # 2. 相関グループ内上限チェック（最優先）
+        corr_groups = SYMBOL_CORR_GROUPS.get(sym, [])
+        for cgrp in corr_groups:
+            if self.corr_group_positions(cgrp) >= MAX_CORR_POSITIONS:
+                # どの銘柄が競合しているか特定
+                members = CORRELATION_GROUPS[cgrp]
+                conflicting = [s for s in self._positions if s in members]
+                return False, (
+                    f"{sym}: 相関グループ [{cgrp}] の上限 {MAX_CORR_POSITIONS}ポジ に達しています "
+                    f"（競合: {', '.join(conflicting)}）"
+                )
 
         # 銘柄がグループ定義に存在するか確認
         if sym not in SYMBOL_GROUP:
@@ -142,14 +198,14 @@ class PositionManager:
         grp = SYMBOL_GROUP[sym]
         sub = SYMBOL_SUBGROUP[sym]
 
-        # 全体ポジション上限
+        # 3. 全体ポジション上限
         if self.total_positions >= MAX_TOTAL_POSITIONS:
             return False, (
                 f"{sym}: 全体ポジション上限 {MAX_TOTAL_POSITIONS}ポジ に達しています "
                 f"（現在 {self.total_positions}ポジ）"
             )
 
-        # 全体トータルリスク上限
+        # 4. 全体トータルリスク上限
         if self.total_risk_pct + risk_pct > MAX_TOTAL_RISK_PCT:
             return False, (
                 f"{sym}: 全体リスク上限 {MAX_TOTAL_RISK_PCT*100:.0f}% を超えます "
@@ -157,14 +213,14 @@ class PositionManager:
                 f"{(self.total_risk_pct+risk_pct)*100:.1f}%）"
             )
 
-        # グループ内上限
+        # 5. グループ内上限
         if self.group_positions(grp) >= MAX_GROUP_POSITIONS:
             return False, (
                 f"{sym}: グループ [{grp}] の上限 {MAX_GROUP_POSITIONS}ポジ に達しています "
                 f"（現在 {self.group_positions(grp)}ポジ）"
             )
 
-        # サブグループ内上限
+        # 6. サブグループ内上限
         if self.subgroup_positions(sub) >= MAX_SUBGROUP_POSITIONS:
             return False, (
                 f"{sym}: サブグループ [{sub}] の上限 {MAX_SUBGROUP_POSITIONS}ポジ に達しています "
@@ -229,6 +285,14 @@ class PositionManager:
             if n > 0:
                 syms = [s for s, p in self._positions.items() if p.group == grp]
                 lines.append(f"  [{grp}] {n}/{MAX_GROUP_POSITIONS}ポジ: {', '.join(syms)}")
+        # 相関グループの状態
+        active_corr = []
+        for cgrp, members in CORRELATION_GROUPS.items():
+            held = [s for s in self._positions if s in members]
+            if held:
+                active_corr.append(f"{cgrp}:{','.join(held)}")
+        if active_corr:
+            lines.append(f"  [相関グループ] {' | '.join(active_corr)}")
         if not self._positions:
             lines.append("  （保有なし）")
         return "\n".join(lines)
@@ -246,40 +310,36 @@ if __name__ == "__main__":
     pm = PositionManager()
     print("=== PositionManager 動作確認テスト ===\n")
 
-    tests = [
-        # (銘柄, リスク%, 期待結果)
-        ("EURUSD",  0.02, True),   # OK: FX/usd_sell 1ポジ目
-        ("GBPUSD",  0.02, False),  # NG: usd_sell サブグループ上限（1ポジ）
-        ("USDJPY",  0.02, True),   # OK: FX/usd_buy 1ポジ目（FXグループ2ポジ目）
-        ("USDCAD",  0.02, False),  # NG: usd_buy サブグループ上限
-        ("US30",    0.02, True),   # OK: index/us_index 1ポジ目
-        ("SPX500",  0.02, False),  # NG: us_index サブグループ上限
-        ("XAUUSD",  0.02, True),   # OK: metals/metals 1ポジ目
-        ("EURJPY",  0.02, False),  # NG: FXグループ上限（2ポジ達成済み）
-        ("EURUSD",  0.02, False),  # NG: 既に保有中
-        ("NZDUSD",  0.10, False),  # NG: 全体リスク上限（現在6% + 10% = 16% > 8%）
+    print("--- 相関グループフィルターテスト ---")
+    corr_tests = [
+        # (銘柄, リスク%, 期待結果, 説明)
+        ("US30",   0.02, True,  "OK: equity_risk 1ポジ目"),
+        ("SPX500", 0.02, False, "NG: equity_risk 競合（US30保有中）"),
+        ("NAS100", 0.02, False, "NG: equity_risk 競合（US30保有中）"),
+        ("EURJPY", 0.02, True,  "OK: eur_pairs/risk_on_fx 1ポジ目（FX 1ポジ目）"),
+        ("EURGBP", 0.02, False, "NG: eur_pairs 競合（EURJPY保有中）"),
+        ("EURUSD", 0.02, False, "NG: eur_pairs 競合（EURJPY保有中）"),
+        ("GBPJPY", 0.02, False, "NG: risk_on_fx 競合（EURJPY保有中）"),
+        ("AUDUSD", 0.02, True,  "OK: 相関グループ無関係 + FX 2ポジ目"),
+        ("USDJPY", 0.02, False, "NG: FXグループ上限（2ポジ達成）"),
     ]
 
-    for sym, risk, expected in tests:
+    for sym, risk, expected, desc in corr_tests:
         ok, reason = pm.can_enter(sym, risk)
         status = "✓" if ok == expected else "✗ FAIL"
-        print(f"  {status}  {sym:8s}  risk={risk*100:.0f}%  ok={ok}  {reason}")
+        print(f"  {status}  {sym:8s}  ok={ok}  {desc}")
         if ok:
             pm.open_position(sym, risk)
 
     print(f"\n{pm.summary()}")
 
-    # 全体リスク上限テスト
-    print(f"\n--- 全体リスク確認 ---")
-    print(f"  現在の合計リスク: {pm.total_risk_pct*100:.1f}%")
-    ok, reason = pm.can_enter("NZDUSD", 0.02)
-    print(f"  NZDUSD 2%追加: ok={ok}  {reason}")
+    print("\n--- 決済後の再エントリーテスト ---")
+    pm.close_position("US30")
+    ok, reason = pm.can_enter("SPX500", 0.02)
+    print(f"  US30決済後 SPX500: ok={ok}  {reason}")
 
-    # 決済テスト
-    print(f"\n--- 決済テスト ---")
-    pm.close_position("EURUSD")
-    print(f"  EURUSD 決済後")
-    ok, reason = pm.can_enter("GBPUSD", 0.02)
-    print(f"  GBPUSD 2%: ok={ok}  {reason}")
+    pm.close_position("EURJPY")
+    ok, reason = pm.can_enter("EURGBP", 0.02)
+    print(f"  EURJPY決済後 EURGBP: ok={ok}  {reason}")
 
     print("\n=== テスト完了 ===")
