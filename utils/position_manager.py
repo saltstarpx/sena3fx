@@ -4,8 +4,8 @@ utils/position_manager.py
 ポジション管理システム（全体・グループ・サブグループ・相関グループ制約）
 
 【設計仕様】
-  全体ポジション上限    : 6ポジ
-  全体トータルリスク上限 : 8%
+  全体ポジション上限    : 8ポジ
+  全体トータルリスク上限 : 10%
   グループ内上限        : 2ポジ（FX / 貴金属 / 指数）
   サブグループ内上限    : 1ポジ（相関の高い銘柄群）
   相関グループ内上限    : 1ポジ（最優先フィルター）
@@ -98,8 +98,8 @@ for _cgrp, _syms in CORRELATION_GROUPS.items():
         SYMBOL_CORR_GROUPS[_sym].append(_cgrp)
 
 # ── 制約定数 ────────────────────────────────────────────────
-MAX_TOTAL_POSITIONS    = 6      # 全体ポジション上限
-MAX_TOTAL_RISK_PCT     = 0.08   # 全体トータルリスク上限（8%）
+MAX_TOTAL_POSITIONS    = 8      # 全体ポジション上限
+MAX_TOTAL_RISK_PCT     = 0.10   # 全体トータルリスク上限（10%）
 MAX_GROUP_POSITIONS    = 2      # グループ内上限
 MAX_SUBGROUP_POSITIONS = 1      # サブグループ内上限
 MAX_CORR_POSITIONS     = 1      # 相関グループ内上限（最優先）
