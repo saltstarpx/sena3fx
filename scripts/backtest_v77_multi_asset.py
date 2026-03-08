@@ -36,12 +36,13 @@ import matplotlib.pyplot as plt
 import matplotlib.font_manager as fm
 from scipy import stats
 
-sys.path.insert(0, "/home/ubuntu/sena3fx/strategies/current")
+_BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(_BASE_DIR, "strategies", "current"))
 from yagami_mtf_v77 import generate_signals
 
 # ─── 設定 ──────────────────────────────────────────────────────────────────
-DATA_DIR = "/home/ubuntu/sena3fx/data"
-OUT_DIR  = "/home/ubuntu/sena3fx/results"
+DATA_DIR = os.path.join(_BASE_DIR, "data")
+OUT_DIR  = os.path.join(_BASE_DIR, "results")
 os.makedirs(OUT_DIR, exist_ok=True)
 
 # アセット設定
