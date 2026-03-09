@@ -53,8 +53,8 @@ A3_DEFAULT_TOL  = 0.30
 E1_MAX_WAIT_MIN = 5
 E2_SPIKE_ATR_MULT = 2.0
 E2_ALT_WINDOW_MIN = 3
-OOS_START = "2025-03-03"
-OOS_END   = "2026-02-27"
+OOS_START = "2025-12-01"
+OOS_END   = "2026-02-28"
 
 SYMBOLS = [
     {"name": "EURUSD", "lower": "eurusd", "category": "FX",
@@ -656,7 +656,7 @@ def main():
     if not any_flags:
         print("  ✅ 全銘柄で重大な問題点なし")
 
-    plt.suptitle("v80 YAGAMI改 — 定量・計量分析\n(OOS 2025-03〜2026-02)",fontsize=12,y=0.99)
+    plt.suptitle("v80 YAGAMI改 — 定量・計量分析\n(2025-12〜2026-02)",fontsize=12,y=0.99)
     out_png=os.path.join(OUT_DIR,"v80_quant_analysis.png")
     plt.savefig(out_png,dpi=100,bbox_inches="tight")
     print(f"\nグラフ保存: {out_png}")
