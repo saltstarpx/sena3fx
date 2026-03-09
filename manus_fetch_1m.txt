@@ -1,0 +1,92 @@
+# タスク：FX/貴金属 1分足CSVデータ取得
+
+## 目的
+以下4銘柄の1分足OHLCデータをOANDA APIから取得し、CSVとして保存する。
+
+## 取得対象
+
+| 銘柄     | OANDA instrument | 保存ファイル名         |
+|----------|------------------|----------------------|
+| XAGUSD   | XAG_USD          | XAGUSD_1m.csv        |
+| EURJPY   | EUR_JPY          | EURJPY_1m.csv        |
+| GBPJPY   | GBP_JPY          | GBPJPY_1m.csv        |
+| NZDUSD   | NZD_USD          | NZDUSD_1m.csv        |
+
+## 取得期間
+- 開始: 2025-01-01 00:00:00 UTC
+- 終了: 2026-02-28 23:59:00 UTC
+
+## OANDA API 仕様
+
+BASE_URL  : https://api-fxpractice.oanda.com
+TOKEN     : b3c7db048d5b6d1ac77e4263bd8bfb8b-1222fbcaf7d9ffe642692a226f7e7467
+ENDPOINT  : GET /v3/instruments/{instrument}/candles
+HEADERS   : Authorization: Bearer {TOKEN}
+PARAMS    :
+  granularity = M1
+  price       = M   （Mid価格）
+  from        = {RFC3339形式: "2025-01-01T00:00:00Z"}
+  count       = 5000 （1リクエスト最大）
+
+## 出力CSVフォーマット（必須）
+
+timestamp,open,high,low,close,volume
+2025-01-01 00:01:00,0.63412,0.63420,0.63405,0.63415,42
+2025-01-01 00:02:00,0.63415,0.63430,0.63410,0.63425,38
+...
+
+- timestamp はUTC、フォーマット YYYY-MM-DD HH:MM:SS（タイムゾーン文字列なし）
+- complete=false のローソク足はスキップすること
+- ヘッダー行あり、インデックス列なし（index=False）
+
+## ページネーション実装（重要）
+
+1リクエストで5000本しか取れないため、ループが必要。
+
+current = START
+while current < END:
+    リクエスト（from=current, count=5000）
+    → 取得した最後のローソク足のtimeに1分を足してcurrentを更新
+    → candles が空なら break
+
+## エラーハンドリング（必ず実装）
+
+- HTTP 429（Rate Limit）: 10秒待ってリトライ（最大3回）
+- HTTP 400 / 404: エラーログを出してその銘柄をスキップ
+- タイムアウト: timeout=30秒を設定、ConnectionErrorは5秒待ちリトライ3回
+- 途中でクラッシュしても再開できるよう、銘柄単位で保存完了後に次銘柄へ
+- リクエスト間隔: 0.2秒スリープ（レート制限対策）
+
+## よくあるバグ（注意）
+
+- complete=false のローソク足を含めてしまう（未確定足なのでデータが欠損する）
+- タイムスタンプのパースで +00:00 や Z が混在してエラーになる
+  → c["time"][:19].replace("T", " ") で切り出すのが安全
+- current の更新を忘れて無限ループになる
+- 最後のリクエストで count=5000 分が返ってきた場合、END を超えた行が混入する
+  → 保存前に timestamp <= END でフィルタリングすること
+- XAGUSD（銀）は取引時間外（週末・深夜）でデータが飛ぶ → 正常なので無視してよい
+- DataFrameを行単位でappendするのは遅い → リストに辞書でappend後、最後にpd.DataFrame()
+
+## 完了確認
+
+各銘柄について以下を出力すること：
+
+NZDUSD: 取得完了
+  行数    : 429,XXX 行
+  開始    : 2025-01-01 00:01:00
+  終了    : 2026-02-27 21:59:00
+  欠損確認: NaN行数 = 0
+  保存先  : /path/to/NZDUSD_1m.csv
+
+## 参考：期待行数（目安）
+
+| 銘柄   | 期待行数（概算） |
+|--------|----------------|
+| EURJPY | 約430,000行     |
+| GBPJPY | 約430,000行     |
+| NZDUSD | 約430,000行     |
+| XAGUSD | 約410,000行（週末・夜間ギャップあり） |
+
+---
+完了したら4ファイルを /home/user/sena3fx/data/ohlc/ に配置してください。
