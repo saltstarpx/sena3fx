@@ -177,7 +177,11 @@ def generate_signals(data_1m, data_15m, data_4h,
                      # v80 ローソク足フィルター（データ非依存・古典TA基準）
                      body_ratio_min=0.0,  # v80A: 確認足の実体/全体比率 (0=無効, 0.5=推奨)
                      ascending_only=False, # v80B: ロングはv2≥v1、ショートはv2≤v1 (上昇型二番底のみ)
-                     wick_limit=False):    # v80C: 確認足の逆ヒゲ≤実体（ピンバー除外）
+                     wick_limit=False,    # v80C: 確認足の逆ヒゲ≤実体（ピンバー除外）
+                     # v81 エントリー条件見直し（古典TA基準・データ非依存）
+                     tol_factor=0.3,      # v81A: パターン許容幅係数 (ATR×tol_factor, デフォルト0.3)
+                     neckline_break=False, # v81B: 確認足終値がネックライン（前バーhigh/low）を突破
+                     ema_dist_min=0.0):   # v81C: EMAからの距離≥ATR×ema_dist_min (0=無効, 推奨1.0)
     """
     やがみメソッド MTF二番底・二番天井シグナル生成 v79版。
 
@@ -196,6 +200,9 @@ def generate_signals(data_1m, data_15m, data_4h,
     body_ratio_min: float  v80A: 確認足の実体/(high-low)比率下限 (0=無効, 0.5=推奨)
     ascending_only: bool   v80B: 上昇型二番底/下降型二番天井のみ許可
     wick_limit: bool       v80C: 確認足の逆ヒゲ≤実体（ピンバー除外）
+    tol_factor: float      v81A: パターン許容幅 = ATR×tol_factor (デフォルト0.3)
+    neckline_break: bool   v81B: 確認足終値がネックライン（前バーhigh/low）を突破必須
+    ema_dist_min: float    v81C: EMA20からの距離≥ATR×ema_dist_min (0=無効)
 
     【カテゴリ別推奨呼び出し】
     # FX: ADX + Streak フィルター
@@ -251,11 +258,17 @@ def generate_signals(data_1m, data_15m, data_4h,
         if pd.isna(atr_val) or atr_val <= 0: continue
 
         trend     = h4_cur["trend"]
-        tolerance = atr_val * 0.3
+        tolerance = atr_val * tol_factor          # v81A: 可変許容幅
 
-        for direction, (v1_key, v2_key, conf_cond) in [
-            ( 1, ("low",  "low",  lambda p1: p1["close"] > p1["open"])),
-            (-1, ("high", "high", lambda p1: p1["close"] < p1["open"])),
+        # v81C: EMA距離フィルター（4H足に適用）
+        if ema_dist_min > 0:
+            ema_dist = abs(h4_cur["close"] - h4_cur["ema20"])
+            if ema_dist < ema_dist_min * atr_val:
+                continue
+
+        for direction, (v1_key, v2_key, conf_cond, nk_key) in [
+            ( 1, ("low",  "low",  lambda p1: p1["close"] > p1["open"], "high")),
+            (-1, ("high", "high", lambda p1: p1["close"] < p1["open"], "low")),
         ]:
             if trend != direction: continue
             v1 = h4_prev2[v1_key]; v2 = h4_prev1[v2_key]
@@ -264,11 +277,16 @@ def generate_signals(data_1m, data_15m, data_4h,
             if not check_kmid_klow(h4_prev3, direction): continue
             # v80B: 上昇型二番底 / 下降型二番天井のみ
             if ascending_only:
-                if direction == 1 and v2 < v1: continue   # 下降型二番底を除外
-                if direction ==-1 and v2 > v1: continue   # 上昇型二番天井を除外
+                if direction == 1 and v2 < v1: continue
+                if direction ==-1 and v2 > v1: continue
             # v80A, v80C: 確認足フィルター
             if not check_v80_candle(h4_prev1, direction, body_ratio_min, wick_limit):
                 continue
+            # v81B: ネックライン突破確認（確認足終値 > 前バーhigh / < 前バーlow）
+            if neckline_break:
+                nk = h4_prev2[nk_key]
+                if direction == 1 and h4_prev1["close"] < nk: continue
+                if direction ==-1 and h4_prev1["close"] > nk: continue
 
             m1w = data_1m[
                 (data_1m.index >= h4_ct) &
@@ -335,11 +353,17 @@ def generate_signals(data_1m, data_15m, data_4h,
             if len(d1_before) == 0: continue
             if d1_before.iloc[-1]["trend_1d"] != trend: continue
 
-        tol = atr_val * 0.3
+        # v81C: EMA距離フィルター（1H足参照の4H EMAで判定）
+        if ema_dist_min > 0:
+            ema_dist = abs(h4_latest["close"] - h4_latest["ema20"])
+            if ema_dist < ema_dist_min * h4_atr:
+                continue
 
-        for direction, (v1_key, v2_key, conf_cond) in [
-            ( 1, ("low",  "low",  lambda p1: p1["close"] > p1["open"])),
-            (-1, ("high", "high", lambda p1: p1["close"] < p1["open"])),
+        tol = atr_val * tol_factor                # v81A: 可変許容幅
+
+        for direction, (v1_key, v2_key, conf_cond, nk_key) in [
+            ( 1, ("low",  "low",  lambda p1: p1["close"] > p1["open"], "high")),
+            (-1, ("high", "high", lambda p1: p1["close"] < p1["open"], "low")),
         ]:
             if trend != direction: continue
             v1 = h1_prev2[v1_key]; v2 = h1_prev1[v2_key]
@@ -350,11 +374,16 @@ def generate_signals(data_1m, data_15m, data_4h,
             if not check_kmid_klow(h4_latest, direction): continue
             # v80B: 上昇型二番底 / 下降型二番天井のみ
             if ascending_only:
-                if direction == 1 and v2 < v1: continue   # 下降型二番底を除外
-                if direction ==-1 and v2 > v1: continue   # 上昇型二番天井を除外
+                if direction == 1 and v2 < v1: continue
+                if direction ==-1 and v2 > v1: continue
             # v80A, v80C: 確認足フィルター
             if not check_v80_candle(h1_prev1, direction, body_ratio_min, wick_limit):
                 continue
+            # v81B: ネックライン突破（確認足終値 > 前バーhigh / < 前バーlow）
+            if neckline_break:
+                nk = h1_prev2[nk_key]
+                if direction == 1 and h1_prev1["close"] < nk: continue
+                if direction ==-1 and h1_prev1["close"] > nk: continue
 
             m1w = data_1m[
                 (data_1m.index >= h1_ct) &
