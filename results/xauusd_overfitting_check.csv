@@ -1,0 +1,6 @@
+variant,is_n,is_pf,is_diff,oos_n,oos_pf,oos_diff,verdict
+lean_baseline,141,2.71,0.0,676,2.36,0.0,baseline
++EMA_dist,97,3.07,0.36,462,3.08,0.72,✅ 過学習なし(ratio=2.00)
++ATR_expand,39,2.34,-0.37,266,3.2,0.84,✅ OOS専用改善
++1H_slope,127,2.33,-0.38,542,2.49,0.13,✅ OOS専用改善
++A1+A2,93,2.85,0.14,425,2.97,0.61,✅ 過学習なし(ratio=4.36)
