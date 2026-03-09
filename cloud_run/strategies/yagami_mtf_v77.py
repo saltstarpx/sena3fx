@@ -130,11 +130,15 @@ def generate_signals(data_1m, data_15m, data_4h, spread_pips=0.2, rr_ratio=2.5):
     used_times = set()  # 重複エントリー防止
 
     # ── 4時間足の二番底・二番天井 ──────────────────────────────
+    # [BUG①修正] i=3 から開始し、パターン直前の文脈足(iloc[i-3])にKMIDを適用。
+    # h4_prev1（確認足）は既に「陽線/陰線」を確認済みのため、
+    # そこにKMIDを適用すると常にTrueになり意味をなさない。
     h4_times = data_4h.index.tolist()
-    for i in range(2, len(h4_times)):
+    for i in range(3, len(h4_times)):
         h4_current_time = h4_times[i]
-        h4_prev1 = data_4h.iloc[i - 1]   # 直前4H足（KMIDフィルター対象）
-        h4_prev2 = data_4h.iloc[i - 2]
+        h4_prev1 = data_4h.iloc[i - 1]   # 確認足（陽線/陰線チェック対象）
+        h4_prev2 = data_4h.iloc[i - 2]   # パターン1本目
+        h4_prev3 = data_4h.iloc[i - 3]   # パターン直前の文脈足（KMIDフィルター対象）
         h4_current = data_4h.iloc[i]
 
         atr_val = h4_current["atr"]
@@ -149,8 +153,8 @@ def generate_signals(data_1m, data_15m, data_4h, spread_pips=0.2, rr_ratio=2.5):
             low1 = h4_prev2["low"]
             low2 = h4_prev1["low"]
             if abs(low1 - low2) <= tolerance and h4_prev1["close"] > h4_prev1["open"]:
-                # ── v77: KMID+KLOWフィルター ──
-                if not check_kmid_klow(h4_prev1, direction=1):
+                # ── v77: KMID+KLOWフィルター（文脈足h4_prev3で判定） ──
+                if not check_kmid_klow(h4_prev3, direction=1):
                     continue
                 # ─────────────────────────────
                 sl = min(low1, low2) - atr_val * 0.15
@@ -186,10 +190,10 @@ def generate_signals(data_1m, data_15m, data_4h, spread_pips=0.2, rr_ratio=2.5):
             high1 = h4_prev2["high"]
             high2 = h4_prev1["high"]
             if abs(high1 - high2) <= tolerance and h4_prev1["close"] < h4_prev1["open"]:
-                # ── v77: KMID+KLOWフィルター ──
-                if not check_kmid_klow(h4_prev1, direction=-1):
+                # ── v77: KMID+KLOWフィルター（文脈足h4_prev3で判定） ──
+                if not check_kmid_klow(h4_prev3, direction=-1):
                     continue
-                # ─────────────────────────────
+                # ─────────────────────────────────────────────────────
                 sl = max(high1, high2) + atr_val * 0.15
                 entry_window_end = h4_current_time + pd.Timedelta(minutes=2)
                 m1_window = data_1m[
@@ -230,8 +234,8 @@ def generate_signals(data_1m, data_15m, data_4h, spread_pips=0.2, rr_ratio=2.5):
         if pd.isna(atr_val) or atr_val <= 0:
             continue
 
-        # 4時間足のトレンドと直前足を取得
-        h4_before = data_4h[data_4h.index <= h1_current_time]
+        # [BUG②修正] 完結済み4H足のみ取得（< で現在形成中の足を除外）
+        h4_before = data_4h[data_4h.index < h1_current_time]
         if len(h4_before) == 0:
             continue
         h4_latest = h4_before.iloc[-1]
