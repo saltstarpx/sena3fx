@@ -400,31 +400,64 @@ cd /home/user/sena3fx  # ← /home/ubuntu/ ではない
 | 銘柄 | 戦略 | PF（OOS） | MDD | Kelly | 月次プラス |
 |---|---|:---:|:---:|:---:|:---:|
 | **USDJPY** | v77 | **4.96** | 222.6pips | 0.608 | 12/12 |
-| **XAUUSD** | **v79A** | **2.16** | （改善） | 改善 | 12/12 |
+| **XAUUSD** | **v79A（Goldロジック確定）** | **2.16** | （改善） | 改善 | 12/12 |
 
-次の候補: GBPUSD（v79BC, PF=2.17 ← 採用基準到達）
+次の候補: GBPUSD（Goldロジック適用、PF=1.86 ← FXカテゴリ最高）
 
-### カテゴリ別推奨バリアント（2026/3/9 v79カテゴリ検証結果）
+### ⭐ 全銘柄共通ロジック確定（2026/3/9）
 
-| カテゴリ | 銘柄 | 推奨バリアント | フィルター設定 | avg OOS PF | 備考 |
-|---|---|:---:|:---:|:---:|---|
-| FX | EURUSD/GBPUSD/AUDUSD | **v79BC** | ADX≥20 + Streak≥4 | **1.98** | GBPUSD 2.17で採用圏内 |
-| 貴金属 | XAUUSD | **v79A** | 日足EMA20方向一致 | **2.16** | v77比+6.4%、過学習なし |
-| 指数 | US30/SPX500/NAS100 | なし | — | <1.1 | 全バリアントで採用不可 |
+定量・計量分析 + ロジック比較バックテスト（`scripts/backtest_logic_comparison.py`）により、
+**全銘柄にGoldロジック（v79A: 日足EMA20方向一致 + E2エントリー）を適用する**ことが確定。
 
-### v79フィルターの呼び出し設定
+#### ロジック比較結果（OOS: 2025-06〜2026-02）
+
+| 銘柄 | Logic-A PF（Goldロジック） | Logic-B PF（ADX+Streak） | 推奨 |
+|---|:---:|:---:|:---:|
+| EURUSD | **1.73** | 1.61 | **Logic-A** |
+| GBPUSD | **1.86** | 1.66 | **Logic-A** |
+| AUDUSD | 1.98 | **2.05** | Logic-B（僅差） |
+| NAS100 | **1.27** | 1.13 | Logic-A（指数は採用不可） |
+| SPX500 | 1.94 | **2.04** | Logic-B（指数は採用不可） |
+| US30 | 1.41 | **1.51** | Logic-B（指数は採用不可） |
+| **FX avg** | **1.85** | 1.77 | **Logic-A（+0.08）** |
+
+> **⚠️ 指数（NAS100/SPX500/US30）はどちらのロジックでも採用基準（PF≥2.0）未達。引き続き採用不可。**
+
+#### Goldロジック（全銘柄統一）の設定
 
 ```python
-# FX (EURUSD/GBPUSD/AUDUSD): ADX + Streak フィルター
-from strategies.current.yagami_mtf_v79 import generate_signals
+# 全銘柄（XAUUSD / EURUSD / GBPUSD / AUDUSD）: Goldロジック統一
+# 日足EMA20方向一致 + E2エントリー（スパイク除外、2-3分以内）
+from scripts.backtest_logic_comparison import generate_signals
 sigs = generate_signals(data_1m, data_15m, data_4h,
-                        adx_min=20, streak_min=4,
-                        utc_start=7, utc_end=22)
-
-# METALS (XAUUSD): 日足EMA20方向一致
-sigs = generate_signals(data_1m, data_15m, data_4h,
-                        use_1d_trend=True)
+                        spread=spread_price,
+                        logic="A",          # ← Goldロジック固定
+                        atr_1m_d=atr_dict,
+                        m1c=m1_cache)
 ```
+
+#### Goldロジックの詳細
+
+| 項目 | 設定 |
+|---|---|
+| トレンドフィルター① | 4H EMA20（クローズ > EMA20 → Long方向のみ） |
+| トレンドフィルター② | **日足EMA20方向一致**（クローズ > 日足EMA20） |
+| KMIDフィルター | 直前4H足の実体方向がエントリー方向と一致 |
+| KLOWフィルター | 直前4H足の下ヒゲ比率 < 0.15% |
+| EMA距離フィルター | 4H終値とEMA20の距離 ≥ ATR×1.0 |
+| パターン | 1H足二番底/二番天井（ATR×0.30以内） |
+| エントリー | **E2方式**: スパイク除外（レンジ > ATR×2.0の足をスキップ）、2-3分以内 |
+| SL | 二番底/天井の安値・高値 ± ATR×0.15 |
+| TP | リスク幅 × 2.5倍（RR=2.5） |
+| 半利確 | 1R到達でポジション50%決済 → SLをBEへ |
+
+### カテゴリ別推奨バリアント（2026/3/9 最終確定）
+
+| カテゴリ | 銘柄 | ロジック | avg OOS PF | 備考 |
+|---|---|:---:|:---:|---|
+| 貴金属 | **XAUUSD** | **Goldロジック** | **2.16** | 確定採用。直近3ヶ月(12-02)PF=2.70 |
+| FX | EURUSD/GBPUSD/AUDUSD | **Goldロジック** | **1.85** | GBPUSD最高(1.86)、FX全銘柄で優位 |
+| 指数 | US30/SPX500/NAS100 | — | <2.0 | 全ロジックで採用基準未達 |
 
 ### v78の過学習に関する注記
 
