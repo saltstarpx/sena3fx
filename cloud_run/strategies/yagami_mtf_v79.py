@@ -116,6 +116,38 @@ def build_daily_trend(data_4h):
     return df
 
 
+def check_v80_candle(conf_bar, direction,
+                     body_ratio_min=0.0, wick_limit=False):
+    """
+    v80 ローソク足フィルター（確認足に適用）
+
+    v80A: body_ratio_min — 実体/全体比率 ≥ threshold
+    v80C: wick_limit     — 逆ヒゲ ≤ 実体（方向別）
+    """
+    o = conf_bar["open"]; c = conf_bar["close"]
+    h = conf_bar["high"]; lo = conf_bar["low"]
+    rng  = h - lo
+    body = abs(c - o)
+
+    # v80A: 実体比率フィルター
+    if body_ratio_min > 0:
+        if rng <= 0 or body / rng < body_ratio_min:
+            return False
+
+    # v80C: 逆ヒゲ制限
+    if wick_limit:
+        if direction == 1:     # ロング確認足: 上ヒゲ ≤ 実体
+            upper_wick = h - max(o, c)
+            if body > 0 and upper_wick > body:
+                return False
+        else:                  # ショート確認足: 下ヒゲ ≤ 実体
+            lower_wick = min(o, c) - lo
+            if body > 0 and lower_wick > body:
+                return False
+
+    return True
+
+
 def check_kmid_klow(prev_4h_bar, direction):
     """
     KMID（実体方向一致）+ KLOW（下ヒゲ小）フィルター（v77継承）
@@ -141,7 +173,11 @@ def generate_signals(data_1m, data_15m, data_4h,
                      adx_min=0,                       # v79B: 4H ADX ≥ adx_min (0=無効)
                      streak_min=0,                    # v79C: 直近N本の4H足が同方向 (0=無効)
                      # セッションフィルター（カテゴリ固定値を推奨）
-                     utc_start=0, utc_end=24):
+                     utc_start=0, utc_end=24,
+                     # v80 ローソク足フィルター（データ非依存・古典TA基準）
+                     body_ratio_min=0.0,  # v80A: 確認足の実体/全体比率 (0=無効, 0.5=推奨)
+                     ascending_only=False, # v80B: ロングはv2≥v1、ショートはv2≤v1 (上昇型二番底のみ)
+                     wick_limit=False):    # v80C: 確認足の逆ヒゲ≤実体（ピンバー除外）
     """
     やがみメソッド MTF二番底・二番天井シグナル生成 v79版。
 
@@ -157,6 +193,9 @@ def generate_signals(data_1m, data_15m, data_4h,
     streak_min: int        v79C: 連続同方向4H足の最小本数（0=無効）推奨値=4
     utc_start : int        セッション開始時刻（UTC時）
     utc_end   : int        セッション終了時刻（UTC時）
+    body_ratio_min: float  v80A: 確認足の実体/(high-low)比率下限 (0=無効, 0.5=推奨)
+    ascending_only: bool   v80B: 上昇型二番底/下降型二番天井のみ許可
+    wick_limit: bool       v80C: 確認足の逆ヒゲ≤実体（ピンバー除外）
 
     【カテゴリ別推奨呼び出し】
     # FX: ADX + Streak フィルター
@@ -223,6 +262,13 @@ def generate_signals(data_1m, data_15m, data_4h,
             if abs(v1 - v2) > tolerance: continue
             if not conf_cond(h4_prev1): continue
             if not check_kmid_klow(h4_prev3, direction): continue
+            # v80B: 上昇型二番底 / 下降型二番天井のみ
+            if ascending_only:
+                if direction == 1 and v2 < v1: continue   # 下降型二番底を除外
+                if direction ==-1 and v2 > v1: continue   # 上昇型二番天井を除外
+            # v80A, v80C: 確認足フィルター
+            if not check_v80_candle(h4_prev1, direction, body_ratio_min, wick_limit):
+                continue
 
             m1w = data_1m[
                 (data_1m.index >= h4_ct) &
@@ -302,6 +348,13 @@ def generate_signals(data_1m, data_15m, data_4h,
 
             # v77継承: 4H文脈足 KMID+KLOW
             if not check_kmid_klow(h4_latest, direction): continue
+            # v80B: 上昇型二番底 / 下降型二番天井のみ
+            if ascending_only:
+                if direction == 1 and v2 < v1: continue   # 下降型二番底を除外
+                if direction ==-1 and v2 > v1: continue   # 上昇型二番天井を除外
+            # v80A, v80C: 確認足フィルター
+            if not check_v80_candle(h1_prev1, direction, body_ratio_min, wick_limit):
+                continue
 
             m1w = data_1m[
                 (data_1m.index >= h1_ct) &
