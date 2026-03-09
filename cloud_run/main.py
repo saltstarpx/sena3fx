@@ -6,9 +6,9 @@ main.py - Cloud Run ペーパートレードbot (YAGAMI改 採用銘柄集中版
 新版: バックテスト検証済み採用銘柄のみ、Kelly基準のティア別リスク配分
 
 【APPROVED_UNIVERSE (採用銘柄)】
-  USDJPY: v77  / Tier1 / base 3%  (OOS PF=4.96, Kelly=0.608)
-  XAUUSD: v79A / Tier2 / base 2%  (OOS PF=2.16, Kelly≈0.45)
-  GBPUSD: v79BC+v81C / Tier3 / base 1%  (OOS PF=2.01, 試験的採用)
+  USDJPY: v77       / Tier1 / base 3%  (OOS PF=4.96, Kelly=0.608)
+  XAUUSD: v79A      / Tier2 / base 2%  (OOS PF=2.16, Goldロジック=日足EMA20)
+  GBPUSD: v79A      / Tier3 / base 1%  (OOS PF=1.86, Goldロジック=日足EMA20, FXカテゴリ最高)
 
 【動的リスク調整】
   直近30トレードの勝率に基づいて乗数を自動調整:
@@ -19,8 +19,8 @@ main.py - Cloud Run ペーパートレードbot (YAGAMI改 採用銘柄集中版
 
 【戦略バリアント】
   USDJPY: yagami_mtf_v77 (KMID+KLOWフィルター)
-  XAUUSD: yagami_mtf_v79 (use_1d_trend=True)
-  GBPUSD: yagami_mtf_v79 (adx_min=20, streak_min=4, ema_dist_min=1.0)
+  XAUUSD: yagami_mtf_v79 (use_1d_trend=True, Goldロジック)
+  GBPUSD: yagami_mtf_v79 (use_1d_trend=True, Goldロジック ← ADX+Streakより優位 PF1.86 vs 1.66)
 """
 import os, json, logging, requests, sys
 import pandas as pd
@@ -71,16 +71,12 @@ APPROVED_UNIVERSE = {
         "pip_size":      0.0001,
         "spread_pips":   0.1,
         "strategy":      "v79",
-        "strategy_params": {                       # v79BC+v81C: ADX+Streak+EMA距離
-            "adx_min":       20,
-            "streak_min":    4,
-            "ema_dist_min":  1.0,
-        },
+        "strategy_params": {"use_1d_trend": True},  # Goldロジック: 日足EMA20方向一致
         "tier":          3,
-        "base_risk_pct": 0.01,                    # 試験的採用 → リスク最小
-        "oos_pf":        2.01,
+        "base_risk_pct": 0.01,                    # FXカテゴリ次点候補 → リスク最小
+        "oos_pf":        1.86,
         "kelly":         0.30,
-        "note":          "FX v79BC+v81C (試験)",
+        "note":          "FX v79A Goldロジック (次点候補)",
     },
 }
 
@@ -89,7 +85,7 @@ MAX_OPEN_POSITIONS = 3    # 採用銘柄数に合わせる（銘柄ごとに1ポ
 RR_RATIO           = 2.5
 CANDLE_COUNT       = 200
 
-ACCOUNT_BALANCE_JPY = 3_000_000   # 証拠金 300万円
+ACCOUNT_BALANCE_JPY = 1_000_000   # 総資産 100万円
 MIN_UNITS           = 100
 MAX_UNITS           = 100_000
 
@@ -472,9 +468,11 @@ def run_cycle():
     now = datetime.now(timezone.utc)
     logger.info(f"cycle start: {now.isoformat()} | 採用{len(APPROVED_UNIVERSE)}銘柄")
 
-    open_positions = gcs_read_json("state/open_positions.json", default={})
-    last_report    = gcs_read_json("state/last_report.json",    default={"hour": -1})
-    last_weekly    = gcs_read_json("state/last_weekly.json",    default={"week": -1})
+    open_positions  = gcs_read_json("state/open_positions.json",  default={})
+    last_report     = gcs_read_json("state/last_report.json",     default={"key": ""})
+    last_weekly     = gcs_read_json("state/last_weekly.json",     default={"week": -1})
+    notified_sigs   = gcs_read_json("state/notified_signals.json", default={})
+    # notified_sigs: {pair: "signal_iso_time"} — 同一シグナルへの重複通知防止
 
     # 戦略インポート（v77 と v79 の両方）
     sys.path.insert(0, "/app/strategies")
@@ -549,6 +547,12 @@ def run_cycle():
             if len(open_positions) >= MAX_OPEN_POSITIONS: break
             if any(p["pair"] == pair for p in open_positions.values()): continue
 
+            # 重複シグナル防止: 同一シグナル時刻は1回のみエントリー通知
+            sig_key = latest["time"].isoformat() if hasattr(latest["time"], "isoformat") else str(latest["time"])
+            if notified_sigs.get(pair) == sig_key:
+                logger.info(f"{pair}: シグナル重複スキップ ({sig_key})")
+                continue
+
             ps    = sym_cfg["pip_size"]
             instr = sym_cfg["oanda"]
 
@@ -606,6 +610,7 @@ def run_cycle():
                     "risk_pct": round(risk_pct * 100, 1),
                     "slippage_pips": round(slip, 2)
                 })
+                notified_sigs[pair] = sig_key  # 重複通知防止ラベル更新
                 notify_entry(pair, latest["dir"], fp, new_sl, new_tp,
                              latest.get("tf", "?"), slip,
                              order_units, risk_pct, sym_cfg["tier"])
@@ -616,24 +621,26 @@ def run_cycle():
                     f"strategy={sym_cfg['strategy']}")
 
     # ── 3. 定時レポート（9時・21時 JST） ─────────────────────
-    now_jst_h = (now.hour + 9) % 24
-    if now_jst_h in (9, 21) and last_report.get("hour") != now_jst_h:
+    now_jst   = now + timedelta(hours=9)
+    now_jst_h = now_jst.hour
+    report_key = f"{now_jst.strftime('%Y-%m-%d')}-{now_jst_h:02d}"  # "2026-03-09-09"
+    if now_jst_h in (9, 21) and last_report.get("key") != report_key:
         send_daily_report(open_positions, trades_df)
-        last_report = {"hour": now_jst_h}
-    elif now_jst_h not in (9, 21):
-        last_report = {"hour": -1}
+        last_report = {"key": report_key}
+    elif now_jst_h not in (9, 21) and last_report.get("key", "").endswith(f"-{now_jst_h:02d}"):
+        pass  # 同時刻内は保持（次の非対象時刻になれば自然に上書き）
 
     # ── 4. 週次フィードバック（月曜0時 JST） ─────────────────
-    now_jst = now + timedelta(hours=9)
     week_no = now_jst.isocalendar()[1]
     if now_jst.weekday() == 0 and now_jst.hour == 0 and last_weekly.get("week") != week_no:
         send_weekly_feedback(trades_df)
         last_weekly = {"week": week_no}
 
     # ── 5. 状態保存 ────────────────────────────────────────
-    gcs_write_json("state/open_positions.json", open_positions)
-    gcs_write_json("state/last_report.json",    last_report)
-    gcs_write_json("state/last_weekly.json",    last_weekly)
+    gcs_write_json("state/open_positions.json",  open_positions)
+    gcs_write_json("state/last_report.json",     last_report)
+    gcs_write_json("state/last_weekly.json",     last_weekly)
+    gcs_write_json("state/notified_signals.json", notified_sigs)
 
     logger.info(f"cycle end: open={len(open_positions)}/{MAX_OPEN_POSITIONS}")
     return {
