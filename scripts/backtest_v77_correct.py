@@ -67,6 +67,8 @@ PAIRS = {
     "EURGBP": {"sym": "eurgbp"},
     "US30":   {"sym": "us30"},
     "SPX500": {"sym": "spx500"},
+    "NAS100": {"sym": "nas100"},
+    "XAUUSD": {"sym": "xauusd"},
 }
 
 # ── データ読み込み ─────────────────────────────────────────
@@ -120,10 +122,13 @@ def generate_signals_4h(data_1m, data_15m, data_4h, spread_pips, pip_size, rr_ra
     used_times = set()
     h4_times   = data_4h.index.tolist()
 
-    for i in range(2, len(h4_times)):
+    # [BUG①修正] i=3 から開始。h4_prev3（パターン直前の文脈足）にKMIDを適用。
+    # h4_prev1は確認足（既に陽線/陰線確認済み）のため、そこへのKMIDは常にTrue。
+    for i in range(3, len(h4_times)):
         h4_current_time = h4_times[i]
-        h4_prev1    = data_4h.iloc[i - 1]   # 直前4H足（KMID/KLOW対象）
-        h4_prev2    = data_4h.iloc[i - 2]
+        h4_prev1    = data_4h.iloc[i - 1]   # 確認足（陽線/陰線チェック対象）
+        h4_prev2    = data_4h.iloc[i - 2]   # パターン1本目
+        h4_prev3    = data_4h.iloc[i - 3]   # 文脈足（KMIDフィルター対象）← 修正
         h4_current  = data_4h.iloc[i]
         atr_val     = h4_current["atr"]
         if pd.isna(atr_val) or atr_val <= 0:
@@ -136,7 +141,7 @@ def generate_signals_4h(data_1m, data_15m, data_4h, spread_pips, pip_size, rr_ra
             low1 = h4_prev2["low"]
             low2 = h4_prev1["low"]
             if abs(low1 - low2) <= tolerance and h4_prev1["close"] > h4_prev1["open"]:
-                if not check_kmid_klow(h4_prev1, direction=1):
+                if not check_kmid_klow(h4_prev3, direction=1):  # ← 修正: h4_prev3
                     continue
                 sl = min(low1, low2) - atr_val * 0.15
                 entry_window_end = h4_current_time + pd.Timedelta(minutes=2)
@@ -163,7 +168,7 @@ def generate_signals_4h(data_1m, data_15m, data_4h, spread_pips, pip_size, rr_ra
             high1 = h4_prev2["high"]
             high2 = h4_prev1["high"]
             if abs(high1 - high2) <= tolerance and h4_prev1["close"] < h4_prev1["open"]:
-                if not check_kmid_klow(h4_prev1, direction=-1):
+                if not check_kmid_klow(h4_prev3, direction=-1):  # ← 修正: h4_prev3
                     continue
                 sl = max(high1, high2) + atr_val * 0.15
                 entry_window_end = h4_current_time + pd.Timedelta(minutes=2)
@@ -213,8 +218,8 @@ def generate_signals_1h(data_1m, data_15m, data_4h, spread_pips, pip_size, rr_ra
         if pd.isna(atr_val) or atr_val <= 0:
             continue
 
-        # 直前の4H足を取得（トレンド + KMID/KLOW）
-        h4_before = data_4h[data_4h.index <= h1_current_time]
+        # [BUG②修正] 完結済み4H足のみ取得（< で形成中の足を除外）
+        h4_before = data_4h[data_4h.index < h1_current_time]
         if len(h4_before) == 0:
             continue
         h4_latest = h4_before.iloc[-1]
@@ -415,10 +420,12 @@ def calc_stats(trades, eq_series, label):
     loses = trades[trades["result"] == "loss"]
     n  = len(trades)
     wr = len(wins) / n
-    gross_win  = (wins["exit_price"]  - wins["ep"]).abs().sum()  if len(wins)  > 0 else 0
-    gross_loss = (loses["exit_price"] - loses["ep"]).abs().sum() if len(loses) > 0 else 0
-    pf    = gross_win / gross_loss if gross_loss > 0 else float("inf")
+    # PFはequityデルタベースで計算（ロング/ショート符号問題を回避）
     eq    = eq_series.values
+    deltas = np.diff(eq)
+    gross_win  = deltas[deltas > 0].sum()
+    gross_loss = abs(deltas[deltas < 0].sum())
+    pf    = gross_win / gross_loss if gross_loss > 0 else float("inf")
     peak  = np.maximum.accumulate(eq)
     dd    = (eq - peak) / peak
     mdd   = dd.min()
@@ -473,21 +480,28 @@ for pair, cfg in PAIRS.items():
     print(f"  {pair}  スプレッド: {spread}pips  タイプ: {rm.quote_type}")
     print(f"{'='*60}")
 
-    d1m_is   = load_csv(os.path.join(DATA_DIR, f"{sym}_is_1m.csv"))
+    # 1m: IS/OOSスプリット版を優先、なければ全期間1ファイルから期間スライス
+    def load_1m(sym_lc, period_start, period_end):
+        split_path = os.path.join(DATA_DIR, f"{sym_lc}_{'is' if period_start == IS_START else 'oos'}_1m.csv")
+        full_path  = os.path.join(DATA_DIR, f"{sym_lc}_1m.csv")
+        df = load_csv(split_path)
+        if df is None:
+            df = load_csv(full_path)
+        return slice_period(df, period_start, period_end) if df is not None else None
+
+    d1m_is   = load_1m(sym, IS_START,  IS_END)
     d15m_is  = load_csv(os.path.join(DATA_DIR, f"{sym}_is_15m.csv"))
     d4h_is   = load_csv(os.path.join(DATA_DIR, f"{sym}_is_4h.csv"))
-    d1m_oos  = load_csv(os.path.join(DATA_DIR, f"{sym}_oos_1m.csv"))
+    d1m_oos  = load_1m(sym, OOS_START, OOS_END)
     d15m_oos = load_csv(os.path.join(DATA_DIR, f"{sym}_oos_15m.csv"))
     d4h_oos  = load_csv(os.path.join(DATA_DIR, f"{sym}_oos_4h.csv"))
 
-    if any(d is None for d in [d1m_is, d15m_is, d4h_is, d1m_oos, d15m_oos, d4h_oos]):
+    if any(d is None or len(d) == 0 for d in [d1m_is, d15m_is, d4h_is, d1m_oos, d15m_oos, d4h_oos]):
         print(f"  [SKIP] データ不足")
         continue
 
-    d1m_is   = slice_period(d1m_is,   IS_START,  IS_END)
     d15m_is  = slice_period(d15m_is,  IS_START,  IS_END)
     d4h_is   = slice_period(d4h_is,   IS_START,  IS_END)
-    d1m_oos  = slice_period(d1m_oos,  OOS_START, OOS_END)
     d15m_oos = slice_period(d15m_oos, OOS_START, OOS_END)
     d4h_oos  = slice_period(d4h_oos,  OOS_START, OOS_END)
 
