@@ -116,6 +116,38 @@ def build_daily_trend(data_4h):
     return df
 
 
+def check_v80_candle(conf_bar, direction,
+                     body_ratio_min=0.0, wick_limit=False):
+    """
+    v80 ローソク足フィルター（確認足に適用）
+
+    v80A: body_ratio_min — 実体/全体比率 ≥ threshold
+    v80C: wick_limit     — 逆ヒゲ ≤ 実体（方向別）
+    """
+    o = conf_bar["open"]; c = conf_bar["close"]
+    h = conf_bar["high"]; lo = conf_bar["low"]
+    rng  = h - lo
+    body = abs(c - o)
+
+    # v80A: 実体比率フィルター
+    if body_ratio_min > 0:
+        if rng <= 0 or body / rng < body_ratio_min:
+            return False
+
+    # v80C: 逆ヒゲ制限
+    if wick_limit:
+        if direction == 1:     # ロング確認足: 上ヒゲ ≤ 実体
+            upper_wick = h - max(o, c)
+            if body > 0 and upper_wick > body:
+                return False
+        else:                  # ショート確認足: 下ヒゲ ≤ 実体
+            lower_wick = min(o, c) - lo
+            if body > 0 and lower_wick > body:
+                return False
+
+    return True
+
+
 def check_kmid_klow(prev_4h_bar, direction):
     """
     KMID（実体方向一致）+ KLOW（下ヒゲ小）フィルター（v77継承）
@@ -134,12 +166,22 @@ def check_kmid_klow(prev_4h_bar, direction):
 # ── シグナル生成 ──────────────────────────────────────────────
 def generate_signals(data_1m, data_15m, data_4h,
                      spread_pips=0.2, rr_ratio=2.5,
+                     # pip_size: 1pip の価格単位（USDJPY/XAUUSD=0.01, FX=0.0001, 指数=1.0）
+                     pip_size=0.01,
                      # v79 新規フィルター（カテゴリ別に設定）
                      use_1d_trend=False,              # v79A: 日足EMA20方向一致
                      adx_min=0,                       # v79B: 4H ADX ≥ adx_min (0=無効)
                      streak_min=0,                    # v79C: 直近N本の4H足が同方向 (0=無効)
                      # セッションフィルター（カテゴリ固定値を推奨）
-                     utc_start=0, utc_end=24):
+                     utc_start=0, utc_end=24,
+                     # v80 ローソク足フィルター（データ非依存・古典TA基準）
+                     body_ratio_min=0.0,  # v80A: 確認足の実体/全体比率 (0=無効, 0.5=推奨)
+                     ascending_only=False, # v80B: ロングはv2≥v1、ショートはv2≤v1 (上昇型二番底のみ)
+                     wick_limit=False,    # v80C: 確認足の逆ヒゲ≤実体（ピンバー除外）
+                     # v81 エントリー条件見直し（古典TA基準・データ非依存）
+                     tol_factor=0.3,      # v81A: パターン許容幅係数 (ATR×tol_factor, デフォルト0.3)
+                     neckline_break=False, # v81B: 確認足終値がネックライン（前バーhigh/low）を突破
+                     ema_dist_min=0.0):   # v81C: EMAからの距離≥ATR×ema_dist_min (0=無効, 推奨1.0)
     """
     やがみメソッド MTF二番底・二番天井シグナル生成 v79版。
 
@@ -155,6 +197,12 @@ def generate_signals(data_1m, data_15m, data_4h,
     streak_min: int        v79C: 連続同方向4H足の最小本数（0=無効）推奨値=4
     utc_start : int        セッション開始時刻（UTC時）
     utc_end   : int        セッション終了時刻（UTC時）
+    body_ratio_min: float  v80A: 確認足の実体/(high-low)比率下限 (0=無効, 0.5=推奨)
+    ascending_only: bool   v80B: 上昇型二番底/下降型二番天井のみ許可
+    wick_limit: bool       v80C: 確認足の逆ヒゲ≤実体（ピンバー除外）
+    tol_factor: float      v81A: パターン許容幅 = ATR×tol_factor (デフォルト0.3)
+    neckline_break: bool   v81B: 確認足終値がネックライン（前バーhigh/low）を突破必須
+    ema_dist_min: float    v81C: EMA20からの距離≥ATR×ema_dist_min (0=無効)
 
     【カテゴリ別推奨呼び出し】
     # FX: ADX + Streak フィルター
@@ -171,7 +219,6 @@ def generate_signals(data_1m, data_15m, data_4h,
     list of dict
         各シグナル: {time, dir, ep, sl, tp, risk, spread, tf, pattern}
     """
-    pip_size = 0.01  # デフォルト（RiskManagerから取得することを推奨）
     spread   = spread_pips * pip_size
 
     # 4H足インジケーター計算
@@ -211,17 +258,35 @@ def generate_signals(data_1m, data_15m, data_4h,
         if pd.isna(atr_val) or atr_val <= 0: continue
 
         trend     = h4_cur["trend"]
-        tolerance = atr_val * 0.3
+        tolerance = atr_val * tol_factor          # v81A: 可変許容幅
 
-        for direction, (v1_key, v2_key, conf_cond) in [
-            ( 1, ("low",  "low",  lambda p1: p1["close"] > p1["open"])),
-            (-1, ("high", "high", lambda p1: p1["close"] < p1["open"])),
+        # v81C: EMA距離フィルター（4H足に適用）
+        if ema_dist_min > 0:
+            ema_dist = abs(h4_cur["close"] - h4_cur["ema20"])
+            if ema_dist < ema_dist_min * atr_val:
+                continue
+
+        for direction, (v1_key, v2_key, conf_cond, nk_key) in [
+            ( 1, ("low",  "low",  lambda p1: p1["close"] > p1["open"], "high")),
+            (-1, ("high", "high", lambda p1: p1["close"] < p1["open"], "low")),
         ]:
             if trend != direction: continue
             v1 = h4_prev2[v1_key]; v2 = h4_prev1[v2_key]
             if abs(v1 - v2) > tolerance: continue
             if not conf_cond(h4_prev1): continue
             if not check_kmid_klow(h4_prev3, direction): continue
+            # v80B: 上昇型二番底 / 下降型二番天井のみ
+            if ascending_only:
+                if direction == 1 and v2 < v1: continue
+                if direction ==-1 and v2 > v1: continue
+            # v80A, v80C: 確認足フィルター
+            if not check_v80_candle(h4_prev1, direction, body_ratio_min, wick_limit):
+                continue
+            # v81B: ネックライン突破確認（確認足終値 > 前バーhigh / < 前バーlow）
+            if neckline_break:
+                nk = h4_prev2[nk_key]
+                if direction == 1 and h4_prev1["close"] < nk: continue
+                if direction ==-1 and h4_prev1["close"] > nk: continue
 
             m1w = data_1m[
                 (data_1m.index >= h4_ct) &
@@ -288,11 +353,17 @@ def generate_signals(data_1m, data_15m, data_4h,
             if len(d1_before) == 0: continue
             if d1_before.iloc[-1]["trend_1d"] != trend: continue
 
-        tol = atr_val * 0.3
+        # v81C: EMA距離フィルター（1H足参照の4H EMAで判定）
+        if ema_dist_min > 0:
+            ema_dist = abs(h4_latest["close"] - h4_latest["ema20"])
+            if ema_dist < ema_dist_min * h4_atr:
+                continue
 
-        for direction, (v1_key, v2_key, conf_cond) in [
-            ( 1, ("low",  "low",  lambda p1: p1["close"] > p1["open"])),
-            (-1, ("high", "high", lambda p1: p1["close"] < p1["open"])),
+        tol = atr_val * tol_factor                # v81A: 可変許容幅
+
+        for direction, (v1_key, v2_key, conf_cond, nk_key) in [
+            ( 1, ("low",  "low",  lambda p1: p1["close"] > p1["open"], "high")),
+            (-1, ("high", "high", lambda p1: p1["close"] < p1["open"], "low")),
         ]:
             if trend != direction: continue
             v1 = h1_prev2[v1_key]; v2 = h1_prev1[v2_key]
@@ -301,6 +372,18 @@ def generate_signals(data_1m, data_15m, data_4h,
 
             # v77継承: 4H文脈足 KMID+KLOW
             if not check_kmid_klow(h4_latest, direction): continue
+            # v80B: 上昇型二番底 / 下降型二番天井のみ
+            if ascending_only:
+                if direction == 1 and v2 < v1: continue
+                if direction ==-1 and v2 > v1: continue
+            # v80A, v80C: 確認足フィルター
+            if not check_v80_candle(h1_prev1, direction, body_ratio_min, wick_limit):
+                continue
+            # v81B: ネックライン突破（確認足終値 > 前バーhigh / < 前バーlow）
+            if neckline_break:
+                nk = h1_prev2[nk_key]
+                if direction == 1 and h1_prev1["close"] < nk: continue
+                if direction ==-1 and h1_prev1["close"] > nk: continue
 
             m1w = data_1m[
                 (data_1m.index >= h1_ct) &
