@@ -134,6 +134,8 @@ def check_kmid_klow(prev_4h_bar, direction):
 # ── シグナル生成 ──────────────────────────────────────────────
 def generate_signals(data_1m, data_15m, data_4h,
                      spread_pips=0.2, rr_ratio=2.5,
+                     # pip_size: 1pip の価格単位（USDJPY/XAUUSD=0.01, FX=0.0001, 指数=1.0）
+                     pip_size=0.01,
                      # v79 新規フィルター（カテゴリ別に設定）
                      use_1d_trend=False,              # v79A: 日足EMA20方向一致
                      adx_min=0,                       # v79B: 4H ADX ≥ adx_min (0=無効)
@@ -171,7 +173,6 @@ def generate_signals(data_1m, data_15m, data_4h,
     list of dict
         各シグナル: {time, dir, ep, sl, tp, risk, spread, tf, pattern}
     """
-    pip_size = 0.01  # デフォルト（RiskManagerから取得することを推奨）
     spread   = spread_pips * pip_size
 
     # 4H足インジケーター計算
