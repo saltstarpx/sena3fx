@@ -58,6 +58,7 @@ PATTERN_TOL    = 0.30
 E2_SPIKE_ATR   = 2.0
 E2_WINDOW_BARS = 3
 MAX_LOOKAHEAD  = 5_000
+MIN_RISK_PIPS  = 3        # 最低SL幅（pips）: 縮退シグナル防止（ゼロ除算→巨大ロット対策）
 
 SYM = "EURUSD"
 DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
@@ -180,7 +181,7 @@ def generate_signals(d15m_period, d4h_full, spread_price, atr_15m_d, m15c):
         raw = ep - spread_price if direction == 1 else ep + spread_price
         if direction == 1: sl = min(v1, v2) - atr_1h * 0.15; risk = raw - sl
         else:              sl = max(v1, v2) + atr_1h * 0.15; risk = sl - raw
-        if 0 < risk <= h4_atr * 2:
+        if SYMBOL_CONFIG[SYM]["pip"] * MIN_RISK_PIPS <= risk <= h4_atr * 2:
             tp = raw + direction * risk * RR_RATIO
             signals.append({"time": et, "dir": direction, "ep": ep, "sl": sl, "tp": tp, "risk": risk})
             used.add(et)
