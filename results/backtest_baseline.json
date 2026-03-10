@@ -1,0 +1,69 @@
+{
+  "_comment": "バックテスト基準値（OOS期間: 2025-07-01〜2026-02-28）",
+  "_updated": "2026-03-10",
+  "_logic": {
+    "XAUUSD": "Gold Logic (v79A: 日足EMA20)",
+    "SPX500": "Gold Logic (v79A: 日足EMA20)",
+    "GBPUSD": "v77 + セッションフィルター(UTC10/14/18除外)",
+    "AUDUSD": "v77 + セッションフィルター(UTC14除外)",
+    "NZDUSD": "Gold Logic (v79A: 日足EMA20)"
+  },
+  "symbols": {
+    "XAUUSD": {
+      "expected_pf":        3.44,
+      "expected_wr":        73.1,
+      "expected_mdd":       12.1,
+      "expected_kelly":     0.518,
+      "monthly_trades_avg": 36,
+      "plus_months_rate":   0.929,
+      "category":           "METALS",
+      "strategy":           "gold_logic"
+    },
+    "SPX500": {
+      "expected_pf":        2.03,
+      "expected_wr":        69.8,
+      "expected_mdd":       16.4,
+      "expected_kelly":     0.354,
+      "monthly_trades_avg": 53,
+      "plus_months_rate":   1.0,
+      "category":           "IDX",
+      "strategy":           "gold_logic"
+    },
+    "GBPUSD": {
+      "expected_pf":        2.29,
+      "expected_wr":        69.4,
+      "expected_mdd":       12.7,
+      "expected_kelly":     0.391,
+      "monthly_trades_avg": 41,
+      "plus_months_rate":   1.0,
+      "category":           "FX",
+      "strategy":           "v77_session"
+    },
+    "AUDUSD": {
+      "expected_pf":        2.19,
+      "expected_wr":        64.8,
+      "expected_mdd":       13.3,
+      "expected_kelly":     0.352,
+      "monthly_trades_avg": 38,
+      "plus_months_rate":   1.0,
+      "category":           "FX",
+      "strategy":           "v77_session"
+    },
+    "NZDUSD": {
+      "expected_pf":        1.78,
+      "expected_wr":        62.3,
+      "expected_mdd":       16.1,
+      "expected_kelly":     0.274,
+      "monthly_trades_avg": 30,
+      "plus_months_rate":   0.857,
+      "category":           "FX",
+      "strategy":           "gold_logic"
+    }
+  },
+  "portfolio": {
+    "expected_monthly_return_pct": 15.0,
+    "warning_threshold_pct":       -10.0,
+    "drift_alert_pf_ratio":        0.7,
+    "drift_alert_wr_gap":          0.08
+  }
+}
