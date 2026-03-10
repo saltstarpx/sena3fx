@@ -273,89 +273,66 @@ def send_daily_report(open_positions, trades_df):
             recent_risk = calc_dynamic_risk_pct(sym, trades_df, cfg["base_risk_pct"])
             sym_stats += f"  {sym}: {sn}件 {sw/sn*100:.0f}% PnL:{sp:+.0f}p risk:{recent_risk*100:.1f}%\n"
 
-    pos_str = "\n".join(
-        f"  {p['pair']} {'L' if p['dir']>0 else 'S'} {p['ep']:.5f}"
-        for p in open_positions.values()) or "  なし"
+    # 現在のオープンポジション（含み損益付き）
+    pos_lines = []
+    for tid, p in open_positions.items():
+        pair = p["pair"]
+        cfg  = APPROVED_UNIVERSE.get(pair, {})
+        instr = cfg.get("oanda", pair)
+        cur = get_current_price(instr)
+        ps  = cfg.get("pip_size", 0.0001)
+        if cur > 0:
+            unreal = (cur - p["ep"]) * p["dir"] / ps
+            pos_lines.append(
+                f"  {pair} {'L' if p['dir']>0 else 'S'} EP:{p['ep']:.5f} "
+                f"現値:{cur:.5f} 含み:{unreal:+.1f}p"
+            )
+        else:
+            pos_lines.append(f"  {pair} {'L' if p['dir']>0 else 'S'} EP:{p['ep']:.5f}")
+    pos_str = "\n".join(pos_lines) or "  なし"
 
     embed = {
-        "title": "📊 日次レポート (YAGAMI改)",
+        "title": "📊 朝9時レポート (YAGAMI改)",
         "color": 0x1565c0,
         "fields": [
             {"name": "累計トレード", "value": f"`{n}件`",         "inline": True},
             {"name": "勝率",         "value": f"`{wr:.1f}%`",     "inline": True},
             {"name": "PF",           "value": f"`{pf:.2f}`",      "inline": True},
             {"name": "オープン",     "value": f"`{len(open_positions)}件`", "inline": True},
-            {"name": "採用銘柄",     "value": f"`{len(APPROVED_UNIVERSE)}銘柄`", "inline": True},
+            {"name": "監視銘柄",     "value": f"`{', '.join(APPROVED_UNIVERSE.keys())}`", "inline": True},
             {"name": "銘柄別成績",   "value": f"```{sym_stats or 'データなし'}```", "inline": False},
-            {"name": "ポジション",   "value": f"```{pos_str}```", "inline": False},
+            {"name": "ポジション（含み損益）", "value": f"```{pos_str}```", "inline": False},
         ],
         "footer": {"text": f"YAGAMI改 | {datetime.now(timezone.utc).strftime('%Y/%m/%d %H:%M UTC')}"}
     }
     send_discord("", embeds=[embed])
 
 
-def send_weekly_feedback(trades_df):
+def log_weekly_feedback(trades_df):
+    """週次成績をGCSにログ記録（Discord通知なし）。"""
     now_utc    = datetime.now(timezone.utc)
     week_start = now_utc - timedelta(days=7)
-
-    if len(trades_df) == 0:
-        send_discord(f"📅 **週次FB ({week_start.strftime('%m/%d')}〜)**\nデータなし")
+    n = len(trades_df)
+    if n == 0:
+        logger.info("週次FB: データなし")
         return
 
     trades_df["exit_time"] = pd.to_datetime(trades_df["exit_time"], errors="coerce")
-    wdf = trades_df[trades_df["exit_time"] >= week_start]
-    n   = len(trades_df); wn = len(wdf)
-    wwr = (wdf["pnl"] > 0).mean() * 100 if wn > 0 else 0
+    wdf  = trades_df[trades_df["exit_time"] >= week_start]
+    wn   = len(wdf)
+    wwr  = (wdf["pnl"] > 0).mean() * 100 if wn > 0 else 0
     wpnl = wdf["pnl"].sum() if wn > 0 else 0
-
-    # ペア別今週成績
-    sym_fields = []
-    if wn > 0 and "pair" in wdf.columns:
-        for sym, cfg in APPROVED_UNIVERSE.items():
-            pt = wdf[wdf["pair"] == sym]
-            if len(pt) == 0: continue
-            sw = (pt["pnl"] > 0).sum(); sn = len(pt)
-            sp = pt["pnl"].sum()
-            dynamic_risk = calc_dynamic_risk_pct(sym, trades_df, cfg["base_risk_pct"])
-            sym_fields.append({
-                "name": f"{sym} (Tier{cfg['tier']})",
-                "value": (f"`{sn}件` | WR: `{sw/sn*100:.0f}%` | "
-                          f"PnL: `{sp:+.0f}p` | 次回リスク: `{dynamic_risk*100:.1f}%`"),
-                "inline": False,
-            })
-
     pf_all = (trades_df[trades_df["pnl"] > 0]["pnl"].sum() /
               abs(trades_df[trades_df["pnl"] < 0]["pnl"].sum())
               if len(trades_df[trades_df["pnl"] < 0]) > 0 else 0)
-
-    if n >= 300 and pf_all >= 3.0:   stage = "🟢 採用基準到達（本番移行検討可）"
-    elif n >= 100 and pf_all >= 2.0: stage = "🟡 蓄積中（基準PF接近）"
-    else:                             stage = f"🔴 蓄積中 ({n}/100件)"
-
-    embed = {
-        "title": f"📅 週次FB ({week_start.strftime('%m/%d')}〜{now_utc.strftime('%m/%d')})",
-        "color": 0x7b1fa2,
-        "fields": [
-            {"name": "今週トレード", "value": f"`{wn}件`",         "inline": True},
-            {"name": "今週勝率",     "value": f"`{wwr:.1f}%`",     "inline": True},
-            {"name": "今週損益",     "value": f"`{wpnl:+.1f}p`",   "inline": True},
-            {"name": "累計トレード", "value": f"`{n}件`",           "inline": True},
-            {"name": "累計PF",       "value": f"`{pf_all:.2f}`",   "inline": True},
-            {"name": "本番判断",     "value": stage,                "inline": False},
-            *sym_fields,
-        ],
-        "footer": {"text": f"YAGAMI改 | {now_utc.strftime('%Y/%m/%d UTC')}"}
-    }
-    send_discord("", embeds=[embed])
 
     gcs_append_csv("logs/weekly_feedback.csv", {
         "week_start": week_start.strftime("%Y-%m-%d"),
         "week_end":   now_utc.strftime("%Y-%m-%d"),
         "week_trades": wn, "week_wr": round(wwr, 1),
         "week_pnl": round(wpnl, 1), "total_trades": n, "total_pf": round(pf_all, 2),
-        "stage": stage,
     })
-    logger.info(f"週次FB送信: {wn}件, 累計{n}件, PF={pf_all:.2f}")
+    logger.info(f"週次GCSログ: {wn}件, 累計{n}件, PF={pf_all:.2f}")
 
 
 # ── OANDA ヘルパー ────────────────────────────────────────────
@@ -620,20 +597,19 @@ def run_cycle():
                     f"risk={risk_pct*100:.1f}% slip={slip:+.2f}p "
                     f"strategy={sym_cfg['strategy']}")
 
-    # ── 3. 定時レポート（9時・21時 JST） ─────────────────────
-    now_jst   = now + timedelta(hours=9)
-    now_jst_h = now_jst.hour
-    report_key = f"{now_jst.strftime('%Y-%m-%d')}-{now_jst_h:02d}"  # "2026-03-09-09"
-    if now_jst_h in (9, 21) and last_report.get("key") != report_key:
+    # ── 3. 朝9時レポート（JST 9:00のみ・1日1回） ────────────
+    now_jst    = now + timedelta(hours=9)
+    now_jst_h  = now_jst.hour
+    report_key = now_jst.strftime("%Y-%m-%d-09")   # "2026-03-10-09"
+    if now_jst_h == 9 and last_report.get("key") != report_key:
         send_daily_report(open_positions, trades_df)
         last_report = {"key": report_key}
-    elif now_jst_h not in (9, 21) and last_report.get("key", "").endswith(f"-{now_jst_h:02d}"):
-        pass  # 同時刻内は保持（次の非対象時刻になれば自然に上書き）
+        gcs_write_json("state/last_report.json", last_report)   # 即時保存（重複防止）
 
-    # ── 4. 週次フィードバック（月曜0時 JST） ─────────────────
+    # ── 4. 週次GCSログ（月曜0時 JST・Discord通知なし） ───────
     week_no = now_jst.isocalendar()[1]
-    if now_jst.weekday() == 0 and now_jst.hour == 0 and last_weekly.get("week") != week_no:
-        send_weekly_feedback(trades_df)
+    if now_jst.weekday() == 0 and now_jst_h == 0 and last_weekly.get("week") != week_no:
+        log_weekly_feedback(trades_df)
         last_weekly = {"week": week_no}
 
     # ── 5. 状態保存 ────────────────────────────────────────
@@ -662,7 +638,6 @@ async def run_endpoint(request: Request):
         return run_cycle()
     except Exception as e:
         logger.error(f"cycle error: {e}", exc_info=True)
-        send_discord(f"⚠️ **Cloud Run エラー**: {str(e)[:200]}")
         return {"status": "error", "message": str(e)}
 
 
@@ -692,8 +667,8 @@ async def report_endpoint():
 async def weekly_feedback_endpoint():
     try:
         trades_df = gcs_read_csv("logs/paper_trades.csv")
-        send_weekly_feedback(trades_df)
-        return {"status": "ok", "message": "週次フィードバック送信完了"}
+        log_weekly_feedback(trades_df)
+        return {"status": "ok", "message": "週次GCSログ記録完了（Discord通知なし）"}
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
