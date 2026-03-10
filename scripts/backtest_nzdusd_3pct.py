@@ -1,7 +1,7 @@
 """
 backtest_nzdusd_3pct.py
 ========================
-NZDUSD 1銘柄集中バックテスト（アダプティブリスク 2〜5%）
+NZDUSD 1銘柄集中バックテスト（アダプティブリスク 2〜3%）
 
 【設定】
   - 銘柄: NZDUSD のみ
@@ -12,10 +12,10 @@ NZDUSD 1銘柄集中バックテスト（アダプティブリスク 2〜5%）
 
 【アダプティブリスク】
   - 初期リスク: 2%
-  - 勝ち: +0.5%（上限 5%）
+  - 勝ち: +0.5%（上限 3%）→ 2.0 / 2.5 / 3.0 の3段階
   - 負け: -0.5%（下限 2%）
   - ※ stepはOOS最適化なし（カーブフィッティング防止）
-  - 固定2% / 固定5% / アダプティブ 三者比較
+  - 固定2% / 固定3% / アダプティブ 三者比較
 
 【IS/OOS】
   IS:  2025-01-01 〜 2025-05-31
@@ -37,7 +37,7 @@ OOS_END   = "2026-02-28"
 
 # ── 資金・リスク設定 ─────────────────────────────────────────────
 INIT_CASH   = 1_000_000   # 初期資産 100万円
-RISK_PCT    = 0.05        # 固定5%（比較用）
+RISK_PCT    = 0.03        # 固定3%（比較用）
 RR_RATIO    = 2.5
 HALF_R      = 1.0
 USDJPY_RATE = 150.0
@@ -45,7 +45,7 @@ USDJPY_RATE = 150.0
 # ── アダプティブリスク設定 ────────────────────────────────────────
 RISK_INIT   = 0.02        # 初期リスク（下限と同じ）
 RISK_MIN    = 0.02        # 下限
-RISK_MAX    = 0.05        # 上限
+RISK_MAX    = 0.03        # 上限（2.0 / 2.5 / 3.0 の3段階）
 RISK_STEP   = 0.005       # 勝ち→+0.5% / 負け→-0.5%（カーブフィッティング防止の固定値）
 
 # ── コスト設定（OANDAプロコース） ────────────────────────────────
@@ -451,7 +451,7 @@ def monthly_pnl_adaptive(d15m_full, d4h_full):
 # ── メイン ───────────────────────────────────────────────────────
 def main():
     print("\n" + "="*80)
-    print("  NZDUSD 集中戦略バックテスト（アダプティブリスク 2〜5%）")
+    print("  NZDUSD 集中戦略バックテスト（アダプティブリスク 2〜3%, 0.5%刻み）")
     print(f"  IS: {IS_START}〜{IS_END}  /  OOS: {OOS_START}〜{OOS_END}")
     print(f"  初期資産: {INIT_CASH:,}円  RR: {RR_RATIO}")
     print(f"  Raw spread: {SPREAD_PIPS}pips  手数料: {COMMISSION_USD_PER_LOT}USD/100k/片道")
@@ -476,7 +476,7 @@ def main():
 
     # ── 3戦略比較テーブル ──────────────────────────────────────────
     W = 14
-    hdr = f"  {'':20} {'固定2%':>{W}} {'固定5%':>{W}} {'アダプティブ':>{W}}"
+    hdr = f"  {'':20} {'固定2%':>{W}} {'固定3%':>{W}} {'アダプティブ':>{W}}"
     sep = "  " + "-" * (20 + W*3 + 2)
 
     def row(label, is_fn, oos_fn):
@@ -524,7 +524,7 @@ def main():
     # IS/OOS 乖離チェック
     print("\n" + "-"*80)
     print("  ■ 過学習チェック（OOS PF / IS PF）")
-    for label, is_st, oos_st in [("固定2%", is_2, oos_2), ("固定5%", is_3, oos_3),
+    for label, is_st, oos_st in [("固定2%", is_2, oos_2), ("固定3%", is_3, oos_3),
                                    ("アダプティブ", is_ada, oos_ada)]:
         if is_st and oos_st and is_st.get("pf") and oos_st.get("pf"):
             r = oos_st["pf"] / is_st["pf"]
@@ -554,7 +554,7 @@ def main():
     # ── サマリー ─────────────────────────────────────────────────
     print("\n" + "="*80)
     print("  ■ OOS 最終サマリー")
-    for label, st in [("固定2%", oos_2), ("固定5%", oos_3), ("アダプティブ", oos_ada)]:
+    for label, st in [("固定2%", oos_2), ("固定3%", oos_3), ("アダプティブ", oos_ada)]:
         if not st: continue
         pf_s  = f"{st['pf']:.2f}" if st['pf'] < 99 else "∞"
         judge = "✅" if st["pf"] >= 2.0 and st["mdd"] <= 35 else "⚠️"
