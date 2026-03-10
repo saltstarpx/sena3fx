@@ -35,6 +35,9 @@ data/ohlc/*_1m.csv
 paper_trading/__pycache__/
 paper_trading/logs/
 
+# ローカル取引ログ（本番はGCS管理）
+trade_logs/paper_trades.csv
+
 # テスト用キャッシュ
 tests/__pycache__/
 scripts/__pycache__/
