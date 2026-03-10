@@ -1,3 +1,0 @@
-data/tick/*.csv.gz filter=lfs diff=lfs merge=lfs -text
-data/tick/*.csv filter=lfs diff=lfs merge=lfs -text
-data/ohlc/*.csv filter=lfs diff=lfs merge=lfs -text
