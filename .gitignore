@@ -29,7 +29,7 @@ data/archive/
 
 # 1分足データ（大容量）
 data/*_1m.csv
-data/ohlc/USDJPY_1m*.csv
+data/ohlc/*_1m.csv
 
 # ペーパートレードのキャッシュ
 paper_trading/__pycache__/
