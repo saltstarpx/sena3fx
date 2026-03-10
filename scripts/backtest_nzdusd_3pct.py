@@ -1,15 +1,20 @@
 """
 backtest_nzdusd_3pct.py
 ========================
-NZDUSD 1銘柄集中バックテスト（リスク3%）
+NZDUSD 1銘柄集中バックテスト（アダプティブリスク 2〜3%）
 
 【設定】
   - 銘柄: NZDUSD のみ
-  - リスク: 3% / トレード（2%→3%に引き上げ）
   - スプレッド: 0.3pips（OANDAプロコース生スプレッド）
   - 手数料: 5 USD/100,000通貨/片道（往復10 USD = 1,500円/lot@150円）
   - ロジック: Goldロジック（4H EMA20 + 日足EMA20 + KMID + KLOW + EMA距離）
   - エントリー: E2方式（スパイク除外 / 15m足 最大3本待ち）
+
+【アダプティブリスク】
+  - 初期リスク: 2%
+  - 勝ち: +0.5%（上限 3%）
+  - 負け: -0.5%（下限 2%）
+  - 固定2% / 固定3% / アダプティブ 三者比較
 
 【IS/OOS】
   IS:  2025-01-01 〜 2025-05-31
@@ -31,10 +36,16 @@ OOS_END   = "2026-02-28"
 
 # ── 資金・リスク設定 ─────────────────────────────────────────────
 INIT_CASH   = 1_000_000   # 初期資産 100万円
-RISK_PCT    = 0.03        # ★ 3%リスク（集中戦略）
+RISK_PCT    = 0.03        # 固定3%（比較用）
 RR_RATIO    = 2.5
 HALF_R      = 1.0
 USDJPY_RATE = 150.0
+
+# ── アダプティブリスク設定 ────────────────────────────────────────
+RISK_INIT   = 0.02        # 初期リスク（下限と同じ）
+RISK_MIN    = 0.02        # 下限
+RISK_MAX    = 0.03        # 上限
+RISK_STEP   = 0.005       # 勝ち/負けで変化する幅
 
 # ── コスト設定（OANDAプロコース） ────────────────────────────────
 SPREAD_PIPS          = 0.3    # 生スプレッド 0.3pips（片道、エントリー価格反映）
@@ -276,6 +287,68 @@ def simulate(signals, d15m, risk_pct):
     return trades, equity, mdd, total_commission
 
 
+# ── アダプティブリスク シミュレーション ─────────────────────────
+def simulate_adaptive(signals, d15m):
+    """勝ち→+0.5% / 負け→-0.5%、下限2%・上限3%のアダプティブリスク"""
+    if not signals:
+        return [], INIT_CASH, 0, 0
+    current_risk = RISK_INIT
+    rm   = RiskManager(SYM, risk_pct=current_risk)
+    m15t = d15m.index
+    m15h = d15m["high"].values
+    m15l = d15m["low"].values
+    equity = INIT_CASH; peak = INIT_CASH; mdd = 0.0
+    trades = []; total_commission = 0.0
+
+    for sig in signals:
+        rm.risk_pct = current_risk
+        lot = rm.calc_lot(equity, sig["risk"], sig["ep"], usdjpy_rate=USDJPY_RATE)
+        if lot <= 0:
+            continue
+
+        commission = calc_commission_jpy(lot)
+        equity -= commission
+        total_commission += commission
+
+        sp = m15t.searchsorted(sig["time"], side="right")
+        if sp >= len(m15t):
+            continue
+
+        ei, xp, result, half_done = _find_exit(
+            m15h[sp:], m15l[sp:],
+            sig["ep"], sig["sl"], sig["tp"],
+            sig["risk"], sig["dir"]
+        )
+        if result is None:
+            continue
+
+        half_pnl = 0.0
+        if half_done:
+            hp       = sig["ep"] + sig["dir"] * sig["risk"] * HALF_R
+            half_pnl = rm.calc_pnl_jpy(sig["dir"], sig["ep"], hp, lot * 0.5, USDJPY_RATE, sig["ep"])
+            equity  += half_pnl
+            rem      = lot * 0.5
+        else:
+            rem = lot
+
+        pnl    = rm.calc_pnl_jpy(sig["dir"], sig["ep"], xp, rem, USDJPY_RATE, sig["ep"])
+        equity += pnl
+        total_pnl = half_pnl + pnl
+
+        # ── リスク更新（次のトレードに反映） ──────────────────────
+        if total_pnl > 0:
+            current_risk = round(min(current_risk + RISK_STEP, RISK_MAX), 4)
+        else:
+            current_risk = round(max(current_risk - RISK_STEP, RISK_MIN), 4)
+
+        trades.append({"result": result, "pnl": total_pnl,
+                       "commission": commission, "risk_used": rm.risk_pct})
+        peak = max(peak, equity)
+        mdd  = max(mdd, (peak - equity) / peak * 100)
+
+    return trades, equity, mdd, total_commission
+
+
 def calc_stats(trades, init=INIT_CASH):
     if not trades:
         return {}
@@ -285,28 +358,34 @@ def calc_stats(trades, init=INIT_CASH):
     los  = df[df["pnl"] < 0]["pnl"]
     wr   = len(wins) / n
     pf   = wins.sum() / abs(los.sum()) if len(los) > 0 else float("inf")
-    return {"n": n, "wr": wr, "pf": pf,
-            "total_commission": df["commission"].sum()}
+    result = {"n": n, "wr": wr, "pf": pf,
+              "total_commission": df["commission"].sum()}
+    if "risk_used" in df.columns:
+        result["avg_risk"] = df["risk_used"].mean()
+        result["risk_dist"] = df["risk_used"].value_counts().sort_index().to_dict()
+    return result
 
 
-def run_period(d15m_full, d4h_full, start, end, risk_pct):
+def _build_m15c(d15m):
+    return {"idx": d15m.index, "opens": d15m["open"].values,
+            "highs": d15m["high"].values, "lows": d15m["low"].values}
+
+
+def run_period(d15m_full, d4h_full, start, end, risk_pct, adaptive=False):
     d15m = slice_period(d15m_full, start, end)
     if d15m is None or len(d15m) == 0:
         return {}, 0.0
 
-    pip       = SYMBOL_CONFIG[SYM]["pip"]
-    spread_pr = SPREAD_PIPS * pip
+    spread_pr = SPREAD_PIPS * SYMBOL_CONFIG[SYM]["pip"]
+    atr_15m   = calc_atr(d15m, 10).to_dict()
+    m15c      = _build_m15c(d15m)
+    sigs      = generate_signals(d15m, d4h_full, spread_pr, atr_15m, m15c)
 
-    atr_15m = calc_atr(d15m, 10).to_dict()
-    m15c = {
-        "idx":   d15m.index,
-        "opens": d15m["open"].values,
-        "highs": d15m["high"].values,
-        "lows":  d15m["low"].values,
-    }
+    if adaptive:
+        trades, final_eq, mdd, total_comm = simulate_adaptive(sigs, d15m)
+    else:
+        trades, final_eq, mdd, total_comm = simulate(sigs, d15m, risk_pct)
 
-    sigs = generate_signals(d15m, d4h_full, spread_pr, atr_15m, m15c)
-    trades, final_eq, mdd, total_comm = simulate(sigs, d15m, risk_pct)
     st = calc_stats(trades)
     if st:
         st["mdd"]       = mdd
@@ -317,29 +396,25 @@ def run_period(d15m_full, d4h_full, start, end, risk_pct):
 
 
 # ── 月次分析 ─────────────────────────────────────────────────────
-def monthly_pnl(d15m_full, d4h_full, risk_pct):
-    results = {}
+def monthly_pnl_adaptive(d15m_full, d4h_full):
+    """アダプティブリスクで月次損益＋各月の平均リスク水準を返す"""
     d15m_oos = slice_period(d15m_full, OOS_START, OOS_END)
-    if d15m_oos is None: return results
+    if d15m_oos is None: return {}
 
-    pip       = SYMBOL_CONFIG[SYM]["pip"]
-    spread_pr = SPREAD_PIPS * pip
+    spread_pr = SPREAD_PIPS * SYMBOL_CONFIG[SYM]["pip"]
     atr_15m   = calc_atr(d15m_oos, 10).to_dict()
-    m15c = {
-        "idx":   d15m_oos.index,
-        "opens": d15m_oos["open"].values,
-        "highs": d15m_oos["high"].values,
-        "lows":  d15m_oos["low"].values,
-    }
-    sigs = generate_signals(d15m_oos, d4h_full, spread_pr, atr_15m, m15c)
+    sigs      = generate_signals(d15m_oos, d4h_full, spread_pr, atr_15m, _build_m15c(d15m_oos))
 
-    rm = RiskManager(SYM, risk_pct=risk_pct)
+    current_risk = RISK_INIT
+    rm   = RiskManager(SYM, risk_pct=current_risk)
     m15t = d15m_oos.index
     m15h = d15m_oos["high"].values
     m15l = d15m_oos["low"].values
     equity = INIT_CASH
+    results = {}   # ym -> {"pnls":[], "risks":[]}
 
     for sig in sigs:
+        rm.risk_pct = current_risk
         lot = rm.calc_lot(equity, sig["risk"], sig["ep"], usdjpy_rate=USDJPY_RATE)
         if lot <= 0: continue
         equity -= calc_commission_jpy(lot)
@@ -357,87 +432,132 @@ def monthly_pnl(d15m_full, d4h_full, risk_pct):
             rem = lot
         pnl = rm.calc_pnl_jpy(sig["dir"], sig["ep"], xp, rem, USDJPY_RATE, sig["ep"])
         equity += pnl
+        total_pnl = half_pnl + pnl
+
         ym = sig["time"].strftime("%Y-%m")
-        results.setdefault(ym, []).append(half_pnl + pnl)
+        results.setdefault(ym, {"pnls": [], "risks": []})
+        results[ym]["pnls"].append(total_pnl)
+        results[ym]["risks"].append(current_risk * 100)
+
+        if total_pnl > 0:
+            current_risk = round(min(current_risk + RISK_STEP, RISK_MAX), 4)
+        else:
+            current_risk = round(max(current_risk - RISK_STEP, RISK_MIN), 4)
 
     return results
 
 
 # ── メイン ───────────────────────────────────────────────────────
 def main():
-    print("\n" + "="*75)
-    print("  NZDUSD 集中戦略バックテスト（リスク3%）")
+    print("\n" + "="*80)
+    print("  NZDUSD 集中戦略バックテスト（アダプティブリスク 2〜3%）")
     print(f"  IS: {IS_START}〜{IS_END}  /  OOS: {OOS_START}〜{OOS_END}")
-    print(f"  初期資産: {INIT_CASH:,}円  リスク: {RISK_PCT*100:.0f}%/trade  RR: {RR_RATIO}")
-    print(f"  Raw spread: {SPREAD_PIPS}pips  手数料: {COMMISSION_USD_PER_LOT}USD/100k通貨/片道")
-    print("="*75)
+    print(f"  初期資産: {INIT_CASH:,}円  RR: {RR_RATIO}")
+    print(f"  Raw spread: {SPREAD_PIPS}pips  手数料: {COMMISSION_USD_PER_LOT}USD/100k/片道")
+    print(f"  アダプティブ: 初期{RISK_INIT*100:.0f}%  勝ち+{RISK_STEP*100:.1f}%  負け-{RISK_STEP*100:.1f}%"
+          f"  [{RISK_MIN*100:.0f}%〜{RISK_MAX*100:.0f}%]")
+    print("="*80)
 
     d15m_full, d4h_full = load_nzdusd()
     if d15m_full is None or d4h_full is None:
         print("  ❌ データ不足")
         return
 
-    print("  NZDUSD IS 計算中...", end=" ", flush=True)
-    is_st,  _ = run_period(d15m_full, d4h_full, IS_START,  IS_END,  RISK_PCT)
-    print("完了")
-    print("  NZDUSD OOS 計算中...", end=" ", flush=True)
-    oos_st, _ = run_period(d15m_full, d4h_full, OOS_START, OOS_END, RISK_PCT)
-    print("完了")
+    print("  計算中...", end=" ", flush=True)
+    is_2,   _ = run_period(d15m_full, d4h_full, IS_START,  IS_END,  0.02)
+    is_3,   _ = run_period(d15m_full, d4h_full, IS_START,  IS_END,  0.03)
+    is_ada, _ = run_period(d15m_full, d4h_full, IS_START,  IS_END,  None, adaptive=True)
+    oos_2,  _ = run_period(d15m_full, d4h_full, OOS_START, OOS_END, 0.02)
+    oos_3,  _ = run_period(d15m_full, d4h_full, OOS_START, OOS_END, 0.03)
+    oos_ada,_ = run_period(d15m_full, d4h_full, OOS_START, OOS_END, None, adaptive=True)
+    print("完了\n")
 
-    def fmt(st, label):
-        if not st:
-            print(f"  {label}: データなし")
-            return
-        pf_s = f"{st['pf']:.2f}" if st['pf'] < 99 else "∞"
-        judge = "✅" if st["pf"] >= 3.0 else ("△" if st["pf"] >= 2.0 else "❌")
-        print(f"\n  【{label}】")
-        print(f"    トレード数:  {st['n']}")
-        print(f"    勝率:        {st['wr']*100:.1f}%")
-        print(f"    PF:          {pf_s}  {judge}")
-        print(f"    MDD:         {st['mdd']:.1f}%")
-        print(f"    資産倍率:    {st['multiplier']:.2f}x  (→ {st['final_eq']:,.0f}円)")
-        print(f"    手数料合計:  {st['commission']:,.0f}円")
+    # ── 3戦略比較テーブル ──────────────────────────────────────────
+    W = 14
+    hdr = f"  {'':20} {'固定2%':>{W}} {'固定3%':>{W}} {'アダプティブ':>{W}}"
+    sep = "  " + "-" * (20 + W*3 + 2)
 
-    fmt(is_st,  "IS  (2025/01-05)")
-    fmt(oos_st, "OOS (2025/06-2026/02)")
+    def row(label, is_fn, oos_fn):
+        vals = []
+        for st_is, st_oos in [(is_2, oos_2), (is_3, oos_3), (is_ada, oos_ada)]:
+            iv = is_fn(st_is)  if st_is  else "N/A"
+            ov = oos_fn(st_oos) if st_oos else "N/A"
+            vals.append(f"{iv}/{ov}")
+        print(f"  {label:20} {vals[0]:>{W}} {vals[1]:>{W}} {vals[2]:>{W}}")
+
+    print(hdr)
+    print(f"  {'':20} {'IS / OOS':>{W}} {'IS / OOS':>{W}} {'IS / OOS':>{W}}")
+    print(sep)
+    row("トレード数",
+        lambda s: f"{s['n']}",
+        lambda s: f"{s['n']}")
+    row("勝率",
+        lambda s: f"{s['wr']*100:.1f}%",
+        lambda s: f"{s['wr']*100:.1f}%")
+    row("PF",
+        lambda s: f"{s['pf']:.2f}" if s['pf']<99 else "∞",
+        lambda s: f"{s['pf']:.2f}" if s['pf']<99 else "∞")
+    row("MDD",
+        lambda s: f"{s['mdd']:.1f}%",
+        lambda s: f"{s['mdd']:.1f}%")
+    row("資産倍率",
+        lambda s: f"{s['multiplier']:.2f}x",
+        lambda s: f"{s['multiplier']:.2f}x")
+    row("最終資産(万円)",
+        lambda s: f"{s['final_eq']/10000:.0f}万",
+        lambda s: f"{s['final_eq']/10000:.0f}万")
+    row("手数料合計",
+        lambda s: f"{s['commission']/10000:.0f}万",
+        lambda s: f"{s['commission']/10000:.0f}万")
+
+    # アダプティブの平均リスク
+    if oos_ada and oos_ada.get("avg_risk"):
+        print(f"\n  【アダプティブ OOS 平均リスク水準: {oos_ada['avg_risk']*100:.2f}%】")
+        if oos_ada.get("risk_dist"):
+            print("  リスク分布（リスク水準: トレード数）:")
+            for rv, cnt in sorted(oos_ada["risk_dist"].items()):
+                bar = "█" * min(int(cnt/10)+1, 30)
+                print(f"    {rv*100:.1f}%: {cnt:>4}件  {bar}")
 
     # IS/OOS 乖離チェック
-    if is_st and oos_st and is_st.get("pf") and oos_st.get("pf"):
-        ratio = oos_st["pf"] / is_st["pf"]
-        flag  = "✅ 過学習なし" if ratio >= 0.7 else "⚠️ 過学習疑い"
-        print(f"\n  OOS/IS PF比: {ratio:.2f}  {flag}")
+    print("\n" + "-"*80)
+    print("  ■ 過学習チェック（OOS PF / IS PF）")
+    for label, is_st, oos_st in [("固定2%", is_2, oos_2), ("固定3%", is_3, oos_3),
+                                   ("アダプティブ", is_ada, oos_ada)]:
+        if is_st and oos_st and is_st.get("pf") and oos_st.get("pf"):
+            r = oos_st["pf"] / is_st["pf"]
+            flag = "✅ 過学習なし" if r >= 0.7 else "⚠️ 過学習疑い"
+            print(f"    {label:12}: OOS/IS={r:.2f}  {flag}")
 
-    # リスク2%との比較
-    print("\n" + "-"*75)
-    print("  ■ リスク2% vs 3% 比較（OOS）")
-    print("  2%計算中...", end=" ", flush=True)
-    oos_2pct, _ = run_period(d15m_full, d4h_full, OOS_START, OOS_END, 0.02)
-    print("完了")
-    print(f"\n  {'項目':15} {'2%リスク':>12} {'3%リスク':>12} {'差':>12}")
-    print(f"  {'-'*51}")
-    if oos_2pct and oos_st:
-        print(f"  {'PF':15} {oos_2pct['pf']:>12.2f} {oos_st['pf']:>12.2f}")
-        print(f"  {'勝率':15} {oos_2pct['wr']*100:>11.1f}% {oos_st['wr']*100:>11.1f}%")
-        print(f"  {'MDD':15} {oos_2pct['mdd']:>11.1f}% {oos_st['mdd']:>11.1f}%  {'⚠️ 上昇' if oos_st['mdd'] > oos_2pct['mdd'] else '✅'}")
-        print(f"  {'資産倍率':15} {oos_2pct['multiplier']:>11.2f}x {oos_st['multiplier']:>11.2f}x  (+{oos_st['multiplier']-oos_2pct['multiplier']:.2f}x)")
-        print(f"  {'最終資産':15} {oos_2pct['final_eq']:>11,.0f}円 {oos_st['final_eq']:>11,.0f}円")
-        print(f"  {'手数料':15} {oos_2pct['commission']:>11,.0f}円 {oos_st['commission']:>11,.0f}円")
-
-    # 月次内訳（OOS）
-    print("\n" + "-"*75)
-    print("  ■ OOS 月次損益（3%リスク）")
-    monthly = monthly_pnl(d15m_full, d4h_full, RISK_PCT)
+    # ── OOS 月次内訳（アダプティブ） ────────────────────────────────
+    print("\n" + "-"*80)
+    print("  ■ OOS 月次損益（アダプティブリスク）")
+    print(f"  {'月':>8} {'損益':>12} {'件数':>6} {'平均R%':>8}  判定")
+    print(f"  {'-'*50}")
+    monthly = monthly_pnl_adaptive(d15m_full, d4h_full)
     plus_months = 0; total_months = 0
     for ym in sorted(monthly.keys()):
-        pnls = monthly[ym]
-        total = sum(pnls)
+        data  = monthly[ym]
+        total = sum(data["pnls"])
+        cnt   = len(data["pnls"])
+        avgr  = sum(data["risks"]) / cnt if cnt else 0
         sign  = "+" if total >= 0 else ""
         flag  = "✅" if total >= 0 else "❌"
-        print(f"    {ym}: {sign}{total:>10,.0f}円  ({len(pnls)}トレード)  {flag}")
+        print(f"  {ym:>8}: {sign}{total:>10,.0f}円  {cnt:>4}件  {avgr:>6.1f}%  {flag}")
         total_months += 1
         if total >= 0: plus_months += 1
     if total_months > 0:
         print(f"  プラス月: {plus_months}/{total_months}  ({plus_months/total_months*100:.0f}%)")
+
+    # ── サマリー ─────────────────────────────────────────────────
+    print("\n" + "="*80)
+    print("  ■ OOS 最終サマリー")
+    for label, st in [("固定2%", oos_2), ("固定3%", oos_3), ("アダプティブ", oos_ada)]:
+        if not st: continue
+        pf_s  = f"{st['pf']:.2f}" if st['pf'] < 99 else "∞"
+        judge = "✅" if st["pf"] >= 2.0 and st["mdd"] <= 35 else "⚠️"
+        print(f"    {label:12}: PF={pf_s}  MDD={st['mdd']:.1f}%  "
+              f"倍率={st['multiplier']:.1f}x  最終={st['final_eq']/10000:.0f}万円  {judge}")
 
 
 if __name__ == "__main__":
