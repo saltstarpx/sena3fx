@@ -1,124 +1,128 @@
 """
-OANDA API から1分足データを取得して data/ohlc/ に保存するスクリプト。
-対象: EURJPY / GBPJPY / NZDUSD / XAGUSD
-期間: 2024-07-01 〜 2026-02-28（IS+OOS全期間）
+OANDA API から1分足OHLCデータを取得してCSVに保存する
+対象: XAGUSD / EURJPY / GBPJPY / NZDUSD
+期間: 2025-01-01 〜 2026-02-28
 """
-import os
-import time
+
 import requests
 import pandas as pd
+import time
+import os
 from datetime import datetime, timezone, timedelta
 
 BASE_URL = "https://api-fxpractice.oanda.com"
 TOKEN    = "fef47c0fc461c23c9816317ec545f65e-7596c4a3b28374bf0655d046a3b60289"
-HEADERS  = {"Authorization": f"Bearer {TOKEN}", "Content-Type": "application/json"}
-OUT_DIR  = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "ohlc")
+HEADERS  = {"Authorization": f"Bearer {TOKEN}"}
 
-# 取得対象（OANDA instrument名: 大文字_区切り）
-INSTRUMENTS = {
-    "EURJPY": "EUR_JPY",
-    "GBPJPY": "GBP_JPY",
-    "NZDUSD": "NZD_USD",
-    "XAGUSD": "XAG_USD",
-}
+INSTRUMENTS = [
+    ("XAG_USD", "XAGUSD"),
+    ("EUR_JPY", "EURJPY"),
+    ("GBP_JPY", "GBPJPY"),
+    ("NZD_USD", "NZDUSD"),
+]
 
-START_UTC = datetime(2024, 7, 1, tzinfo=timezone.utc)
-END_UTC   = datetime(2026, 2, 28, 23, 59, tzinfo=timezone.utc)
-CHUNK_BARS = 5000  # OANDAの1リクエスト上限
+START = datetime(2025, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
+END   = datetime(2026, 2, 28, 23, 59, 0, tzinfo=timezone.utc)
+OUT_DIR = "/home/ubuntu/sena3fx/data/ohlc"
 
 
-def fetch_candles(instrument, from_dt, to_dt):
-    """指定期間の1分足を全取得（5000本ずつページネーション）"""
+def fetch_candles(instrument, from_dt, count=5000, max_retry=3):
+    url = f"{BASE_URL}/v3/instruments/{instrument}/candles"
+    params = {
+        "granularity": "M1",
+        "price": "M",
+        "from": from_dt.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "count": count,
+    }
+    for attempt in range(max_retry):
+        try:
+            resp = requests.get(url, headers=HEADERS, params=params, timeout=30)
+            if resp.status_code == 200:
+                return resp.json().get("candles", [])
+            elif resp.status_code == 429:
+                print(f"  [429 Rate Limit] {attempt+1}/{max_retry} - 10秒待機...")
+                time.sleep(10)
+            elif resp.status_code in (400, 404):
+                print(f"  [ERROR {resp.status_code}] {instrument}: {resp.text[:200]}")
+                return None
+            else:
+                print(f"  [ERROR {resp.status_code}] {resp.text[:200]}")
+                time.sleep(5)
+        except requests.exceptions.ConnectionError as e:
+            print(f"  [ConnectionError] {attempt+1}/{max_retry} - 5秒待機... {e}")
+            time.sleep(5)
+        except requests.exceptions.Timeout:
+            print(f"  [Timeout] {attempt+1}/{max_retry} - 5秒待機...")
+            time.sleep(5)
+    return None
+
+
+def fetch_instrument(instrument, name):
+    print(f"\n{'='*50}")
+    print(f"[{name}] 取得開始: {START} 〜 {END}")
+    out_path = os.path.join(OUT_DIR, f"{name}_1m.csv")
+
     rows = []
-    current = from_dt
+    current = START
+    request_count = 0
 
-    while current < to_dt:
-        params = {
-            "granularity": "M1",
-            "from": current.strftime("%Y-%m-%dT%H:%M:%SZ"),
-            "to":   to_dt.strftime("%Y-%m-%dT%H:%M:%SZ"),
-            "count": CHUNK_BARS,
-            "price": "M",
-        }
-        url = f"{BASE_URL}/v3/instruments/{instrument}/candles"
+    while current < END:
+        candles = fetch_candles(instrument, current, count=5000)
 
-        for attempt in range(4):
-            try:
-                r = requests.get(url, headers=HEADERS, params=params, timeout=30)
-                if r.status_code == 200:
-                    break
-                elif r.status_code == 429:
-                    print(f"  Rate limited, wait 10s...")
-                    time.sleep(10)
-                else:
-                    print(f"  HTTP {r.status_code}: {r.text[:200]}")
-                    time.sleep(5)
-            except Exception as e:
-                print(f"  Error (attempt {attempt+1}): {e}")
-                time.sleep(2 ** attempt)
-        else:
-            print(f"  Failed after 4 attempts at {current}")
+        if candles is None:
+            print(f"  [{name}] エラーによりスキップ")
+            return
+
+        if len(candles) == 0:
+            print(f"  [{name}] データなし（current={current}）→ break")
             break
 
-        candles = r.json().get("candles", [])
-        if not candles:
-            break
-
+        added = 0
+        last_time = None
         for c in candles:
-            if not c.get("complete", True):
+            if not c.get("complete", False):
+                continue
+            ts_str = c["time"][:19].replace("T", " ")
+            ts = datetime.strptime(ts_str, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+            if ts > END:
                 continue
             mid = c["mid"]
             rows.append({
-                "timestamp": c["time"][:19] + "+00:00",
-                "open":  float(mid["o"]),
-                "high":  float(mid["h"]),
-                "low":   float(mid["l"]),
-                "close": float(mid["c"]),
+                "timestamp": ts_str,
+                "open":   float(mid["o"]),
+                "high":   float(mid["h"]),
+                "low":    float(mid["l"]),
+                "close":  float(mid["c"]),
                 "volume": int(c.get("volume", 0)),
             })
+            last_time = ts
+            added += 1
 
-        # 次のチャンク開始点（最後のcandle時刻 + 1分）
-        last_time = candles[-1]["time"]
-        last_dt = datetime.strptime(last_time[:19], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=timezone.utc)
-        next_dt = last_dt + timedelta(minutes=1)
+        request_count += 1
+        if request_count % 50 == 0:
+            print(f"  [{name}] {request_count}リクエスト完了 / 累計{len(rows)}行 / current={current}")
 
-        print(f"  {instrument}: {current.date()} 〜 {last_dt.date()} (+{len(candles)}本, 累計{len(rows)}本)")
+        if last_time is None:
+            current = current + timedelta(minutes=5000)
+        else:
+            current = last_time + timedelta(minutes=1)
 
-        if next_dt >= to_dt or len(candles) < CHUNK_BARS:
-            break
-        current = next_dt
-        time.sleep(0.3)  # レート制限対策
+        time.sleep(0.2)
 
-    return rows
+    if not rows:
+        print(f"  [{name}] データなし")
+        return
 
-
-def main():
-    os.makedirs(OUT_DIR, exist_ok=True)
-
-    for label, instrument in INSTRUMENTS.items():
-        out_path = os.path.join(OUT_DIR, f"{label}_1m.csv")
-        print(f"\n{'='*50}")
-        print(f"{label} ({instrument}) 取得開始")
-        print(f"期間: {START_UTC.date()} 〜 {END_UTC.date()}")
-        print(f"出力: {out_path}")
-
-        rows = fetch_candles(instrument, START_UTC, END_UTC)
-
-        if not rows:
-            print(f"  ⚠️  データ取得失敗")
-            continue
-
-        df = pd.DataFrame(rows)
-        df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
-        df = df.set_index("timestamp").sort_index()
-        df = df[~df.index.duplicated(keep="first")]
-
-        df.to_csv(out_path)
-        print(f"  ✅ {len(df)}行 → {out_path}")
-        print(f"  期間: {df.index[0]} 〜 {df.index[-1]}")
-
-    print("\n完了!")
+    df = pd.DataFrame(rows)
+    df = df.drop_duplicates(subset="timestamp")
+    df = df.sort_values("timestamp").reset_index(drop=True)
+    df = df[df["timestamp"] <= END.strftime("%Y-%m-%d %H:%M:%S")]
+    df.to_csv(out_path, index=False)
+    print(f"\n{name}: 取得完了 -> {out_path}")
 
 
 if __name__ == "__main__":
-    main()
+    os.makedirs(OUT_DIR, exist_ok=True)
+    for instrument, name in INSTRUMENTS:
+        fetch_instrument(instrument, name)
+    print("\n\n全銘柄取得完了")
