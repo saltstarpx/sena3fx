@@ -53,6 +53,8 @@ DATA_DIR      = os.path.join(BASE_DIR, "data")
 OUT_DIR       = os.path.join(BASE_DIR, "results")
 os.makedirs(OUT_DIR, exist_ok=True)
 
+E0_WINDOW_MIN = 2   # Logic-C: 2分以内の最初の1m足
+
 SYMBOLS = [
     {"name": "NZDUSD", "cat": "FX"},
     {"name": "USDCAD", "cat": "FX"},
@@ -177,6 +179,15 @@ def pick_e1(signal_time, direction, spread, m1c):
         return idx[ni], m1c["opens"][ni] + (spread if direction == 1 else -spread)
     return None, None
 
+def pick_e0(signal_time, spread, direction, m1c):
+    """Logic-C: 方向チェックなし・スパイク除外なし。2分以内の最初の1m足始値"""
+    idx = m1c["idx"]
+    s   = idx.searchsorted(signal_time, side="left")
+    e   = idx.searchsorted(signal_time + pd.Timedelta(minutes=E0_WINDOW_MIN), side="left")
+    for i in range(s, min(e, len(idx))):
+        return idx[i], m1c["opens"][i] + (spread if direction == 1 else -spread)
+    return None, None
+
 def pick_e2(signal_time, direction, spread, atr_1m_d, m1c):
     idx = m1c["idx"]
     s   = idx.searchsorted(signal_time, side="left")
@@ -233,11 +244,12 @@ def generate_signals(d1m_oos, d1m_for_1h, d4h_full, spread, logic, atr_1m_d, m1c
             if h4_lat.get("adx", 0) < ADX_MIN: continue
             recent = h4_before["trend"].iloc[-STREAK_MIN:].values
             if not all(t == trend for t in recent): continue
+        # Logic-C: 追加フィルターなし（v77ピュア）
 
         # ── 共通フィルター ──
         if not check_kmid(h4_lat, trend): continue
         if not check_klow(h4_lat): continue
-        if not check_ema_dist(h4_lat): continue
+        if logic != "C" and not check_ema_dist(h4_lat): continue  # Logic-Cはスキップ
 
         tol = atr_1h * A3_DEFAULT_TOL
         direction = trend
@@ -245,8 +257,15 @@ def generate_signals(d1m_oos, d1m_for_1h, d4h_full, spread, logic, atr_1m_d, m1c
         else:               v1, v2 = h1_p2["high"], h1_p1["high"]
         if abs(v1 - v2) > tol: continue
 
+        # Logic-C: 1H確認足の方向チェック（v77固有）
+        if logic == "C":
+            if direction == 1 and h1_p1["close"] <= h1_p1["open"]: continue
+            if direction ==-1 and h1_p1["close"] >= h1_p1["open"]: continue
+
         if logic == "A":
             et, ep = pick_e2(h1_ct, direction, spread, atr_1m_d, m1c)
+        elif logic == "C":
+            et, ep = pick_e0(h1_ct, spread, direction, m1c)
         else:
             et, ep = pick_e1(h1_ct, direction, spread, m1c)
 
@@ -384,8 +403,8 @@ def main():
             continue
         print(f"1m:{len(d1m_full):,}行 / 4h:{len(d4h_full):,}行")
 
-        for logic in ["A", "B"]:
-            label = "A:Goldロジック" if logic == "A" else "B:ADX+Streak "
+        for logic in ["A", "B", "C"]:
+            label = "A:Goldロジック" if logic == "A" else ("B:ADX+Streak " if logic == "B" else "C:v77ピュア  ")
             print(f"    {sym} Logic-{logic} 計算中...", end=" ", flush=True)
 
             is_st  = run_period(d1m_full, d4h_full, sym, logic, IS_START,  IS_END)
@@ -416,26 +435,27 @@ def main():
     # ── サマリー ──────────────────────────────────────────────────
     print("\n" + "="*90)
     print("  ■ OOS PF 比較サマリー")
-    print(f"  {'銘柄':8} | {'Logic-A PF':>11} {'Logic-B PF':>11} | {'スプレッド':>6} {'推奨':>8} {'採用?':>6}")
-    print("-"*60)
+    print(f"  {'銘柄':8} | {'Logic-A PF':>11} {'Logic-B PF':>11} {'Logic-C PF':>11} | {'スプレッド':>6} {'推奨':>8} {'採用?':>6}")
+    print("-"*75)
 
-    for i in range(0, len(all_results), 2):
-        r_a = all_results[i]; r_b = all_results[i+1]
+    for i in range(0, len(all_results), 3):
+        r_a = all_results[i]; r_b = all_results[i+1]; r_c = all_results[i+2]
         pf_a = r_a["oos"].get("pf", 0)
         pf_b = r_b["oos"].get("pf", 0)
-        winner = "Logic-A" if pf_a >= pf_b else "Logic-B"
-        best_pf = max(pf_a, pf_b)
+        pf_c = r_c["oos"].get("pf", 0)
+        best_pf = max(pf_a, pf_b, pf_c)
+        winner = ["Logic-A", "Logic-B", "Logic-C"][[pf_a, pf_b, pf_c].index(best_pf)]
         sym = r_a["sym"]
         cfg = SYMBOL_CONFIG.get(sym, {})
         sp  = cfg.get("spread", 0)
         adopt = "✅採用候補" if best_pf >= 2.0 else ("⚠️要検討" if best_pf >= 1.5 else "❌不採用")
-        print(f"  {sym:8} | {pf_a:>11.2f} {pf_b:>11.2f} | {sp:>5.1f}pips {winner:>8} {adopt:>6}")
+        print(f"  {sym:8} | {pf_a:>11.2f} {pf_b:>11.2f} {pf_c:>11.2f} | {sp:>5.1f}pips {winner:>8} {adopt:>6}")
 
     print("\n  ■ カテゴリ別 avg OOS PF")
-    for cat in ["FX", "JPY"]:
+    for cat in ["FX", "JPY", "METALS"]:
         cat_res = [r for r in all_results if r["cat"] == cat]
         if not cat_res: continue
-        for logic in ["A", "B"]:
+        for logic in ["A", "B", "C"]:
             pfs = [r["oos"].get("pf", 0) for r in cat_res
                    if r["logic"] == logic and r["oos"] and r["oos"].get("pf", 0) < 99]
             avg = np.mean(pfs) if pfs else 0
