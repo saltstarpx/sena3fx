@@ -52,7 +52,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from production.signal_engine import (
     build_indicators, check_signal, is_spike_bar, calc_entry_price, _calc_atr,
 )
-from utils.risk_manager import AdaptiveRiskManager, SYMBOL_CONFIG
+from utils.risk_manager import RiskManager, SYMBOL_CONFIG
 
 # ────────────────────────────────────────────────────────────────
 # 設定（.envから読み込み）
@@ -65,7 +65,6 @@ DISCORD_WEBHOOK = os.environ.get("DISCORD_WEBHOOK", "")
 LOG_DIR         = Path(os.environ.get("LOG_DIR", Path(__file__).parent / "trade_logs"))
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 
-BASE_RISK_PCT   = float(os.environ.get("BASE_RISK_PCT", "0.02"))   # 基本リスク2%
 MAX_POSITIONS   = int(os.environ.get("MAX_POSITIONS", "3"))
 DRY_RUN         = os.environ.get("DRY_RUN", "false").lower() == "true"
 
@@ -86,20 +85,33 @@ log = logging.getLogger(__name__)
 # 採用銘柄設定
 # ────────────────────────────────────────────────────────────────
 # mt5_sym: ExnessでのMT5銘柄名（環境によって末尾に'm'などが付く場合あり）
+# risk_mult: 銘柄固有のリスク乗数（NZDUSD は様子見のため0.5×）
 SYMBOLS = {
-    "XAUUSD": {"mt5_sym": "XAUUSDm",  "base_risk": BASE_RISK_PCT,      "pip": 0.01,   "spread_pips": 5.2,  "qt": "B"},
-    "GBPUSD": {"mt5_sym": "GBPUSDm",  "base_risk": BASE_RISK_PCT,      "pip": 0.0001, "spread_pips": 0.1,  "qt": "B"},
-    "AUDUSD": {"mt5_sym": "AUDUSDm",  "base_risk": BASE_RISK_PCT,      "pip": 0.0001, "spread_pips": 0.0,  "qt": "B"},
-    "NZDUSD": {"mt5_sym": "NZDUSDm",  "base_risk": BASE_RISK_PCT * 0.5, "pip": 0.0001, "spread_pips": 0.5, "qt": "B"},  # 様子見→半リスク
-    "SPX500": {"mt5_sym": "SP500m",   "base_risk": BASE_RISK_PCT,      "pip": 0.1,    "spread_pips": 0.1,  "qt": "D"},
+    "XAUUSD": {"mt5_sym": "XAUUSDm", "risk_mult": 1.0, "pip": 0.01,   "spread_pips": 5.2, "qt": "B"},
+    "GBPUSD": {"mt5_sym": "GBPUSDm", "risk_mult": 1.0, "pip": 0.0001, "spread_pips": 0.1, "qt": "B"},
+    "AUDUSD": {"mt5_sym": "AUDUSDm", "risk_mult": 1.0, "pip": 0.0001, "spread_pips": 0.0, "qt": "B"},
+    "NZDUSD": {"mt5_sym": "NZDUSDm", "risk_mult": 0.5, "pip": 0.0001, "spread_pips": 0.5, "qt": "B"},
+    "SPX500": {"mt5_sym": "SP500m",  "risk_mult": 1.0, "pip": 0.1,    "spread_pips": 0.1, "qt": "D"},
 }
 
-# ── AdaptiveRiskManager を各銘柄に対して初期化 ──────────────────
-ARM: dict[str, AdaptiveRiskManager] = {}
-for sym, cfg in SYMBOLS.items():
-    # SYMBOL_CONFIG に登録済みの銘柄のみ対応
-    if sym in SYMBOL_CONFIG:
-        ARM[sym] = AdaptiveRiskManager(sym, base_risk_pct=cfg["base_risk"])
+# ── リスク管理（シンプル3段階） ──────────────────────────────────
+# DD < 5%  → 3.0%（好調・攻め）
+# DD 5-10% → 2.5%（標準）
+# DD ≥ 10% → 2.0%（守り）
+_peak_equity: float = 0.0
+
+def get_risk_pct(equity: float) -> float:
+    global _peak_equity
+    if equity > _peak_equity:
+        _peak_equity = equity
+    if _peak_equity <= 0:
+        return 0.025
+    dd = (_peak_equity - equity) / _peak_equity
+    if dd >= 0.10:
+        return 0.020
+    if dd >= 0.05:
+        return 0.025
+    return 0.030
 
 # ── ポジション・シグナル状態管理 ─────────────────────────────────
 # pending_signals: { "XAUUSD": { signal_dict, "half_done": False }, ... }
@@ -200,20 +212,18 @@ def current_price(mt5_sym: str) -> float | None:
 def calc_lots(sym: str, sl_distance: float, ep: float,
               equity_jpy: float, usdjpy: float) -> float:
     """
-    AdaptiveRiskManager でリスク計算し、MT5の標準ロット数に変換。
+    DD連動3段階リスク（2/2.5/3%）でロット計算し、MT5標準ロット数に変換。
 
     MT5ロット換算:
-      FX / XAUUSD: units / 100,000（1標準ロット = 100,000通貨 / 100oz）
-        ただし XAUUSD は contract_size=100 なので units/100
-      SPX500: 内部単位をそのままcontract数として返す
-        ExnessのSP500: 1lot = 1contract, 1pt ≈ $10
+      FX / XAUUSD: units / 100,000（1標準ロット = 100,000通貨）
+      SPX500: ExnessのSP500は1lot=$10/pt → units / 100
     """
-    if sym not in ARM:
+    if sym not in SYMBOL_CONFIG:
         return 0.01
-    arm = ARM[sym]
-    arm.update_peak(equity_jpy)
 
-    lot_units, _, _ = arm.calc_lot_adaptive(
+    risk_pct   = get_risk_pct(equity_jpy) * SYMBOLS[sym]["risk_mult"]
+    rm         = RiskManager(sym, risk_pct=risk_pct)
+    lot_units  = rm.calc_lot(
         equity      = equity_jpy,
         sl_distance = sl_distance,
         ref_price   = ep,
@@ -496,12 +506,13 @@ def process_symbol(sym: str, now: datetime, equity_jpy: float, usdjpy: float):
         "entry_time":   entry_time,
     }
 
-    risk_pips = round(risk / cfg["pip"], 1)
+    risk_pips  = round(risk / cfg["pip"], 1)
+    risk_pct_used = get_risk_pct(equity_jpy) * cfg["risk_mult"]
 
     notify(
         f"📈 エントリー\n{sym}  {'BUY' if sig['dir']==1 else 'SELL'}\n"
         f"EP={ep:.5f}  SL={sl:.5f}  TP={tp:.5f}\n"
-        f"lots={lots:.2f}  risk={risk_pips:.1f}pips",
+        f"lots={lots:.2f}  risk={risk_pips:.1f}pips  ({risk_pct_used*100:.1f}%)",
         color=0x00b0ff if sig["dir"] == 1 else 0xff5252
     )
 
