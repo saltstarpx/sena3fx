@@ -90,7 +90,7 @@ SYMBOLS = {
     "XAUUSD": {"mt5_sym": "XAUUSDm", "risk_mult": 1.0, "pip": 0.01,   "spread_pips": 5.2, "qt": "B"},
     "GBPUSD": {"mt5_sym": "GBPUSDm", "risk_mult": 1.0, "pip": 0.0001, "spread_pips": 0.1, "qt": "B"},
     "AUDUSD": {"mt5_sym": "AUDUSDm", "risk_mult": 1.0, "pip": 0.0001, "spread_pips": 0.0, "qt": "B"},
-    "NZDUSD": {"mt5_sym": "NZDUSDm", "risk_mult": 0.5, "pip": 0.0001, "spread_pips": 0.5, "qt": "B"},
+    "NZDUSD": {"mt5_sym": "NZDUSDm", "risk_mult": 1.0, "pip": 0.0001, "spread_pips": 0.5, "qt": "B"},
     "SPX500": {"mt5_sym": "SP500m",  "risk_mult": 1.0, "pip": 0.1,    "spread_pips": 0.1, "qt": "D"},
 }
 
@@ -571,17 +571,16 @@ def main():
             # 1. オープンポジション管理（半利確・SL移動）
             manage_open_positions()
 
-            # 2. 新規シグナルチェック（ポジション上限未満の場合）
-            if len(open_positions) < MAX_POSITIONS:
-                for sym in SYMBOLS:
+            # 2. 新規シグナルチェック（銘柄ごとに1ポジションまで）
+            for sym in SYMBOLS:
                     # 同一銘柄で既にポジションあればスキップ
                     has_pos = any(p["sym"] == sym for p in open_positions.values())
                     if has_pos:
                         continue
-                    try:
-                        process_symbol(sym, now, equity_jpy, usdjpy)
-                    except Exception as e:
-                        log.exception(f"{sym} 処理エラー: {e}")
+                try:
+                    process_symbol(sym, now, equity_jpy, usdjpy)
+                except Exception as e:
+                    log.exception(f"{sym} 処理エラー: {e}")
 
             # 60秒ごとに実行
             elapsed = time.time() - loop_start
