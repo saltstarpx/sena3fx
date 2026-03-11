@@ -570,20 +570,16 @@ def process_symbol(sym: str, now: datetime, equity_jpy: float, usdjpy: float):
              f"raw_ep={sig['raw_ep']:.5f} sl={sig['sl']:.5f} tp={sig['tp']:.5f}")
 
     # ── E2エントリー試行（スパイクフィルター） ──────────────────
-    # 1m足がない銘柄（NZDUSD等）は15m足でE2スパイク判定を代用
-    if d1m is not None and len(d1m) >= 14:
-        d_e2 = d1m
-    elif d15m is not None and len(d15m) >= 10:
-        d_e2 = d15m
-        log.debug(f"{sym}: 1m足なし → 15m足でE2スパイク判定")
-    else:
+    # 全銘柄1m足必須（バックテストと同一ロジック）
+    if d1m is None or len(d1m) < 14:
+        log.debug(f"{sym}: 1m足データ不足のためスキップ")
         return
 
-    atr_e2_series = _calc_atr(d_e2)
-    atr_e2 = atr_e2_series.iloc[-1] if len(atr_e2_series) > 0 else None
+    atr_1m_series = _calc_atr(d1m)
+    atr_1m = atr_1m_series.iloc[-1] if len(atr_1m_series) > 0 else None
 
-    cur_bar = d_e2.iloc[-1]
-    if atr_e2 and is_spike_bar(cur_bar["high"], cur_bar["low"], atr_e2):
+    cur_bar = d1m.iloc[-1]
+    if atr_1m and is_spike_bar(cur_bar["high"], cur_bar["low"], atr_1m):
         log.info(f"{sym}: スパイクバーのためE2スキップ (range={cur_bar['high']-cur_bar['low']:.5f})")
         return
 
