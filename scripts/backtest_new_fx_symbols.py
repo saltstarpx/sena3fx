@@ -58,6 +58,11 @@ SYMBOLS = [
     {"name": "USDCAD", "cat": "FX"},
     {"name": "USDCHF", "cat": "FX"},
     {"name": "EURJPY", "cat": "JPY"},
+    {"name": "AUDJPY", "cat": "JPY"},
+    {"name": "CADJPY", "cat": "JPY"},
+    {"name": "EURGBP", "cat": "FX"},
+    {"name": "GBPJPY", "cat": "JPY"},
+    {"name": "XAGUSD", "cat": "METALS"},
 ]
 
 # ── データロード ──────────────────────────────────────────────────
