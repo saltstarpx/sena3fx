@@ -90,29 +90,48 @@ SYMBOLS = {
     "XAUUSD": {"mt5_sym": "XAUUSDm", "risk_mult": 1.0, "pip": 0.01,   "spread_pips": 5.2, "qt": "B"},
     "GBPUSD": {"mt5_sym": "GBPUSDm", "risk_mult": 1.0, "pip": 0.0001, "spread_pips": 0.1, "qt": "B"},
     "AUDUSD": {"mt5_sym": "AUDUSDm", "risk_mult": 1.0, "pip": 0.0001, "spread_pips": 0.0, "qt": "B"},
-    "NZDUSD": {"mt5_sym": "NZDUSDm", "risk_mult": 1.0, "pip": 0.0001, "spread_pips": 0.5, "qt": "B"},
+    "NZDUSD": {"mt5_sym": "NZDUSDm", "risk_mult": 1.0, "pip": 0.0001, "spread_pips": 0.3, "qt": "B"},
     "SPX500": {"mt5_sym": "SP500m",  "risk_mult": 1.0, "pip": 0.1,    "spread_pips": 0.1, "qt": "D"},
 }
 
-# ── リスク管理（シンプル3段階） ──────────────────────────────────
-# DD < 5%  → 3.0%（好調・攻め）
-# DD 5-10% → 2.5%（標準）
-# DD ≥ 10% → 2.0%（守り）
-_peak_equity: float = 0.0
+# ── リスク管理（トレードベース・アダプティブ） ───────────────────
+# バックテストと同一ロジック（backtest_3sym_adaptive_chart.py / backtest_nzdusd_3pct.py）
+# 勝ち → +0.5%（最大3.0%）、負け → -0.5%（最小2.0%）
+RISK_INIT = 0.020   # 初期リスク
+RISK_MIN  = 0.020   # 最小リスク（MDD守り）
+RISK_MAX  = 0.030   # 最大リスク（好調・攻め）
+RISK_STEP = 0.005   # 1トレードごとの増減幅
+
+# 銘柄ごとの現在リスク率（起動時 RISK_INIT で初期化、state.json で永続化）
+symbol_risks: dict[str, float] = {sym: RISK_INIT for sym in ["XAUUSD","GBPUSD","AUDUSD","NZDUSD","SPX500"]}
+
 STATE_FILE = LOG_DIR / "bot_state.json"
 
+def get_risk_pct(sym: str) -> float:
+    """銘柄の現在リスク率を返す。"""
+    return symbol_risks.get(sym, RISK_INIT)
+
+def update_risk_after_trade(sym: str, won: bool):
+    """トレード結果を受けてリスク率を更新する。"""
+    cur = symbol_risks.get(sym, RISK_INIT)
+    if won:
+        symbol_risks[sym] = round(min(cur + RISK_STEP, RISK_MAX), 4)
+    else:
+        symbol_risks[sym] = round(max(cur - RISK_STEP, RISK_MIN), 4)
+    log.info(f"[アダプティブリスク] {sym}: {'✅勝ち' if won else '❌負け'} "
+             f"→ {symbol_risks[sym]*100:.1f}%")
+
 def save_state():
-    """peak_equity と open_positions の half_done 状態をファイルに保存。
-    クラッシュ・再起動後も DD 計算と半利確状態を復元するため。"""
+    """symbol_risks + open_positions の half_done 状態を保存。"""
     state = {
-        "peak_equity": _peak_equity,
+        "symbol_risks": symbol_risks,
         "positions_meta": {
             str(tid): {
-                "sym":          p["sym"],
-                "half_done":    p["half_done"],
-                "ep":           p["ep"],
-                "lots_total":   p["lots_total"],
-                "entry_time":   p["entry_time"],
+                "sym":        p["sym"],
+                "half_done":  p["half_done"],
+                "ep":         p["ep"],
+                "lots_total": p["lots_total"],
+                "entry_time": p["entry_time"],
             }
             for tid, p in open_positions.items()
         }
@@ -124,36 +143,23 @@ def save_state():
 
 def load_state():
     """起動時に保存済み状態を復元。"""
-    global _peak_equity
     if not STATE_FILE.exists():
         return
     try:
         state = json.loads(STATE_FILE.read_text())
-        _peak_equity = float(state.get("peak_equity", 0.0))
-        # open_positions の half_done はMT5と照合後に上書き
+        for sym, r in state.get("symbol_risks", {}).items():
+            if sym in symbol_risks:
+                symbol_risks[sym] = float(r)
         for tid_str, meta in state.get("positions_meta", {}).items():
             tid = int(tid_str)
             if tid not in open_positions:
                 open_positions[tid] = meta
             else:
                 open_positions[tid]["half_done"] = meta["half_done"]
-        log.info(f"状態復元: peak_equity={_peak_equity:,.0f}JPY "
+        log.info(f"状態復元: risks={{{', '.join(f'{s}:{r*100:.1f}%' for s,r in symbol_risks.items())}}} "
                  f"positions={len(state.get('positions_meta', {}))}")
     except Exception as e:
         log.warning(f"状態復元失敗（初期値で起動）: {e}")
-
-def get_risk_pct(equity: float) -> float:
-    global _peak_equity
-    if equity > _peak_equity:
-        _peak_equity = equity
-    if _peak_equity <= 0:
-        return 0.025
-    dd = (_peak_equity - equity) / _peak_equity
-    if dd >= 0.10:
-        return 0.020
-    if dd >= 0.05:
-        return 0.025
-    return 0.030
 
 # ── ポジション・シグナル状態管理 ─────────────────────────────────
 # pending_signals: { "XAUUSD": { signal_dict, "half_done": False }, ... }
@@ -254,7 +260,8 @@ def current_price(mt5_sym: str) -> float | None:
 def calc_lots(sym: str, sl_distance: float, ep: float,
               equity_jpy: float, usdjpy: float) -> float:
     """
-    DD連動3段階リスク（2/2.5/3%）でロット計算し、MT5標準ロット数に変換。
+    アダプティブリスク（2〜3%、トレード結果で±0.5%調整）でロット計算し、
+    MT5標準ロット数に変換。
 
     MT5ロット換算:
       FX / XAUUSD: units / 100,000（1標準ロット = 100,000通貨）
@@ -263,7 +270,7 @@ def calc_lots(sym: str, sl_distance: float, ep: float,
     if sym not in SYMBOL_CONFIG:
         return 0.01
 
-    risk_pct   = get_risk_pct(equity_jpy) * SYMBOLS[sym]["risk_mult"]
+    risk_pct   = get_risk_pct(sym) * SYMBOLS[sym]["risk_mult"]
     rm         = RiskManager(sym, risk_pct=risk_pct)
     lot_units  = rm.calc_lot(
         equity      = equity_jpy,
@@ -455,21 +462,26 @@ def _record_closed_trade(ticket: int, pos: dict):
             pnl_jpy    = 0.0
             exit_time  = now_utc.isoformat()
 
-        _review_mgr.log_closed_trade({
-            "ticket":      ticket,
-            "symbol":      sym,
-            "dir":         pos["dir"],
-            "lots":        pos["lots_total"],
-            "entry_price": pos["ep"],
-            "exit_price":  exit_price,
-            "sl":          pos["sl"],
-            "tp":          pos["tp"],
-            "entry_time":  pos["entry_time"],
-            "exit_time":   exit_time,
-            "exit_type":   exit_type,
-            "pnl_pips":    pnl_pips,
-            "pnl_jpy":     pnl_jpy,
-        })
+        # アダプティブリスク更新（バックテストと同一ロジック）
+        won = pnl_jpy > 0
+        update_risk_after_trade(sym, won)
+
+        if _review_mgr:
+            _review_mgr.log_closed_trade({
+                "ticket":      ticket,
+                "symbol":      sym,
+                "dir":         pos["dir"],
+                "lots":        pos["lots_total"],
+                "entry_price": pos["ep"],
+                "exit_price":  exit_price,
+                "sl":          pos["sl"],
+                "tp":          pos["tp"],
+                "entry_time":  pos["entry_time"],
+                "exit_time":   exit_time,
+                "exit_type":   exit_type,
+                "pnl_pips":    pnl_pips,
+                "pnl_jpy":     pnl_jpy,
+            })
     except Exception:
         log.exception(f"_record_closed_trade 失敗: ticket={ticket}")
 
@@ -558,16 +570,20 @@ def process_symbol(sym: str, now: datetime, equity_jpy: float, usdjpy: float):
              f"raw_ep={sig['raw_ep']:.5f} sl={sig['sl']:.5f} tp={sig['tp']:.5f}")
 
     # ── E2エントリー試行（スパイクフィルター） ──────────────────
-    if d1m is None or len(d1m) < 14:
+    # 1m足がない銘柄（NZDUSD等）は15m足でE2スパイク判定を代用
+    if d1m is not None and len(d1m) >= 14:
+        d_e2 = d1m
+    elif d15m is not None and len(d15m) >= 10:
+        d_e2 = d15m
+        log.debug(f"{sym}: 1m足なし → 15m足でE2スパイク判定")
+    else:
         return
 
-    # 1m足ATR
-    atr_1m_series = _calc_atr(d1m)
-    atr_1m = atr_1m_series.iloc[-1] if len(atr_1m_series) > 0 else None
+    atr_e2_series = _calc_atr(d_e2)
+    atr_e2 = atr_e2_series.iloc[-1] if len(atr_e2_series) > 0 else None
 
-    # 直近1m足（現在バー）でスパイク確認
-    cur_bar = d1m.iloc[-1]
-    if atr_1m and is_spike_bar(cur_bar["high"], cur_bar["low"], atr_1m):
+    cur_bar = d_e2.iloc[-1]
+    if atr_e2 and is_spike_bar(cur_bar["high"], cur_bar["low"], atr_e2):
         log.info(f"{sym}: スパイクバーのためE2スキップ (range={cur_bar['high']-cur_bar['low']:.5f})")
         return
 
@@ -605,7 +621,7 @@ def process_symbol(sym: str, now: datetime, equity_jpy: float, usdjpy: float):
     }
 
     risk_pips  = round(risk / cfg["pip"], 1)
-    risk_pct_used = get_risk_pct(equity_jpy) * cfg["risk_mult"]
+    risk_pct_used = get_risk_pct(sym) * cfg["risk_mult"]
 
     notify(
         f"📈 エントリー\n{sym}  {'BUY' if sig['dir']==1 else 'SELL'}\n"
