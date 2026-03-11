@@ -53,13 +53,14 @@ from production.signal_engine import (
     build_indicators, check_signal, is_spike_bar, calc_entry_price, _calc_atr,
 )
 from utils.risk_manager import RiskManager, SYMBOL_CONFIG
+from production.review_manager import ReviewManager
 
 # ────────────────────────────────────────────────────────────────
 # 設定（.envから読み込み）
 # ────────────────────────────────────────────────────────────────
-MT5_LOGIN    = int(os.environ.get("MT5_LOGIN",    "0"))
+MT5_LOGIN    = int(os.environ.get("MT5_LOGIN",    "238353737"))
 MT5_PASSWORD = os.environ.get("MT5_PASSWORD", "")
-MT5_SERVER   = os.environ.get("MT5_SERVER",   "Exness-MT5Real8")
+MT5_SERVER   = os.environ.get("MT5_SERVER",   "Exness-MT5Real3")
 
 DISCORD_WEBHOOK = os.environ.get("DISCORD_WEBHOOK", "")
 LOG_DIR         = Path(os.environ.get("LOG_DIR", Path(__file__).parent / "trade_logs"))
@@ -419,6 +420,60 @@ def notify(msg: str, color: int = 0x00ff00):
         log.warning(f"Discord通知失敗: {e}")
 
 
+# ── グローバル: ReviewManager（main()で初期化） ───────────────
+_review_mgr: ReviewManager | None = None
+
+
+def _record_closed_trade(ticket: int, pos: dict):
+    """クローズしたポジションの決済情報をMT5から取得してReviewManagerに渡す。"""
+    if _review_mgr is None or not MT5_AVAILABLE:
+        return
+    try:
+        now_utc = datetime.now(timezone.utc)
+        sym = pos["sym"]
+        cfg = SYMBOLS[sym]
+
+        # MT5のdeal履歴からout deal（決済）を取得
+        deals = mt5.history_deals_get(position=ticket) or []
+        exit_deal = next((d for d in deals if d.entry == mt5.DEAL_ENTRY_OUT), None)
+
+        if exit_deal:
+            exit_price = exit_deal.price
+            exit_type  = "TP" if exit_deal.profit > 0 else "SL"
+            pnl_pips   = round(
+                (exit_price - pos["ep"]) * pos["dir"] / cfg["pip"], 1
+            )
+            pnl_jpy    = round(exit_deal.profit, 0)
+            exit_time  = datetime.fromtimestamp(
+                exit_deal.time, tz=timezone.utc
+            ).isoformat()
+        else:
+            # deal情報が取れない場合は推定
+            exit_price = pos["ep"]
+            exit_type  = "UNKNOWN"
+            pnl_pips   = 0.0
+            pnl_jpy    = 0.0
+            exit_time  = now_utc.isoformat()
+
+        _review_mgr.log_closed_trade({
+            "ticket":      ticket,
+            "symbol":      sym,
+            "dir":         pos["dir"],
+            "lots":        pos["lots_total"],
+            "entry_price": pos["ep"],
+            "exit_price":  exit_price,
+            "sl":          pos["sl"],
+            "tp":          pos["tp"],
+            "entry_time":  pos["entry_time"],
+            "exit_time":   exit_time,
+            "exit_type":   exit_type,
+            "pnl_pips":    pnl_pips,
+            "pnl_jpy":     pnl_jpy,
+        })
+    except Exception:
+        log.exception(f"_record_closed_trade 失敗: ticket={ticket}")
+
+
 # ════════════════════════════════════════════════════════════════
 # ポジション管理（半利確 + SL→BE）
 # ════════════════════════════════════════════════════════════════
@@ -440,6 +495,8 @@ def manage_open_positions():
     for t in closed_tickets:
         pos = open_positions.pop(t)
         log.info(f"ポジションクローズ検出（MT5）: {pos['sym']} ticket={t}")
+        # クローズ情報をレビューシステムへ記録
+        _record_closed_trade(t, pos)
 
     # 半利確チェック
     for ticket, pos in list(open_positions.items()):
@@ -595,8 +652,12 @@ def main():
         log.error("MT5接続失敗 → 終了")
         sys.exit(1)
 
-    # 状態復元（クラッシュ・再起動対応 ← Anthropicガイド: Startup Recovery）
+    # 状態復元（クラッシュ・再起動対応）
     load_state()
+
+    # PDCAレビューシステム初期化
+    global _review_mgr
+    _review_mgr = ReviewManager(notify)
 
     notify("🤖 YAGAMI改 ボット起動\n" + "  ".join(SYMBOLS.keys()), color=0x7289da)
 
@@ -624,8 +685,12 @@ def main():
                 except Exception as e:
                     log.exception(f"{sym} 処理エラー: {e}")
 
-            # 状態を永続化（クラッシュ対応 ← Anthropicガイド: Rollback手順）
+            # 状態を永続化（クラッシュ対応）
             save_state()
+
+            # PDCAレビュースケジュール確認（日次/週次/月次）
+            if _review_mgr:
+                _review_mgr.check_schedule(now)
 
             # 60秒ごとに実行
             elapsed = time.time() - loop_start
