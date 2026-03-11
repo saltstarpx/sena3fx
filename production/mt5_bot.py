@@ -65,7 +65,6 @@ DISCORD_WEBHOOK = os.environ.get("DISCORD_WEBHOOK", "")
 LOG_DIR         = Path(os.environ.get("LOG_DIR", Path(__file__).parent / "trade_logs"))
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 
-MAX_POSITIONS   = int(os.environ.get("MAX_POSITIONS", "3"))
 DRY_RUN         = os.environ.get("DRY_RUN", "false").lower() == "true"
 
 LOOP_INTERVAL   = 60   # 秒
@@ -99,6 +98,48 @@ SYMBOLS = {
 # DD 5-10% → 2.5%（標準）
 # DD ≥ 10% → 2.0%（守り）
 _peak_equity: float = 0.0
+STATE_FILE = LOG_DIR / "bot_state.json"
+
+def save_state():
+    """peak_equity と open_positions の half_done 状態をファイルに保存。
+    クラッシュ・再起動後も DD 計算と半利確状態を復元するため。"""
+    state = {
+        "peak_equity": _peak_equity,
+        "positions_meta": {
+            str(tid): {
+                "sym":          p["sym"],
+                "half_done":    p["half_done"],
+                "ep":           p["ep"],
+                "lots_total":   p["lots_total"],
+                "entry_time":   p["entry_time"],
+            }
+            for tid, p in open_positions.items()
+        }
+    }
+    try:
+        STATE_FILE.write_text(json.dumps(state, indent=2))
+    except Exception as e:
+        log.warning(f"状態保存失敗: {e}")
+
+def load_state():
+    """起動時に保存済み状態を復元。"""
+    global _peak_equity
+    if not STATE_FILE.exists():
+        return
+    try:
+        state = json.loads(STATE_FILE.read_text())
+        _peak_equity = float(state.get("peak_equity", 0.0))
+        # open_positions の half_done はMT5と照合後に上書き
+        for tid_str, meta in state.get("positions_meta", {}).items():
+            tid = int(tid_str)
+            if tid not in open_positions:
+                open_positions[tid] = meta
+            else:
+                open_positions[tid]["half_done"] = meta["half_done"]
+        log.info(f"状態復元: peak_equity={_peak_equity:,.0f}JPY "
+                 f"positions={len(state.get('positions_meta', {}))}")
+    except Exception as e:
+        log.warning(f"状態復元失敗（初期値で起動）: {e}")
 
 def get_risk_pct(equity: float) -> float:
     global _peak_equity
@@ -546,8 +587,6 @@ def main():
     log.info("YAGAMI改 MT5ボット起動")
     log.info(f"  銘柄: {list(SYMBOLS.keys())}")
     log.info(f"  DRY_RUN: {DRY_RUN}")
-    log.info(f"  MAX_POSITIONS: {MAX_POSITIONS}")
-    log.info(f"  BASE_RISK_PCT: {BASE_RISK_PCT*100:.1f}%")
     log.info("=" * 60)
 
     # MT5接続
@@ -555,6 +594,9 @@ def main():
     if not connected and not DRY_RUN:
         log.error("MT5接続失敗 → 終了")
         sys.exit(1)
+
+    # 状態復元（クラッシュ・再起動対応 ← Anthropicガイド: Startup Recovery）
+    load_state()
 
     notify("🤖 YAGAMI改 ボット起動\n" + "  ".join(SYMBOLS.keys()), color=0x7289da)
 
@@ -581,6 +623,9 @@ def main():
                     process_symbol(sym, now, equity_jpy, usdjpy)
                 except Exception as e:
                     log.exception(f"{sym} 処理エラー: {e}")
+
+            # 状態を永続化（クラッシュ対応 ← Anthropicガイド: Rollback手順）
+            save_state()
 
             # 60秒ごとに実行
             elapsed = time.time() - loop_start
