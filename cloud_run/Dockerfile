@@ -2,10 +2,14 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# CA証明書を確実にインストール
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && \
+# CA証明書 + 日本語フォント（matplotlib用）
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates fonts-noto-cjk && \
     update-ca-certificates && \
     rm -rf /var/lib/apt/lists/*
+
+# matplotlibの日本語フォント設定
+ENV MPLCONFIGDIR=/tmp/matplotlib
 
 # 依存パッケージをインストール
 COPY requirements.txt .

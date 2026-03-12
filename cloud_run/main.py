@@ -22,9 +22,14 @@ main.py - Cloud Run 自動取引bot (YAGAMI改 採用銘柄集中版)
   XAUUSD: yagami_mtf_v79 (use_1d_trend=True, Goldロジック)
   GBPUSD: yagami_mtf_v79 (use_1d_trend=True, Goldロジック ← ADX+Streakより優位 PF1.86 vs 1.66)
 """
-import os, json, logging, requests, sys
+import os, json, logging, requests, sys, io
 import pandas as pd
 import numpy as np
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+plt.rcParams["font.family"] = "Noto Sans CJK JP"
 from datetime import datetime, timezone, timedelta
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from fastapi import FastAPI, Request
@@ -311,6 +316,118 @@ def notify_close(pair, dir_, ep, exit_price, exit_type, pnl, tf):
 
 
 # ── レポート ──────────────────────────────────────────────────
+def send_discord_with_image(content, embeds, image_buf, filename="chart.png"):
+    """Discord webhookに画像付きメッセージを送信"""
+    try:
+        payload = {"content": content}
+        if embeds:
+            # embed内でattachmentを参照
+            for e in embeds:
+                e["image"] = {"url": f"attachment://{filename}"}
+            payload["embeds"] = embeds
+        r = requests.post(
+            DISCORD_WEBHOOK,
+            data={"payload_json": json.dumps(payload)},
+            files={"file": (filename, image_buf, "image/png")},
+            timeout=15,
+        )
+        if r.status_code not in (200, 204):
+            logger.warning(f"Discord image: {r.status_code} {r.text[:100]}")
+    except Exception as e:
+        logger.warning(f"Discord image error: {e}")
+
+
+def generate_daily_chart(trades_df):
+    """累積PnLチャート + 日次PnL棒グラフを生成してバイトバッファで返す"""
+    if len(trades_df) == 0 or "pnl" not in trades_df.columns:
+        return None
+
+    df = trades_df.copy()
+    df["pnl"] = pd.to_numeric(df["pnl"], errors="coerce").fillna(0)
+
+    # exit_timeでソート
+    if "exit_time" in df.columns:
+        df["exit_dt"] = pd.to_datetime(df["exit_time"], errors="coerce")
+        df = df.dropna(subset=["exit_dt"]).sort_values("exit_dt")
+        df["date"] = df["exit_dt"].dt.date
+    else:
+        return None
+
+    if len(df) == 0:
+        return None
+
+    # 累積PnL
+    df["cumsum_pnl"] = df["pnl"].cumsum()
+
+    # 日次集計
+    daily = df.groupby("date").agg(
+        daily_pnl=("pnl", "sum"),
+        trades=("pnl", "count"),
+        wins=("pnl", lambda x: (x > 0).sum()),
+    ).reset_index()
+    daily["date"] = pd.to_datetime(daily["date"])
+    daily["cumsum_pnl"] = daily["daily_pnl"].cumsum()
+
+    # 30日ローリング勝率
+    daily["rolling_wr"] = daily["wins"].rolling(30, min_periods=5).sum() / \
+                          daily["trades"].rolling(30, min_periods=5).sum()
+
+    fig, axes = plt.subplots(2, 1, figsize=(10, 7), gridspec_kw={"height_ratios": [2, 1]})
+    fig.patch.set_facecolor("#1a1a2e")
+
+    # ── 上段: 累積PnL + 30日ローリング勝率 ──
+    ax1 = axes[0]
+    ax1.set_facecolor("#16213e")
+    ax1.plot(daily["date"], daily["cumsum_pnl"], color="#00ff88", linewidth=2, label="累積PnL")
+    ax1.fill_between(daily["date"], 0, daily["cumsum_pnl"],
+                     where=daily["cumsum_pnl"] >= 0, color="#00ff8830")
+    ax1.fill_between(daily["date"], 0, daily["cumsum_pnl"],
+                     where=daily["cumsum_pnl"] < 0, color="#ff444430")
+    ax1.axhline(y=0, color="#ffffff30", linewidth=0.5)
+    ax1.set_ylabel("累積PnL [pips]", color="white", fontsize=11)
+    ax1.tick_params(colors="white")
+    ax1.legend(loc="upper left", fontsize=9, facecolor="#16213e", edgecolor="gray",
+               labelcolor="white")
+
+    # 右軸: 30日ローリング勝率
+    ax1r = ax1.twinx()
+    ax1r.plot(daily["date"], daily["rolling_wr"] * 100, color="#ffd700", linewidth=1.2,
+              alpha=0.8, label="30日勝率")
+    ax1r.set_ylabel("勝率 [%]", color="#ffd700", fontsize=10)
+    ax1r.tick_params(colors="#ffd700")
+    ax1r.set_ylim(0, 100)
+    ax1r.legend(loc="upper right", fontsize=9, facecolor="#16213e", edgecolor="gray",
+                labelcolor="white")
+
+    ax1.xaxis.set_major_formatter(mdates.DateFormatter("%m/%d"))
+    ax1.xaxis.set_major_locator(mdates.AutoDateLocator())
+
+    # ── 下段: 日次PnL棒グラフ（直近30日） ──
+    ax2 = axes[1]
+    ax2.set_facecolor("#16213e")
+    recent = daily.tail(30)
+    colors = ["#00ff88" if v >= 0 else "#ff4444" for v in recent["daily_pnl"]]
+    ax2.bar(recent["date"], recent["daily_pnl"], color=colors, width=0.8, alpha=0.85)
+    ax2.axhline(y=0, color="#ffffff30", linewidth=0.5)
+    ax2.set_ylabel("日次PnL [pips]", color="white", fontsize=11)
+    ax2.set_xlabel("")
+    ax2.tick_params(colors="white")
+    ax2.xaxis.set_major_formatter(mdates.DateFormatter("%m/%d"))
+    ax2.xaxis.set_major_locator(mdates.AutoDateLocator())
+
+    # 直近30日PnLの合計を表示
+    r30_pnl = recent["daily_pnl"].sum()
+    ax2.set_title(f"直近30日 PnL: {r30_pnl:+.0f} pips", color="white", fontsize=10, loc="left")
+
+    plt.tight_layout()
+
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=120, bbox_inches="tight", facecolor=fig.get_facecolor())
+    plt.close(fig)
+    buf.seek(0)
+    return buf
+
+
 def send_daily_report(open_positions, trades_df):
     n  = len(trades_df) if len(trades_df) > 0 else 0
     if n > 0 and "pnl" in trades_df.columns:
@@ -319,6 +436,27 @@ def send_daily_report(open_positions, trades_df):
     pf_pos = trades_df[trades_df["pnl"] > 0]["pnl"].sum() if n > 0 else 0
     pf_neg = abs(trades_df[trades_df["pnl"] < 0]["pnl"].sum()) if n > 0 else 1
     pf = pf_pos / pf_neg if pf_neg > 0 else 0
+
+    # 日次PnL（今日）
+    today_pnl = 0
+    today_trades = 0
+    if n > 0 and "exit_time" in trades_df.columns:
+        now_jst = datetime.now(timezone.utc) + timedelta(hours=9)
+        today_str = now_jst.strftime("%Y-%m-%d")
+        today_mask = trades_df["exit_time"].astype(str).str.startswith(today_str)
+        if today_mask.any():
+            today_pnl = trades_df.loc[today_mask, "pnl"].sum()
+            today_trades = today_mask.sum()
+
+    # 直近30日
+    r30_pnl = 0
+    r30_wr = 0
+    if n > 0 and "exit_time" in trades_df.columns:
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+        r30 = trades_df[trades_df["exit_time"].astype(str) >= cutoff]
+        if len(r30) > 0:
+            r30_pnl = r30["pnl"].sum()
+            r30_wr = (r30["pnl"] > 0).mean() * 100
 
     # 銘柄別成績
     sym_stats = ""
@@ -349,21 +487,29 @@ def send_daily_report(open_positions, trades_df):
             pos_lines.append(f"  {pair} {'L' if p['dir']>0 else 'S'} EP:{p['ep']:.5f}")
     pos_str = "\n".join(pos_lines) or "  なし"
 
+    now_jst = datetime.now(timezone.utc) + timedelta(hours=9)
     embed = {
-        "title": "📊 朝9時レポート (YAGAMI改)",
-        "color": 0x1565c0,
+        "title": f"📊 YAGAMI改 日次レポート - {now_jst.strftime('%Y/%m/%d')}",
+        "color": 0x00ff88 if today_pnl >= 0 else 0xff4444,
         "fields": [
-            {"name": "累計トレード", "value": f"`{n}件`",         "inline": True},
+            {"name": "日次損益",     "value": f"`{today_pnl:+.1f} pips ({today_trades}件)`", "inline": True},
+            {"name": "直近30日",     "value": f"`{r30_pnl:+.1f} pips (WR:{r30_wr:.0f}%)`",   "inline": True},
+            {"name": "通算",         "value": f"`{trades_df['pnl'].sum() if n > 0 else 0:+.1f} pips ({n}件)`", "inline": True},
             {"name": "勝率",         "value": f"`{wr:.1f}%`",     "inline": True},
             {"name": "PF",           "value": f"`{pf:.2f}`",      "inline": True},
             {"name": "オープン",     "value": f"`{len(open_positions)}件`", "inline": True},
-            {"name": "監視銘柄",     "value": f"`{', '.join(APPROVED_UNIVERSE.keys())}`", "inline": True},
             {"name": "銘柄別成績",   "value": f"```{sym_stats or 'データなし'}```", "inline": False},
-            {"name": "ポジション（含み損益）", "value": f"```{pos_str}```", "inline": False},
+            {"name": "ポジション",   "value": f"```{pos_str}```", "inline": False},
         ],
-        "footer": {"text": f"YAGAMI改 | {datetime.now(timezone.utc).strftime('%Y/%m/%d %H:%M UTC')}"}
+        "footer": {"text": f"YAGAMI改 | {now_jst.strftime('%H:%M JST')}"}
     }
-    send_discord("", embeds=[embed])
+
+    # チャート生成・送信
+    chart_buf = generate_daily_chart(trades_df)
+    if chart_buf:
+        send_discord_with_image("", [embed], chart_buf, "yagami_daily.png")
+    else:
+        send_discord("", embeds=[embed])
 
 
 def log_weekly_feedback(trades_df):
