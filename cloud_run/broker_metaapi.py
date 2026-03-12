@@ -73,7 +73,7 @@ class MetaApiBroker(BrokerBase):
         # 価格取得で存在確認
         try:
             r = requests.get(
-                self._market_url(f"/symbols/{mapped}/current-price"),
+                self._api_url(f"/symbols/{mapped}/current-price"),
                 headers=self.headers, timeout=5)
             if r.status_code == 200:
                 self._sym_verified[symbol] = mapped
@@ -84,7 +84,7 @@ class MetaApiBroker(BrokerBase):
         bare = symbol
         try:
             r = requests.get(
-                self._market_url(f"/symbols/{bare}/current-price"),
+                self._api_url(f"/symbols/{bare}/current-price"),
                 headers=self.headers, timeout=5)
             if r.status_code == 200:
                 self._sym_verified[symbol] = bare
@@ -148,7 +148,7 @@ class MetaApiBroker(BrokerBase):
         mt5_sym = self._mt5_symbol(symbol)
         try:
             r = requests.get(
-                self._market_url(
+                self._api_url(
                     f"/symbols/{mt5_sym}/current-price"
                 ),
                 headers=self.headers,
