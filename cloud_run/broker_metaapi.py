@@ -224,6 +224,52 @@ class MetaApiBroker(BrokerBase):
             logger.error(f"MetaApi close {trade_id}: {e}")
         return {}
 
+    def partial_close(self, trade_id: str, volume: float) -> dict:
+        """ポジションの一部（volume lot分）を決済する。半利確用。"""
+        try:
+            r = requests.post(
+                self._api_url("/trade"),
+                headers=self.headers,
+                json={
+                    "actionType": "POSITION_CLOSE_ID",
+                    "positionId": trade_id,
+                    "volume": round(volume, 2),
+                },
+                timeout=15,
+            )
+            if r.status_code == 200:
+                data = r.json()
+                logger.info(f"partial close {trade_id}: {volume} lot")
+                return {"exit_price": float(data.get("price", 0))}
+            logger.error(f"MetaApi partial_close {trade_id}: {r.status_code} {r.text[:200]}")
+        except Exception as e:
+            logger.error(f"MetaApi partial_close {trade_id}: {e}")
+        return {}
+
+    def modify_position(self, trade_id: str, sl: float, tp: float = None) -> bool:
+        """ポジションのSL/TPを変更する。半利確後のBE移動用。"""
+        try:
+            payload = {
+                "actionType": "POSITION_MODIFY",
+                "positionId": trade_id,
+                "stopLoss": round(sl, 5),
+            }
+            if tp is not None:
+                payload["takeProfit"] = round(tp, 5)
+            r = requests.post(
+                self._api_url("/trade"),
+                headers=self.headers,
+                json=payload,
+                timeout=15,
+            )
+            if r.status_code == 200:
+                logger.info(f"modify position {trade_id}: SL={sl:.5f}")
+                return True
+            logger.error(f"MetaApi modify {trade_id}: {r.status_code} {r.text[:200]}")
+        except Exception as e:
+            logger.error(f"MetaApi modify {trade_id}: {e}")
+        return False
+
     def get_account_equity(self) -> float:
         """口座エクイティをJPY換算で返す。BTC/USD/JPY口座に対応。"""
         try:

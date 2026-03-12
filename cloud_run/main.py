@@ -101,6 +101,7 @@ APPROVED_UNIVERSE = {
 # ペア数削減: 全68→採用3銘柄のみ
 MAX_OPEN_POSITIONS = 3    # 採用銘柄数に合わせる（銘柄ごとに1ポジション上限）
 RR_RATIO           = 2.5
+HALF_R             = 1.0   # 半利確トリガー: 1R到達で50%決済 → SLをBEへ
 CANDLE_COUNT       = 200
 
 ACCOUNT_BALANCE_JPY = float(os.environ.get("EQUITY_JPY", "1000000"))  # .envフォールバック
@@ -269,6 +270,24 @@ def notify_entry(pair, dir_, ep, sl, tp, tf, slippage, units, risk_pct, tier):
             {"name": "時刻",  "value": datetime.now(timezone.utc).strftime("%m/%d %H:%M UTC"), "inline": True},
         ],
         "footer": {"text": f"YAGAMI改 | {cfg.get('note','?')} | {cfg.get('strategy','?')}"}
+    }
+    send_discord("", embeds=[embed])
+
+
+def notify_half_profit(pair, dir_, ep, half_price, pnl_pips, tf):
+    cfg = APPROVED_UNIVERSE.get(pair, {}); ps = cfg.get("pip_size", 0.0001)
+    embed = {
+        "title": f"🔶 半利確: {pair} {'LONG' if dir_>0 else 'SHORT'}",
+        "color": 0xff9800,
+        "fields": [
+            {"name": "EP",       "value": f"`{ep:.5f}`",              "inline": True},
+            {"name": "半利確値", "value": f"`{half_price:.5f}`",      "inline": True},
+            {"name": "1R損益",   "value": f"**`{pnl_pips:+.1f}pips`**", "inline": True},
+            {"name": "処理",     "value": "50%決済 → SLをBEへ移動",    "inline": False},
+            {"name": "足種",     "value": f"`{tf}`",                   "inline": True},
+            {"name": "時刻",     "value": datetime.now(timezone.utc).strftime("%m/%d %H:%M UTC"), "inline": True},
+        ],
+        "footer": {"text": f"YAGAMI改 | {cfg.get('note','?')} | 残50%はTP or BEで決済"}
     }
     send_discord("", embeds=[embed])
 
@@ -456,10 +475,53 @@ def run_cycle():
     if len(trades_df) > 0 and "pnl" in trades_df.columns:
         trades_df["pnl"] = pd.to_numeric(trades_df["pnl"], errors="coerce")
 
-    # ── 1. 既存ポジション決済チェック ──────────────────────────
+    # ── 1a. 半利確チェック（1R到達で50%決済 → SLをBEへ） ─────
+    broker_positions = broker.get_open_positions()
+
+    for tid, pos in list(open_positions.items()):
+        if pos.get("half_done"):
+            continue  # 既に半利確済み
+        if tid not in broker_positions:
+            continue  # ブローカーに存在しない（決済済み）→ 1bで処理
+
+        pair = pos["pair"]
+        cfg  = APPROVED_UNIVERSE.get(pair, {})
+        ps   = cfg.get("pip_size", 0.0001)
+        ep   = pos["ep"]; d = pos["dir"]
+        risk = abs(ep - pos["sl"])
+        half_target = ep + d * risk * HALF_R  # 1R到達価格
+
+        price = get_current_price(pair)
+        if price <= 0:
+            continue
+
+        # 1R到達判定
+        reached = (d == 1 and price >= half_target) or \
+                  (d == -1 and price <= half_target)
+        if not reached:
+            continue
+
+        # ブローカーのポジションvolumeを取得して50%決済
+        bp = broker_positions[tid]
+        full_vol = bp.get("volume", 0)
+        half_vol = round(full_vol / 2, 2)
+        if half_vol < 0.01:
+            half_vol = 0.01
+
+        res = broker.partial_close(tid, half_vol)
+        if res:
+            # SLをBE（エントリー価格）に移動
+            broker.modify_position(tid, sl=ep, tp=pos["tp"])
+            pos["half_done"] = True
+            pos["sl"] = ep  # 内部状態もBEに更新
+            half_pnl = (half_target - ep) * d / ps
+            notify_half_profit(pair, d, ep, half_target, half_pnl, pos.get("tf", "?"))
+            logger.info(f"HALF PROFIT: {pair} {half_vol}lot closed at 1R, SL→BE")
+
+    # ── 1b. 既存ポジション決済チェック ──────────────────────────
     # ブローカー側でSL/TPが約定するため、Cloud Run側では
     # ポジションの消滅を検知して記録する（二重決済を防止）。
-    broker_positions = broker.get_open_positions()
+    # broker_positions は 1a で取得済み
     closed_tids = []
 
     for tid, pos in list(open_positions.items()):
@@ -575,6 +637,7 @@ def run_cycle():
                     "entry_time": now.isoformat(),
                     "fill_price": fp, "slippage": slip,
                     "signal_ep": latest["ep"],
+                    "half_done": False,
                 }
                 gcs_append_csv("logs/paper_signals.csv", {
                     "signal_time": latest["time"].isoformat(), "pair": pair,
