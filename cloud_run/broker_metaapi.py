@@ -28,8 +28,10 @@ from broker_base import BrokerBase
 
 logger = logging.getLogger(__name__)
 
-METAAPI_BASE = "https://mt-client-api-v1.agiliumtrade.agiliumtrade.ai"
-METAAPI_MARKET = "https://mt-market-data-client-api-v1.agiliumtrade.agiliumtrade.ai"
+# リージョン付きURL（環境変数で変更可能、デフォルト: vint-hill）
+_REGION = os.environ.get("METAAPI_REGION", "vint-hill")
+METAAPI_BASE = f"https://mt-client-api-v1.{_REGION}.agiliumtrade.ai"
+METAAPI_MARKET = f"https://mt-market-data-client-api-v1.{_REGION}.agiliumtrade.ai"
 
 
 class MetaApiBroker(BrokerBase):

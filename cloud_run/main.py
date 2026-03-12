@@ -850,8 +850,9 @@ async def debug_broker_endpoint():
     # 1. アカウント情報（メタ）
     try:
         t0 = time.time()
+        from broker_metaapi import METAAPI_BASE
         r = req.get(
-            f"https://mt-client-api-v1.agiliumtrade.agiliumtrade.ai/users/current/accounts/{broker.account_id}",
+            f"{METAAPI_BASE}/users/current/accounts/{broker.account_id}",
             headers=broker.headers, timeout=10)
         results["account_meta"] = {
             "status_code": r.status_code,
