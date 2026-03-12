@@ -786,3 +786,55 @@ async def notify_test_endpoint():
         "footer": {"text": f"YAGAMI改 | {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}"}
     }])
     return {"status": "ok", "universe": list(APPROVED_UNIVERSE.keys())}
+
+
+@app.post("/test_trade")
+async def test_trade_endpoint():
+    """テスト取引: 最小ロットでGBPUSD成行買い → 即決済。ブローカー接続・応答速度確認用。"""
+    import time
+    results = {"steps": []}
+
+    # 1. 価格取得テスト
+    t0 = time.time()
+    price = broker.get_current_price("GBPUSD")
+    t_price = round(time.time() - t0, 3)
+    results["steps"].append({"action": "get_price", "price": price, "time_sec": t_price})
+    if price <= 0:
+        results["error"] = "価格取得失敗"
+        return results
+
+    # 2. 最小ロット成行買い（SL/TPは広めに設定）
+    sl = round(price - 0.0100, 5)   # 100pips下
+    tp = round(price + 0.0100, 5)   # 100pips上
+    t0 = time.time()
+    order = broker.place_order("GBPUSD", 100, sl, tp)  # 100 units = 0.01 lot (最小)
+    t_order = round(time.time() - t0, 3)
+    results["steps"].append({"action": "place_order", "result": order, "time_sec": t_order})
+    if not order:
+        results["error"] = "注文失敗"
+        return results
+
+    trade_id = order.get("trade_id", "")
+
+    # 3. 即決済
+    t0 = time.time()
+    close = broker.close_trade(trade_id)
+    t_close = round(time.time() - t0, 3)
+    results["steps"].append({"action": "close_trade", "result": close, "time_sec": t_close})
+
+    results["total_time_sec"] = round(t_price + t_order + t_close, 3)
+    results["status"] = "ok" if close else "close_failed"
+
+    # Discord通知
+    send_discord("", embeds=[{
+        "title": "🧪 テスト取引完了",
+        "color": 0x00ff00 if close else 0xff0000,
+        "fields": [
+            {"name": "銘柄", "value": "GBPUSD (0.01 lot)", "inline": True},
+            {"name": "価格取得", "value": f"{price:.5f} ({t_price}s)", "inline": True},
+            {"name": "約定", "value": f"{order.get('fill_price', 'N/A')} ({t_order}s)", "inline": True},
+            {"name": "決済", "value": f"{close.get('exit_price', 'N/A')} ({t_close}s)", "inline": True},
+            {"name": "合計時間", "value": f"{results['total_time_sec']}秒", "inline": True},
+        ],
+    }])
+    return results
