@@ -949,43 +949,12 @@ async def test_trade_endpoint():
         results["error"] = "価格取得失敗"
         return results
 
-    # 2. 最小ロット成行買い（SL/TPは広めに設定）— 直接APIコールでデバッグ
-    import requests as req
+    # 2. 最小ロット成行買い（SL/TPは広めに設定）
     sl = round(price - 0.0100, 5)   # 100pips下
     tp = round(price + 0.0100, 5)   # 100pips上
-    mt5_sym = broker._mt5_symbol("GBPUSD")
-    payload = {
-        "actionType": "ORDER_TYPE_BUY",
-        "symbol": mt5_sym,
-        "volume": 0.01,
-        "stopLoss": sl,
-        "takeProfit": tp,
-        "comment": "TEST",
-    }
-    results["order_debug"] = {
-        "url": broker._api_url("/trade"),
-        "symbol_resolved": mt5_sym,
-        "payload": payload,
-    }
     t0 = time.time()
-    try:
-        r = req.post(broker._api_url("/trade"), headers=broker.headers,
-                     json=payload, timeout=15)
-        t_order = round(time.time() - t0, 3)
-        results["order_debug"]["status_code"] = r.status_code
-        results["order_debug"]["response"] = r.text[:300]
-        if r.status_code == 200:
-            data = r.json()
-            order = {
-                "trade_id": data.get("positionId", data.get("orderId", "")),
-                "fill_price": float(data.get("price", 0)),
-            }
-        else:
-            order = {}
-    except Exception as e:
-        t_order = round(time.time() - t0, 3)
-        order = {}
-        results["order_debug"]["error"] = str(e)[:200]
+    order = broker.place_order("GBPUSD", 100, sl, tp)  # 100 units = 0.01 lot (最小)
+    t_order = round(time.time() - t0, 3)
     results["steps"].append({"action": "place_order", "result": order, "time_sec": t_order})
     if not order:
         results["error"] = "注文失敗"
@@ -1019,121 +988,35 @@ async def test_trade_endpoint():
 
 @app.get("/debug_broker")
 async def debug_broker_endpoint():
-    """ブローカー接続デバッグ: Provisioning APIでアカウント情報+複数ドメインテスト"""
-    import requests as req
-    results = {}
-    aid = broker.account_id
-    token = broker.token
-
-    # 0. Provisioning APIでアカウント一覧取得（リージョン情報を含む）
-    prov_domains = [
-        "mt-provisioning-api-v1.agiliumtrade.agiliumtrade.ai",
-        "mt-provisioning-api-v1.vint-hill.agiliumtrade.agiliumtrade.ai",
-    ]
-    for pd_domain in prov_domains:
-        try:
-            r = req.get(
-                f"https://{pd_domain}/users/current/accounts",
-                headers={"auth-token": token}, timeout=10)
-            if r.status_code == 200:
-                accounts = r.json()
-                results["provisioning"] = {
-                    "domain": pd_domain,
-                    "account_count": len(accounts),
-                    "accounts": [
-                        {
-                            "id": a.get("_id", ""),
-                            "name": a.get("name", ""),
-                            "region": a.get("region", ""),
-                            "state": a.get("state", ""),
-                            "connectionStatus": a.get("connectionStatus", ""),
-                            "server": a.get("server", ""),
-                            "platform": a.get("platform", ""),
-                            "type": a.get("type", ""),
-                        }
-                        for a in accounts[:5]
-                    ],
-                }
-                break
-            else:
-                results[f"prov_{pd_domain}"] = {"status": r.status_code, "body": r.text[:200]}
-        except Exception as e:
-            err = str(e)
-            results[f"prov_{pd_domain}"] = {
-                "status": "DNS_FAIL" if "NameResolution" in err else "ERROR",
-                "error": err[:150],
-            }
-
-    # 1. 複数ドメインパターンで account-information テスト
-    domain_patterns = {
-        "london_single":    "mt-client-api-v1.london.agiliumtrade.ai",
-        "new-york_single":  "mt-client-api-v1.new-york.agiliumtrade.ai",
-        "singapore_single": "mt-client-api-v1.singapore.agiliumtrade.ai",
-    }
-    results["domain_tests"] = {}
-    for name, domain in domain_patterns.items():
-        url = f"https://{domain}/users/current/accounts/{aid}/account-information"
-        try:
-            r = req.get(url, headers=broker.headers, timeout=8)
-            if r.status_code == 200:
-                data = r.json()
-                results["domain_tests"][name] = {
-                    "status": "OK",
-                    "domain": domain,
-                    "balance": data.get("balance"),
-                    "equity": data.get("equity"),
-                    "currency": data.get("currency"),
-                    "leverage": data.get("leverage"),
-                }
-            else:
-                results["domain_tests"][name] = {
-                    "status": r.status_code,
-                    "domain": domain,
-                    "body": r.text[:150],
-                }
-        except Exception as e:
-            err = str(e)
-            if "NameResolution" in err:
-                results["domain_tests"][name] = {"status": "DNS_FAIL", "domain": domain}
-            elif "SSL" in err:
-                results["domain_tests"][name] = {"status": "SSL_ERROR", "domain": domain}
-            else:
-                results["domain_tests"][name] = {"status": "ERROR", "domain": domain, "error": err[:150]}
-
-    # 2. マーケットデータ: london/new-york 両方 + client API/market data API 両方試す
-    hdrs = broker.headers
-    test_sym = "USDJPY"
-    results["market_data_tests"] = {}
-
-    combos = {
-        "london_market":   f"https://mt-market-data-client-api-v1.london.agiliumtrade.ai/users/current/accounts/{aid}/symbols/{test_sym}/current-price",
-        "london_client":   f"https://mt-client-api-v1.london.agiliumtrade.ai/users/current/accounts/{aid}/symbols/{test_sym}/current-price",
-        "newyork_market":  f"https://mt-market-data-client-api-v1.new-york.agiliumtrade.ai/users/current/accounts/{aid}/symbols/{test_sym}/current-price",
-        "newyork_client":  f"https://mt-client-api-v1.new-york.agiliumtrade.ai/users/current/accounts/{aid}/symbols/{test_sym}/current-price",
-        "london_candles":  f"https://mt-market-data-client-api-v1.london.agiliumtrade.ai/users/current/accounts/{aid}/historical-market-data/symbols/{test_sym}/timeframes/1h/candles?limit=3",
-        "newyork_candles": f"https://mt-market-data-client-api-v1.new-york.agiliumtrade.ai/users/current/accounts/{aid}/historical-market-data/symbols/{test_sym}/timeframes/1h/candles?limit=3",
-    }
-    for name, url in combos.items():
-        try:
-            r = req.get(url, headers=hdrs, timeout=8)
-            if r.status_code == 200:
-                data = r.json()
-                if isinstance(data, list):
-                    results["market_data_tests"][name] = {"OK": True, "count": len(data), "sample": str(data[0])[:100] if data else "empty"}
-                else:
-                    results["market_data_tests"][name] = {"OK": True, "data": {k: data[k] for k in list(data.keys())[:5]}}
-            else:
-                results["market_data_tests"][name] = {"code": r.status_code, "body": r.text[:120]}
-        except Exception as e:
-            results["market_data_tests"][name] = {"error": str(e)[:100]}
-
-    # 3. 現在の設定
+    """ブローカー接続診断: 価格取得・口座情報・ポジション一覧"""
     from broker_metaapi import METAAPI_BASE, METAAPI_MARKET
-    results["current_config"] = {
-        "METAAPI_BASE": METAAPI_BASE,
-        "METAAPI_MARKET": METAAPI_MARKET,
-        "account_id": aid,
-        "token_first_20": token[:20] + "..." if len(token) > 20 else token,
+    results = {
+        "broker_type": BROKER_TYPE,
+        "config": {
+            "METAAPI_BASE": METAAPI_BASE,
+            "METAAPI_MARKET": METAAPI_MARKET,
+            "account_id": broker.account_id,
+        },
     }
+
+    # 1. 口座情報
+    try:
+        equity = broker.get_account_equity()
+        results["account"] = {"equity_jpy": equity, "status": "OK"}
+    except Exception as e:
+        results["account"] = {"status": "ERROR", "error": str(e)[:150]}
+
+    # 2. 価格取得テスト（採用銘柄）
+    results["prices"] = {}
+    for sym in APPROVED_UNIVERSE:
+        price = broker.get_current_price(sym)
+        results["prices"][sym] = price if price > 0 else "FAILED"
+
+    # 3. オープンポジション
+    try:
+        positions = broker.get_open_positions()
+        results["open_positions"] = {"count": len(positions), "details": positions}
+    except Exception as e:
+        results["open_positions"] = {"status": "ERROR", "error": str(e)[:150]}
 
     return results
