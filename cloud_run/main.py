@@ -1069,31 +1069,32 @@ async def debug_broker_endpoint():
             else:
                 results["domain_tests"][name] = {"status": "ERROR", "domain": domain, "error": err[:150]}
 
-    # 2. 同期状態・マーケットデータ確認（london リージョン使用）
-    base = "https://mt-client-api-v1.london.agiliumtrade.ai"
-    market = "https://mt-market-data-client-api-v1.london.agiliumtrade.ai"
+    # 2. マーケットデータ: london/new-york 両方 + client API/market data API 両方試す
     hdrs = broker.headers
+    test_sym = "USDJPY"
+    results["market_data_tests"] = {}
 
-    # 同期状態確認
-    try:
-        r = req.get(f"{base}/users/current/accounts/{aid}/synchronization-status",
-                     headers=hdrs, timeout=8)
-        results["sync_status"] = r.json() if r.status_code == 200 else {"code": r.status_code, "body": r.text[:200]}
-    except Exception as e:
-        results["sync_status"] = {"error": str(e)[:150]}
-
-    # 価格取得テスト（マーケットデータAPI）
-    for sym in ["USDJPYm", "USDJPY", "XAUUSDm", "XAUUSD"]:
+    combos = {
+        "london_market":   f"https://mt-market-data-client-api-v1.london.agiliumtrade.ai/users/current/accounts/{aid}/symbols/{test_sym}/current-price",
+        "london_client":   f"https://mt-client-api-v1.london.agiliumtrade.ai/users/current/accounts/{aid}/symbols/{test_sym}/current-price",
+        "newyork_market":  f"https://mt-market-data-client-api-v1.new-york.agiliumtrade.ai/users/current/accounts/{aid}/symbols/{test_sym}/current-price",
+        "newyork_client":  f"https://mt-client-api-v1.new-york.agiliumtrade.ai/users/current/accounts/{aid}/symbols/{test_sym}/current-price",
+        "london_candles":  f"https://mt-market-data-client-api-v1.london.agiliumtrade.ai/users/current/accounts/{aid}/historical-market-data/symbols/{test_sym}/timeframes/1h/candles?limit=3",
+        "newyork_candles": f"https://mt-market-data-client-api-v1.new-york.agiliumtrade.ai/users/current/accounts/{aid}/historical-market-data/symbols/{test_sym}/timeframes/1h/candles?limit=3",
+    }
+    for name, url in combos.items():
         try:
-            r = req.get(f"{market}/users/current/accounts/{aid}/symbols/{sym}/current-price",
-                         headers=hdrs, timeout=5)
+            r = req.get(url, headers=hdrs, timeout=8)
             if r.status_code == 200:
                 data = r.json()
-                results[f"price_{sym}"] = {"ask": data.get("ask"), "bid": data.get("bid")}
+                if isinstance(data, list):
+                    results["market_data_tests"][name] = {"OK": True, "count": len(data), "sample": str(data[0])[:100] if data else "empty"}
+                else:
+                    results["market_data_tests"][name] = {"OK": True, "data": {k: data[k] for k in list(data.keys())[:5]}}
             else:
-                results[f"price_{sym}"] = {"code": r.status_code, "body": r.text[:100]}
+                results["market_data_tests"][name] = {"code": r.status_code, "body": r.text[:120]}
         except Exception as e:
-            results[f"price_{sym}"] = {"error": str(e)[:80]}
+            results["market_data_tests"][name] = {"error": str(e)[:100]}
 
     # 3. 現在の設定
     from broker_metaapi import METAAPI_BASE, METAAPI_MARKET
