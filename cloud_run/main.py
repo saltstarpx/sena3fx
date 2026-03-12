@@ -988,77 +988,53 @@ async def test_trade_endpoint():
 
 @app.get("/debug_broker")
 async def debug_broker_endpoint():
-    """ブローカー接続デバッグ: アカウント状態・シンボル確認"""
-    import time
+    """ブローカー接続デバッグ: 複数ドメインパターンで接続テスト"""
     import requests as req
     results = {}
+    aid = broker.account_id
 
-    # 1. アカウント情報（メタ）
-    try:
-        t0 = time.time()
-        from broker_metaapi import METAAPI_BASE
-        r = req.get(
-            f"{METAAPI_BASE}/users/current/accounts/{broker.account_id}",
-            headers=broker.headers, timeout=10)
-        results["account_meta"] = {
-            "status_code": r.status_code,
-            "state": r.json().get("state", "?") if r.status_code == 200 else r.text[:200],
-            "connectionStatus": r.json().get("connectionStatus", "?") if r.status_code == 200 else "?",
-            "time_sec": round(time.time() - t0, 3),
-        }
-    except Exception as e:
-        results["account_meta"] = {"error": str(e)}
-
-    # 2. アカウント情報（トレード用API）
-    try:
-        r = req.get(
-            broker._api_url("/account-information"),
-            headers=broker.headers, timeout=10)
-        if r.status_code == 200:
-            data = r.json()
-            results["account_info"] = {
-                "balance": data.get("balance"),
-                "equity": data.get("equity"),
-                "currency": data.get("currency"),
-                "leverage": data.get("leverage"),
-                "platform": data.get("platform"),
-            }
-        else:
-            results["account_info"] = {"status_code": r.status_code, "body": r.text[:300]}
-    except Exception as e:
-        results["account_info"] = {"error": str(e)}
-
-    # 3. シンボル価格テスト（複数パターン）
-    test_symbols = ["GBPUSDm", "GBPUSD", "GBPUSD.a", "USDJPYm", "USDJPY", "XAUUSDm", "XAUUSD"]
-    results["symbol_tests"] = {}
-    for sym in test_symbols:
+    # 複数のドメインパターンを試行
+    domain_patterns = {
+        "no_region_double": "mt-client-api-v1.agiliumtrade.agiliumtrade.ai",
+        "vint-hill_double": "mt-client-api-v1.vint-hill.agiliumtrade.agiliumtrade.ai",
+        "vint-hill_single": "mt-client-api-v1.vint-hill.agiliumtrade.ai",
+        "new-york_double":  "mt-client-api-v1.new-york.agiliumtrade.agiliumtrade.ai",
+    }
+    results["domain_tests"] = {}
+    for name, domain in domain_patterns.items():
+        url = f"https://{domain}/users/current/accounts/{aid}/account-information"
         try:
-            r = req.get(
-                broker._market_url(f"/symbols/{sym}/current-price"),
-                headers=broker.headers, timeout=5)
+            r = req.get(url, headers=broker.headers, timeout=8)
             if r.status_code == 200:
                 data = r.json()
-                results["symbol_tests"][sym] = {
-                    "ask": data.get("ask"), "bid": data.get("bid")}
+                results["domain_tests"][name] = {
+                    "status": "OK",
+                    "domain": domain,
+                    "balance": data.get("balance"),
+                    "equity": data.get("equity"),
+                    "currency": data.get("currency"),
+                    "leverage": data.get("leverage"),
+                }
             else:
-                results["symbol_tests"][sym] = {"status": r.status_code, "body": r.text[:100]}
+                results["domain_tests"][name] = {
+                    "status": r.status_code,
+                    "domain": domain,
+                    "body": r.text[:150],
+                }
         except Exception as e:
-            results["symbol_tests"][sym] = {"error": str(e)}
+            err = str(e)
+            if "NameResolution" in err:
+                results["domain_tests"][name] = {"status": "DNS_FAIL", "domain": domain}
+            elif "SSL" in err:
+                results["domain_tests"][name] = {"status": "SSL_ERROR", "domain": domain}
+            else:
+                results["domain_tests"][name] = {"status": "ERROR", "domain": domain, "error": err[:150]}
 
-    # 4. 利用可能シンボル一覧（先頭20件）
-    try:
-        r = req.get(
-            broker._market_url("/symbols"),
-            headers=broker.headers, timeout=10)
-        if r.status_code == 200:
-            syms = r.json()
-            results["available_symbols"] = {
-                "count": len(syms),
-                "first_20": [s.get("symbol", s) if isinstance(s, dict) else s for s in syms[:20]],
-            }
-        else:
-            results["available_symbols"] = {"status": r.status_code, "body": r.text[:200]}
-    except Exception as e:
-        results["available_symbols"] = {"error": str(e)}
+    # 現在設定中のURL
+    from broker_metaapi import METAAPI_BASE, METAAPI_MARKET
+    results["current_config"] = {
+        "METAAPI_BASE": METAAPI_BASE,
+        "METAAPI_MARKET": METAAPI_MARKET,
+    }
 
     return results
