@@ -29,7 +29,7 @@ from broker_base import BrokerBase
 logger = logging.getLogger(__name__)
 
 # リージョン付きURL（環境変数で変更可能、デフォルト: vint-hill）
-_REGION = os.environ.get("METAAPI_REGION", "vint-hill")
+_REGION = os.environ.get("METAAPI_REGION", "new-york")
 METAAPI_BASE = f"https://mt-client-api-v1.{_REGION}.agiliumtrade.ai"
 METAAPI_MARKET = f"https://mt-market-data-client-api-v1.{_REGION}.agiliumtrade.ai"
 
