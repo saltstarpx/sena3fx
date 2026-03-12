@@ -1,9 +1,9 @@
 """
-main.py - Cloud Run ペーパートレードbot (YAGAMI改 採用銘柄集中版)
+main.py - Cloud Run 自動取引bot (YAGAMI改 採用銘柄集中版)
 =================================================================
-【改修方針】
-旧版: 全68ペアをv77で一律スキャン、同一2%リスク
-新版: バックテスト検証済み採用銘柄のみ、Kelly基準のティア別リスク配分
+【ブローカー切り替え】
+  BROKER=oanda   → OANDA v20 REST API（ペーパートレード）
+  BROKER=exness  → MetaApi経由 Exness MT5（本番取引、Windows不要）
 
 【APPROVED_UNIVERSE (採用銘柄)】
   USDJPY: v77       / Tier1 / base 3%  (OOS PF=4.96, Kelly=0.608)
@@ -30,14 +30,32 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from fastapi import FastAPI, Request
 from google.cloud import storage
 
-OANDA_TOKEN  = os.environ.get("OANDA_TOKEN", "b3c7db048d5b6d1ac77e4263bd8bfb8b-1222fbcaf7d9ffe642692a226f7e7467")
-ACCOUNT_ID   = os.environ.get("OANDA_ACCOUNT", "101-009-38652105-001")
-BASE_URL     = "https://api-fxpractice.oanda.com"
-OANDA_HEADERS = {"Authorization": f"Bearer {OANDA_TOKEN}", "Content-Type": "application/json"}
+# ── ブローカー選択 ────────────────────────────────────────────
+BROKER_TYPE = os.environ.get("BROKER", "oanda").lower()
+
 DISCORD_WEBHOOK = os.environ.get("DISCORD_WEBHOOK",
     "https://discord.com/api/webhooks/1329418335259197490/59-rzRn2tvHmvMetqMlJPtoo4CApLk3yGoBZoTfUexmXQzrUrTBI1X8sL7RbFfvoQG5k")
 GCS_BUCKET  = os.environ.get("GCS_BUCKET", "sena3fx-paper-trading")
 PROJECT_ID  = os.environ.get("GCP_PROJECT", "aiyagami")
+
+def _create_broker():
+    """環境変数に基づいてブローカーインスタンスを生成"""
+    if BROKER_TYPE == "exness":
+        from broker_metaapi import MetaApiBroker
+        return MetaApiBroker(
+            token=os.environ.get("METAAPI_TOKEN", ""),
+            account_id=os.environ.get("METAAPI_ACCOUNT_ID", ""),
+            equity_jpy=float(os.environ.get("EQUITY_JPY", "1000000")),
+        )
+    else:
+        from broker_oanda import OandaBroker
+        return OandaBroker(
+            token=os.environ.get("OANDA_TOKEN",
+                "b3c7db048d5b6d1ac77e4263bd8bfb8b-1222fbcaf7d9ffe642692a226f7e7467"),
+            account_id=os.environ.get("OANDA_ACCOUNT", "101-009-38652105-001"),
+        )
+
+broker = _create_broker()
 
 # ── 採用銘柄ユニバース ─────────────────────────────────────────
 # バックテスト検証済み銘柄のみ。OOS PF・Kelly基準に基づくティア配分。
@@ -92,7 +110,7 @@ MAX_UNITS           = 100_000
 
 # ── リスク計算 ────────────────────────────────────────────────
 def calc_units_from_risk(ep: float, sl: float, pip_size: float,
-                         oanda_pair: str, risk_pct: float) -> int:
+                         pair: str, risk_pct: float) -> int:
     """
     指定risk_pct（銘柄別・動的）でロット数を計算する。
 
@@ -104,7 +122,7 @@ def calc_units_from_risk(ep: float, sl: float, pip_size: float,
     if sl_pips <= 0:
         return MIN_UNITS
 
-    pair = oanda_pair.replace("_", "")
+    pair = pair.replace("_", "")
     if pair.endswith("JPY"):
         pip_val_per_unit = pip_size
     else:
@@ -278,8 +296,7 @@ def send_daily_report(open_positions, trades_df):
     for tid, p in open_positions.items():
         pair = p["pair"]
         cfg  = APPROVED_UNIVERSE.get(pair, {})
-        instr = cfg.get("oanda", pair)
-        cur = get_current_price(instr)
+        cur = get_current_price(pair)
         ps  = cfg.get("pip_size", 0.0001)
         if cur > 0:
             unreal = (cur - p["ep"]) * p["dir"] / ps
@@ -335,65 +352,18 @@ def log_weekly_feedback(trades_df):
     logger.info(f"週次GCSログ: {wn}件, 累計{n}件, PF={pf_all:.2f}")
 
 
-# ── OANDA ヘルパー ────────────────────────────────────────────
-def get_candles(instrument, granularity, count=CANDLE_COUNT):
-    try:
-        r = requests.get(f"{BASE_URL}/v3/instruments/{instrument}/candles",
-            headers=OANDA_HEADERS,
-            params={"granularity": granularity, "count": count, "price": "M"},
-            timeout=15)
-        if r.status_code != 200: return pd.DataFrame()
-        rows = [
-            {"timestamp": pd.Timestamp(c["time"]),
-             "open":  float(c["mid"]["o"]), "high": float(c["mid"]["h"]),
-             "low":   float(c["mid"]["l"]), "close": float(c["mid"]["c"]),
-             "volume": int(c.get("volume", 0))}
-            for c in r.json()["candles"] if c.get("complete", True)
-        ]
-        if not rows: return pd.DataFrame()
-        return pd.DataFrame(rows).set_index("timestamp").sort_index()
-    except Exception as e:
-        logger.error(f"candles {instrument}: {e}"); return pd.DataFrame()
+# ── ブローカー経由ヘルパー（OANDA / Exness 共通） ──────────────
+def get_candles(symbol, granularity, count=CANDLE_COUNT):
+    return broker.get_candles(symbol, granularity, count)
 
+def get_current_price(symbol):
+    return broker.get_current_price(symbol)
 
-def get_current_price(instrument):
-    try:
-        r = requests.get(f"{BASE_URL}/v3/accounts/{ACCOUNT_ID}/pricing",
-            headers=OANDA_HEADERS, params={"instruments": instrument}, timeout=10)
-        if r.status_code == 200:
-            p = r.json().get("prices", [])
-            if p: return (float(p[0]["asks"][0]["price"]) + float(p[0]["bids"][0]["price"])) / 2
-    except Exception as e: logger.error(f"price {instrument}: {e}")
-    return 0.0
-
-
-def place_order(instrument, units, sl, tp):
-    try:
-        r = requests.post(f"{BASE_URL}/v3/accounts/{ACCOUNT_ID}/orders",
-            headers=OANDA_HEADERS, timeout=10,
-            json={"order": {
-                "type": "MARKET", "instrument": instrument, "units": str(units),
-                "stopLossOnFill":   {"price": f"{sl:.5f}", "timeInForce": "GTC"},
-                "takeProfitOnFill": {"price": f"{tp:.5f}", "timeInForce": "GTC"},
-                "timeInForce": "FOK", "positionFill": "DEFAULT"}})
-        if r.status_code in (200, 201):
-            fill = r.json().get("orderFillTransaction", {})
-            return {"trade_id":  fill.get("tradeOpened", {}).get("tradeID", ""),
-                    "fill_price": float(fill.get("price", 0))}
-        logger.error(f"order {instrument}: {r.status_code} {r.text[:100]}")
-    except Exception as e: logger.error(f"order {instrument}: {e}")
-    return {}
-
+def place_order(symbol, units, sl, tp):
+    return broker.place_order(symbol, units, sl, tp)
 
 def close_trade(trade_id):
-    try:
-        r = requests.put(
-            f"{BASE_URL}/v3/accounts/{ACCOUNT_ID}/trades/{trade_id}/close",
-            headers=OANDA_HEADERS, timeout=10)
-        if r.status_code == 200:
-            return {"exit_price": float(r.json().get("orderFillTransaction", {}).get("price", 0))}
-    except Exception as e: logger.error(f"close {trade_id}: {e}")
-    return {}
+    return broker.close_trade(trade_id)
 
 
 # ── シグナル取得（採用銘柄専用） ──────────────────────────────
@@ -407,10 +377,9 @@ def fetch_symbol_signal(pair, sym_cfg, open_positions,
     if any(p["pair"] == pair for p in open_positions.values()):
         return None
 
-    instr = sym_cfg["oanda"]
-    d1m   = get_candles(instr, "M1",  300)
-    d15m  = get_candles(instr, "M15", 300)
-    d4h   = get_candles(instr, "H4",  200)
+    d1m   = get_candles(pair, "M1",  300)
+    d15m  = get_candles(pair, "M15", 300)
+    d4h   = get_candles(pair, "H4",  200)
     if any(len(d) < 50 for d in [d1m, d15m, d4h]):
         return None
 
@@ -470,8 +439,7 @@ def run_cycle():
         tid, pos = tid_pos
         pair = pos["pair"]
         cfg   = APPROVED_UNIVERSE.get(pair, {})
-        instr = cfg.get("oanda", pair)
-        price = get_current_price(instr)
+        price = get_current_price(pair)
         if price == 0.0: return None
         ep, sl, tp, d = pos["ep"], pos["sl"], pos["tp"], pos["dir"]
         if d == 1:
@@ -538,14 +506,13 @@ def run_cycle():
                 continue
 
             ps    = sym_cfg["pip_size"]
-            instr = sym_cfg["oanda"]
 
             # 動的リスク調整
             risk_pct = calc_dynamic_risk_pct(
                 pair, trades_df, sym_cfg["base_risk_pct"])
 
             # 現在価格再取得（スリッページ確認）
-            current_price = get_current_price(instr)
+            current_price = get_current_price(pair)
             if current_price == 0.0:
                 logger.warning(f"{pair}: 現在価格取得失敗、スキップ")
                 continue
@@ -569,9 +536,9 @@ def run_cycle():
 
             # ロット計算（銘柄別・動的リスク）
             order_units = calc_units_from_risk(
-                current_price, new_sl, ps, instr, risk_pct)
+                current_price, new_sl, ps, pair, risk_pct)
 
-            res = place_order(instr, order_units * latest["dir"], new_sl, new_tp)
+            res = place_order(pair, order_units * latest["dir"], new_sl, new_tp)
             if res:
                 tid = res["trade_id"]; fp = res.get("fill_price", current_price)
                 slip = (fp - latest["ep"]) * latest["dir"] / ps
