@@ -29,15 +29,22 @@ data/archive/
 
 # 1分足データ（大容量）
 data/*_1m.csv
-data/ohlc/USDJPY_1m*.csv
+data/ohlc/*_1m.csv
+data/ohlc/*_direct.csv
 !data/ohlc/NZDUSD_1m.csv
 !data/ohlc/USDJPY_1m.csv
 !data/ohlc/USDCAD_1m.csv
 !data/ohlc/USDCHF_1m.csv
 
+# 生tickデータ（大容量ソースファイル）
+data/tick_1min/
+
 # ペーパートレードのキャッシュ
 paper_trading/__pycache__/
 paper_trading/logs/
+
+# ローカル取引ログ（本番はGCS管理）
+trade_logs/paper_trades.csv
 
 # テスト用キャッシュ
 tests/__pycache__/

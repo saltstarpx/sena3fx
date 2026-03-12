@@ -1,0 +1,15 @@
+# YAGAMI改 MT5ボット 依存ライブラリ（Windows/ExnessVPS用）
+# pip install -r requirements.txt
+
+# MetaTrader5 Python連携（Windows専用）
+MetaTrader5>=5.0.45
+
+# データ処理
+numpy>=1.24.0
+pandas>=2.0.0
+
+# 環境変数読み込み
+python-dotenv>=1.0.0
+
+# HTTP通知（Discord）
+requests>=2.28.0

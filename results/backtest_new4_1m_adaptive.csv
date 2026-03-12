@@ -1,0 +1,5 @@
+symbol,category,quote_type,spread_pips,trades,win_rate,profit_factor,mdd_pct,kelly,plus_months,total_months,multiple,final_equity
+NZDUSD,FX,B,0.5,414,62.3,1.782,16.14,0.274,12,14,11.737,1173.67
+USDJPY,JPY,A,0.0,456,64.0,1.742,17.94,0.273,12,14,10.711,1071.12
+USDCAD,FX,C,0.1,650,61.4,1.522,16.29,0.211,14,14,16.329,1632.94
+USDCHF,FX,C,0.2,440,61.6,1.83,19.19,0.279,11,14,7.467,746.69

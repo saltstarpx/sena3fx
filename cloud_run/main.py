@@ -495,12 +495,19 @@ def run_cycle():
         xp   = res.get("exit_price", price)
         pnl  = (xp - ep) * d / ps
         notify_close(pair, d, ep, xp, exit_type, pnl, pos.get("tf", "?"))
+        entry_time_str = pos.get("entry_time", "")
+        try:
+            entry_hour = datetime.fromisoformat(entry_time_str).hour
+        except Exception:
+            entry_hour = ""
+        risk_pips = round(abs(ep - pos["sl"]) / ps, 1)
         gcs_append_csv("logs/paper_trades.csv", {
             "trade_id":  tid, "pair": pair, "dir": d, "tf": pos.get("tf", "?"),
             "ep": round(ep, 5), "sl": round(pos["sl"], 5), "tp": round(pos["tp"], 5),
             "exit_price": round(xp, 5), "exit_type": exit_type,
             "pnl": round(pnl, 1), "strategy": cfg.get("strategy", "?"),
-            "entry_time": pos.get("entry_time", ""), "exit_time": now.isoformat()
+            "entry_time": entry_time_str, "exit_time": now.isoformat(),
+            "entry_hour": entry_hour, "risk_pips": risk_pips
         })
         if tid in open_positions: del open_positions[tid]
         logger.info(f"CLOSED: {pair} {exit_type} pnl={pnl:.1f}p")
