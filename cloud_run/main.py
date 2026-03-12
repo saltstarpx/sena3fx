@@ -949,12 +949,43 @@ async def test_trade_endpoint():
         results["error"] = "価格取得失敗"
         return results
 
-    # 2. 最小ロット成行買い（SL/TPは広めに設定）
+    # 2. 最小ロット成行買い（SL/TPは広めに設定）— 直接APIコールでデバッグ
+    import requests as req
     sl = round(price - 0.0100, 5)   # 100pips下
     tp = round(price + 0.0100, 5)   # 100pips上
+    mt5_sym = broker._mt5_symbol("GBPUSD")
+    payload = {
+        "actionType": "ORDER_TYPE_BUY",
+        "symbol": mt5_sym,
+        "volume": 0.01,
+        "stopLoss": sl,
+        "takeProfit": tp,
+        "comment": "TEST",
+    }
+    results["order_debug"] = {
+        "url": broker._api_url("/trade"),
+        "symbol_resolved": mt5_sym,
+        "payload": payload,
+    }
     t0 = time.time()
-    order = broker.place_order("GBPUSD", 100, sl, tp)  # 100 units = 0.01 lot (最小)
-    t_order = round(time.time() - t0, 3)
+    try:
+        r = req.post(broker._api_url("/trade"), headers=broker.headers,
+                     json=payload, timeout=15)
+        t_order = round(time.time() - t0, 3)
+        results["order_debug"]["status_code"] = r.status_code
+        results["order_debug"]["response"] = r.text[:300]
+        if r.status_code == 200:
+            data = r.json()
+            order = {
+                "trade_id": data.get("positionId", data.get("orderId", "")),
+                "fill_price": float(data.get("price", 0)),
+            }
+        else:
+            order = {}
+    except Exception as e:
+        t_order = round(time.time() - t0, 3)
+        order = {}
+        results["order_debug"]["error"] = str(e)[:200]
     results["steps"].append({"action": "place_order", "result": order, "time_sec": t_order})
     if not order:
         results["error"] = "注文失敗"
