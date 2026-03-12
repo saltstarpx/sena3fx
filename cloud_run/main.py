@@ -838,3 +838,80 @@ async def test_trade_endpoint():
         ],
     }])
     return results
+
+
+@app.get("/debug_broker")
+async def debug_broker_endpoint():
+    """ブローカー接続デバッグ: アカウント状態・シンボル確認"""
+    import time
+    import requests as req
+    results = {}
+
+    # 1. アカウント情報（メタ）
+    try:
+        t0 = time.time()
+        r = req.get(
+            f"https://mt-client-api-v1.agiliumtrade.agiliumtrade.ai/users/current/accounts/{broker.account_id}",
+            headers=broker.headers, timeout=10)
+        results["account_meta"] = {
+            "status_code": r.status_code,
+            "state": r.json().get("state", "?") if r.status_code == 200 else r.text[:200],
+            "connectionStatus": r.json().get("connectionStatus", "?") if r.status_code == 200 else "?",
+            "time_sec": round(time.time() - t0, 3),
+        }
+    except Exception as e:
+        results["account_meta"] = {"error": str(e)}
+
+    # 2. アカウント情報（トレード用API）
+    try:
+        r = req.get(
+            broker._api_url("/account-information"),
+            headers=broker.headers, timeout=10)
+        if r.status_code == 200:
+            data = r.json()
+            results["account_info"] = {
+                "balance": data.get("balance"),
+                "equity": data.get("equity"),
+                "currency": data.get("currency"),
+                "leverage": data.get("leverage"),
+                "platform": data.get("platform"),
+            }
+        else:
+            results["account_info"] = {"status_code": r.status_code, "body": r.text[:300]}
+    except Exception as e:
+        results["account_info"] = {"error": str(e)}
+
+    # 3. シンボル価格テスト（複数パターン）
+    test_symbols = ["GBPUSDm", "GBPUSD", "GBPUSD.a", "USDJPYm", "USDJPY", "XAUUSDm", "XAUUSD"]
+    results["symbol_tests"] = {}
+    for sym in test_symbols:
+        try:
+            r = req.get(
+                broker._market_url(f"/symbols/{sym}/current-price"),
+                headers=broker.headers, timeout=5)
+            if r.status_code == 200:
+                data = r.json()
+                results["symbol_tests"][sym] = {
+                    "ask": data.get("ask"), "bid": data.get("bid")}
+            else:
+                results["symbol_tests"][sym] = {"status": r.status_code, "body": r.text[:100]}
+        except Exception as e:
+            results["symbol_tests"][sym] = {"error": str(e)}
+
+    # 4. 利用可能シンボル一覧（先頭20件）
+    try:
+        r = req.get(
+            broker._market_url("/symbols"),
+            headers=broker.headers, timeout=10)
+        if r.status_code == 200:
+            syms = r.json()
+            results["available_symbols"] = {
+                "count": len(syms),
+                "first_20": [s.get("symbol", s) if isinstance(s, dict) else s for s in syms[:20]],
+            }
+        else:
+            results["available_symbols"] = {"status": r.status_code, "body": r.text[:200]}
+    except Exception as e:
+        results["available_symbols"] = {"error": str(e)}
+
+    return results
