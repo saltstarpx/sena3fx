@@ -1035,11 +1035,9 @@ async def debug_broker_endpoint():
 
     # 1. 複数ドメインパターンで account-information テスト
     domain_patterns = {
-        "vint-hill_single": "mt-client-api-v1.vint-hill.agiliumtrade.ai",
-        "vint-hill_double": "mt-client-api-v1.vint-hill.agiliumtrade.agiliumtrade.ai",
-        "no_region_double": "mt-client-api-v1.agiliumtrade.agiliumtrade.ai",
+        "london_single":    "mt-client-api-v1.london.agiliumtrade.ai",
         "new-york_single":  "mt-client-api-v1.new-york.agiliumtrade.ai",
-        "new-york_double":  "mt-client-api-v1.new-york.agiliumtrade.agiliumtrade.ai",
+        "singapore_single": "mt-client-api-v1.singapore.agiliumtrade.ai",
     }
     results["domain_tests"] = {}
     for name, domain in domain_patterns.items():
