@@ -31,6 +31,10 @@ data/archive/
 data/*_1m.csv
 data/ohlc/*_1m.csv
 data/ohlc/*_direct.csv
+!data/ohlc/NZDUSD_1m.csv
+!data/ohlc/USDJPY_1m.csv
+!data/ohlc/USDCAD_1m.csv
+!data/ohlc/USDCHF_1m.csv
 
 # 生tickデータ（大容量ソースファイル）
 data/tick_1min/

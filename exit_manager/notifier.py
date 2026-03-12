@@ -43,7 +43,7 @@ class DiscordNotifier:
 
     def __init__(self, config: dict):
         notif_cfg = config.get('notification', {})
-        self.enabled = bool(notif_cfg.get('enabled', False))
+        self.enabled = False # ユーザーの指示によりDiscord通知を無効化
         self.webhook_url = (
             os.environ.get('DISCORD_WEBHOOK_URL')
             or notif_cfg.get('discord_webhook_url', '')
