@@ -626,13 +626,16 @@ async def health():
 
 @app.post("/report")
 async def report_endpoint():
+    """手動レポート送信用（Schedulerからは呼ばない）。"""
     try:
         open_positions = gcs_read_json("state/open_positions.json", default={})
         trades_df = gcs_read_csv("logs/paper_trades.csv")
         send_daily_report(open_positions, trades_df)
-        now_jst_h = (datetime.now(timezone.utc).hour + 9) % 24
-        gcs_write_json("state/last_report.json", {"hour": now_jst_h})
-        return {"status": "ok"}
+        # /run 側の重複防止キーと同じ形式で書き込む
+        now_jst = datetime.now(timezone.utc) + timedelta(hours=9)
+        report_key = now_jst.strftime("%Y-%m-%d-%H")
+        gcs_write_json("state/last_report.json", {"key": report_key})
+        return {"status": "ok", "note": "手動送信完了（/run側と重複防止キー統一済み）"}
     except Exception as e:
         return {"status": "error", "message": str(e)}
 

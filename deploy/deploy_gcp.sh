@@ -108,28 +108,20 @@ else
     echo "  Scheduler作成: ${SCHEDULER_NAME}"
 fi
 
-# 朝9時レポート（JST 9:00 = UTC 0:00）
+# 朝9時レポートは /run サイクル内で自動送信（JST 9:00検知）。
+# Cloud Scheduler からの /report 呼び出しは重複の原因になるため廃止。
+# 旧ジョブが残っている場合は削除する。
 REPORT_JOB="${SERVICE_NAME}-report"
 if gcloud scheduler jobs describe "${REPORT_JOB}" \
     --project "${PROJECT_ID}" --location "${REGION}" >/dev/null 2>&1; then
-    gcloud scheduler jobs update http "${REPORT_JOB}" \
+    gcloud scheduler jobs delete "${REPORT_JOB}" \
         --project "${PROJECT_ID}" \
         --location "${REGION}" \
-        --schedule "0 0 * * *" \
-        --uri "${SERVICE_URL}/report" \
-        --http-method POST \
-        --attempt-deadline 30s
+        --quiet
+    echo "  旧レポートScheduler削除: ${REPORT_JOB}（/run内で自動送信に統一）"
 else
-    gcloud scheduler jobs create http "${REPORT_JOB}" \
-        --project "${PROJECT_ID}" \
-        --location "${REGION}" \
-        --schedule "0 0 * * *" \
-        --uri "${SERVICE_URL}/report" \
-        --http-method POST \
-        --attempt-deadline 30s \
-        --time-zone "UTC"
+    echo "  朝レポート: /run サイクル内で JST 9:00 に自動送信"
 fi
-echo "  朝レポート: 毎日 JST 9:00"
 
 # 週次フィードバック（月曜 JST 0:00 = 日曜 UTC 15:00）
 WEEKLY_JOB="${SERVICE_NAME}-weekly"
