@@ -32,3 +32,8 @@ class BrokerBase(ABC):
     @abstractmethod
     def get_account_equity(self) -> float:
         """口座残高（JPY）"""
+
+    @abstractmethod
+    def get_open_positions(self) -> dict:
+        """ブローカー上のオープンポジション一覧。
+        {position_id: {"symbol": str, "type": "buy"|"sell", "profit": float}} or {}"""

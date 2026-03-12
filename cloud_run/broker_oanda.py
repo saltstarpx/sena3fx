@@ -150,3 +150,24 @@ class OandaBroker(BrokerBase):
         except Exception as e:
             logger.error(f"OANDA account: {e}")
         return 1_000_000.0
+
+    def get_open_positions(self) -> dict:
+        try:
+            r = requests.get(
+                f"{self.base_url}/v3/accounts/{self.account_id}/openTrades",
+                headers=self.headers, timeout=10)
+            if r.status_code == 200:
+                positions = {}
+                for t in r.json().get("trades", []):
+                    tid = t.get("id", "")
+                    units = int(t.get("currentUnits", 0))
+                    positions[tid] = {
+                        "symbol": t.get("instrument", ""),
+                        "type": "buy" if units > 0 else "sell",
+                        "openPrice": float(t.get("price", 0)),
+                        "profit": float(t.get("unrealizedPL", 0)),
+                    }
+                return positions
+        except Exception as e:
+            logger.error(f"OANDA positions: {e}")
+        return {}

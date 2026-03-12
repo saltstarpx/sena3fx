@@ -43,14 +43,19 @@ class MetaApiBroker(BrokerBase):
             "auth-token": token,
             "Content-Type": "application/json",
         }
-        # Exness MT5銘柄名マッピング（末尾 m 付きの場合あり）
+        # Exness MT5銘柄名マッピング
+        # ※口座タイプによりサフィックスが異なる:
+        #   マイクロ口座: USDJPYm  / スタンダード口座: USDJPY / Raw Spread: USDJPY
+        # _resolve_symbol() で存在確認して自動判定する
         self._sym_map = {
             "USDJPY": "USDJPYm", "EURJPY": "EURJPYm", "GBPJPY": "GBPJPYm",
             "EURUSD": "EURUSDm", "GBPUSD": "GBPUSDm", "AUDUSD": "AUDUSDm",
             "NZDUSD": "NZDUSDm", "USDCAD": "USDCADm", "USDCHF": "USDCHFm",
             "XAUUSD": "XAUUSDm", "XAGUSD": "XAGUSDm",
             "SPX500": "SP500m",  "US30":   "US30m",   "NAS100": "USTEC",
+            "BTCUSD": "BTCUSDm",
         }
+        self._sym_verified = {}  # 検証済みシンボルキャッシュ
         # MetaApi timeframe マッピング
         self._tf_map = {
             "M1": "1m", "M5": "5m", "M15": "15m", "M30": "30m",
@@ -58,7 +63,36 @@ class MetaApiBroker(BrokerBase):
         }
 
     def _mt5_symbol(self, symbol: str) -> str:
-        return self._sym_map.get(symbol, symbol)
+        """MT5シンボル名を解決。サフィックス付き → なし の順で試行しキャッシュ。"""
+        if symbol in self._sym_verified:
+            return self._sym_verified[symbol]
+        # まずマップ値（m付き）を試す
+        mapped = self._sym_map.get(symbol, symbol)
+        # 価格取得で存在確認
+        try:
+            r = requests.get(
+                self._market_url(f"/symbols/{mapped}/current-price"),
+                headers=self.headers, timeout=5)
+            if r.status_code == 200:
+                self._sym_verified[symbol] = mapped
+                return mapped
+        except Exception:
+            pass
+        # m付きが失敗 → サフィックスなしで試行
+        bare = symbol
+        try:
+            r = requests.get(
+                self._market_url(f"/symbols/{bare}/current-price"),
+                headers=self.headers, timeout=5)
+            if r.status_code == 200:
+                self._sym_verified[symbol] = bare
+                logger.info(f"symbol resolved: {symbol} → {bare} (no suffix)")
+                return bare
+        except Exception:
+            pass
+        # どちらも失敗 → マップ値をデフォルト
+        self._sym_verified[symbol] = mapped
+        return mapped
 
     def _api_url(self, path: str) -> str:
         return f"{METAAPI_BASE}/users/current/accounts/{self.account_id}{path}"
@@ -128,12 +162,22 @@ class MetaApiBroker(BrokerBase):
             logger.error(f"MetaApi price {mt5_sym}: {e}")
         return 0.0
 
+    # 銘柄別 1lot あたりの通貨量
+    _LOT_SIZE = {
+        "XAUUSD": 100,      # 100 oz/lot
+        "XAGUSD": 5000,     # 5000 oz/lot
+        "SPX500": 1,        # 1 contract/lot
+        "US30":   1,        # 1 contract/lot
+        "NAS100": 1,        # 1 contract/lot
+    }
+    _DEFAULT_LOT_SIZE = 100_000   # FX: 100,000通貨/lot
+
     def place_order(self, symbol: str, units: int,
                     sl: float, tp: float) -> dict:
         mt5_sym = self._mt5_symbol(symbol)
         direction = "ORDER_TYPE_BUY" if units > 0 else "ORDER_TYPE_SELL"
-        # MetaApiではロット単位（1lot=100,000通貨）
-        volume = round(abs(units) / 100_000, 2)
+        lot_size = self._LOT_SIZE.get(symbol, self._DEFAULT_LOT_SIZE)
+        volume = round(abs(units) / lot_size, 2)
         if volume < 0.01:
             volume = 0.01
         try:
@@ -210,6 +254,30 @@ class MetaApiBroker(BrokerBase):
         except Exception as e:
             logger.error(f"MetaApi account: {e}")
         return self.equity_jpy
+
+    def get_open_positions(self) -> dict:
+        """MetaApi経由でMT5のオープンポジション一覧を取得。"""
+        try:
+            r = requests.get(
+                self._api_url("/positions"),
+                headers=self.headers,
+                timeout=10,
+            )
+            if r.status_code == 200:
+                positions = {}
+                for p in r.json():
+                    pid = str(p.get("id", ""))
+                    positions[pid] = {
+                        "symbol": p.get("symbol", ""),
+                        "type": p.get("type", "").lower().replace("position_type_", ""),
+                        "volume": float(p.get("volume", 0)),
+                        "openPrice": float(p.get("openPrice", 0)),
+                        "profit": float(p.get("profit", 0)),
+                    }
+                return positions
+        except Exception as e:
+            logger.error(f"MetaApi positions: {e}")
+        return {}
 
     @staticmethod
     def _tf_minutes(gran: str) -> int:

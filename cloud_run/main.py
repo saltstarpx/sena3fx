@@ -294,6 +294,8 @@ def notify_close(pair, dir_, ep, exit_price, exit_type, pnl, tf):
 # ── レポート ──────────────────────────────────────────────────
 def send_daily_report(open_positions, trades_df):
     n  = len(trades_df) if len(trades_df) > 0 else 0
+    if n > 0 and "pnl" in trades_df.columns:
+        trades_df["pnl"] = pd.to_numeric(trades_df["pnl"], errors="coerce")
     wr = (trades_df["pnl"] > 0).mean() * 100 if n > 0 else 0
     pf_pos = trades_df[trades_df["pnl"] > 0]["pnl"].sum() if n > 0 else 0
     pf_neg = abs(trades_df[trades_df["pnl"] < 0]["pnl"].sum()) if n > 0 else 1
@@ -454,35 +456,34 @@ def run_cycle():
     if len(trades_df) > 0 and "pnl" in trades_df.columns:
         trades_df["pnl"] = pd.to_numeric(trades_df["pnl"], errors="coerce")
 
-    # ── 1. 既存ポジション決済チェック（並列） ──────────────────
-    def check_close(tid_pos):
-        tid, pos = tid_pos
-        pair = pos["pair"]
-        cfg   = APPROVED_UNIVERSE.get(pair, {})
-        price = get_current_price(pair)
-        if price == 0.0: return None
-        ep, sl, tp, d = pos["ep"], pos["sl"], pos["tp"], pos["dir"]
-        if d == 1:
-            if price <= sl: return (tid, pos, "SL", price)
-            if price >= tp: return (tid, pos, "TP", price)
-        else:
-            if price >= sl: return (tid, pos, "SL", price)
-            if price <= tp: return (tid, pos, "TP", price)
-        return None
+    # ── 1. 既存ポジション決済チェック ──────────────────────────
+    # ブローカー側でSL/TPが約定するため、Cloud Run側では
+    # ポジションの消滅を検知して記録する（二重決済を防止）。
+    broker_positions = broker.get_open_positions()
+    closed_tids = []
 
-    with ThreadPoolExecutor(max_workers=5) as ex:
-        close_results = list(ex.map(check_close, list(open_positions.items())))
-
-    for result in close_results:
-        if result is None: continue
-        tid, pos, exit_type, price = result
+    for tid, pos in list(open_positions.items()):
         pair = pos["pair"]
-        cfg  = APPROVED_UNIVERSE.get(pair, {}); ps = cfg.get("pip_size", 0.0001)
+        cfg  = APPROVED_UNIVERSE.get(pair, {})
+        ps   = cfg.get("pip_size", 0.0001)
         ep   = pos["ep"]; d = pos["dir"]
-        res  = close_trade(tid)
-        xp   = res.get("exit_price", price)
-        pnl  = (xp - ep) * d / ps
-        notify_close(pair, d, ep, xp, exit_type, pnl, pos.get("tf", "?"))
+
+        if tid in broker_positions:
+            continue  # まだブローカー側にポジションが存在 → 未決済
+
+        # ブローカー側にポジションがない → SL/TPで約定済み
+        # 現在価格で損益を推定（実際の約定価格はブローカー側で確定済み）
+        price = get_current_price(pair)
+        if price == 0.0:
+            price = ep  # 価格取得失敗時はEPをフォールバック
+
+        # exit_type を SL/TP で判定（距離ベース）
+        sl_dist = abs(price - pos["sl"]) * d / ps
+        tp_dist = abs(price - pos["tp"]) * d / ps
+        exit_type = "TP" if tp_dist < sl_dist else "SL"
+        pnl = (price - ep) * d / ps
+
+        notify_close(pair, d, ep, price, exit_type, pnl, pos.get("tf", "?"))
         entry_time_str = pos.get("entry_time", "")
         try:
             entry_hour = datetime.fromisoformat(entry_time_str).hour
@@ -492,13 +493,16 @@ def run_cycle():
         gcs_append_csv("logs/paper_trades.csv", {
             "trade_id":  tid, "pair": pair, "dir": d, "tf": pos.get("tf", "?"),
             "ep": round(ep, 5), "sl": round(pos["sl"], 5), "tp": round(pos["tp"], 5),
-            "exit_price": round(xp, 5), "exit_type": exit_type,
+            "exit_price": round(price, 5), "exit_type": exit_type,
             "pnl": round(pnl, 1), "strategy": cfg.get("strategy", "?"),
             "entry_time": entry_time_str, "exit_time": now.isoformat(),
             "entry_hour": entry_hour, "risk_pips": risk_pips
         })
-        if tid in open_positions: del open_positions[tid]
-        logger.info(f"CLOSED: {pair} {exit_type} pnl={pnl:.1f}p")
+        closed_tids.append(tid)
+        logger.info(f"CLOSED: {pair} {exit_type} pnl={pnl:.1f}p (broker confirmed)")
+
+    for tid in closed_tids:
+        del open_positions[tid]
 
     # ── 2. 新規シグナルチェック（採用銘柄のみ・並列） ───────────
     if len(open_positions) < MAX_OPEN_POSITIONS:
