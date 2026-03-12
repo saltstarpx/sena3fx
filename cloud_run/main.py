@@ -22,9 +22,14 @@ main.py - Cloud Run 自動取引bot (YAGAMI改 採用銘柄集中版)
   XAUUSD: yagami_mtf_v79 (use_1d_trend=True, Goldロジック)
   GBPUSD: yagami_mtf_v79 (use_1d_trend=True, Goldロジック ← ADX+Streakより優位 PF1.86 vs 1.66)
 """
-import os, json, logging, requests, sys
+import os, json, logging, requests, sys, io
 import pandas as pd
 import numpy as np
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+plt.rcParams["font.family"] = "Noto Sans CJK JP"
 from datetime import datetime, timezone, timedelta
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from fastapi import FastAPI, Request
@@ -34,7 +39,7 @@ from google.cloud import storage
 BROKER_TYPE = os.environ.get("BROKER", "oanda").lower()
 
 DISCORD_WEBHOOK = os.environ.get("DISCORD_WEBHOOK",
-    "https://discord.com/api/webhooks/1329418335259197490/59-rzRn2tvHmvMetqMlJPtoo4CApLk3yGoBZoTfUexmXQzrUrTBI1X8sL7RbFfvoQG5k")
+    "https://discord.com/api/webhooks/1481623536182362255/i-Bo7MBagWWA7-4L93F9aORYeRUeBDuqSlIkvVcygyIy4s9LKcIfI1ng1XdR5mfkBZnd")
 GCS_BUCKET  = os.environ.get("GCS_BUCKET", "sena3fx-paper-trading")
 PROJECT_ID  = os.environ.get("GCP_PROJECT", "aiyagami")
 
@@ -101,6 +106,7 @@ APPROVED_UNIVERSE = {
 # ペア数削減: 全68→採用3銘柄のみ
 MAX_OPEN_POSITIONS = 3    # 採用銘柄数に合わせる（銘柄ごとに1ポジション上限）
 RR_RATIO           = 2.5
+HALF_R             = 1.0   # 半利確トリガー: 1R到達で50%決済 → SLをBEへ
 CANDLE_COUNT       = 200
 
 ACCOUNT_BALANCE_JPY = float(os.environ.get("EQUITY_JPY", "1000000"))  # .envフォールバック
@@ -273,6 +279,24 @@ def notify_entry(pair, dir_, ep, sl, tp, tf, slippage, units, risk_pct, tier):
     send_discord("", embeds=[embed])
 
 
+def notify_half_profit(pair, dir_, ep, half_price, pnl_pips, tf):
+    cfg = APPROVED_UNIVERSE.get(pair, {}); ps = cfg.get("pip_size", 0.0001)
+    embed = {
+        "title": f"🔶 半利確: {pair} {'LONG' if dir_>0 else 'SHORT'}",
+        "color": 0xff9800,
+        "fields": [
+            {"name": "EP",       "value": f"`{ep:.5f}`",              "inline": True},
+            {"name": "半利確値", "value": f"`{half_price:.5f}`",      "inline": True},
+            {"name": "1R損益",   "value": f"**`{pnl_pips:+.1f}pips`**", "inline": True},
+            {"name": "処理",     "value": "50%決済 → SLをBEへ移動",    "inline": False},
+            {"name": "足種",     "value": f"`{tf}`",                   "inline": True},
+            {"name": "時刻",     "value": datetime.now(timezone.utc).strftime("%m/%d %H:%M UTC"), "inline": True},
+        ],
+        "footer": {"text": f"YAGAMI改 | {cfg.get('note','?')} | 残50%はTP or BEで決済"}
+    }
+    send_discord("", embeds=[embed])
+
+
 def notify_close(pair, dir_, ep, exit_price, exit_type, pnl, tf):
     emoji = "✅" if exit_type == "TP" else "❌"
     cfg = APPROVED_UNIVERSE.get(pair, {}); ps = cfg.get("pip_size", 0.0001)
@@ -292,6 +316,118 @@ def notify_close(pair, dir_, ep, exit_price, exit_type, pnl, tf):
 
 
 # ── レポート ──────────────────────────────────────────────────
+def send_discord_with_image(content, embeds, image_buf, filename="chart.png"):
+    """Discord webhookに画像付きメッセージを送信"""
+    try:
+        payload = {"content": content}
+        if embeds:
+            # embed内でattachmentを参照
+            for e in embeds:
+                e["image"] = {"url": f"attachment://{filename}"}
+            payload["embeds"] = embeds
+        r = requests.post(
+            DISCORD_WEBHOOK,
+            data={"payload_json": json.dumps(payload)},
+            files={"file": (filename, image_buf, "image/png")},
+            timeout=15,
+        )
+        if r.status_code not in (200, 204):
+            logger.warning(f"Discord image: {r.status_code} {r.text[:100]}")
+    except Exception as e:
+        logger.warning(f"Discord image error: {e}")
+
+
+def generate_daily_chart(trades_df):
+    """累積PnLチャート + 日次PnL棒グラフを生成してバイトバッファで返す"""
+    if len(trades_df) == 0 or "pnl" not in trades_df.columns:
+        return None
+
+    df = trades_df.copy()
+    df["pnl"] = pd.to_numeric(df["pnl"], errors="coerce").fillna(0)
+
+    # exit_timeでソート
+    if "exit_time" in df.columns:
+        df["exit_dt"] = pd.to_datetime(df["exit_time"], errors="coerce")
+        df = df.dropna(subset=["exit_dt"]).sort_values("exit_dt")
+        df["date"] = df["exit_dt"].dt.date
+    else:
+        return None
+
+    if len(df) == 0:
+        return None
+
+    # 累積PnL
+    df["cumsum_pnl"] = df["pnl"].cumsum()
+
+    # 日次集計
+    daily = df.groupby("date").agg(
+        daily_pnl=("pnl", "sum"),
+        trades=("pnl", "count"),
+        wins=("pnl", lambda x: (x > 0).sum()),
+    ).reset_index()
+    daily["date"] = pd.to_datetime(daily["date"])
+    daily["cumsum_pnl"] = daily["daily_pnl"].cumsum()
+
+    # 30日ローリング勝率
+    daily["rolling_wr"] = daily["wins"].rolling(30, min_periods=5).sum() / \
+                          daily["trades"].rolling(30, min_periods=5).sum()
+
+    fig, axes = plt.subplots(2, 1, figsize=(10, 7), gridspec_kw={"height_ratios": [2, 1]})
+    fig.patch.set_facecolor("#1a1a2e")
+
+    # ── 上段: 累積PnL + 30日ローリング勝率 ──
+    ax1 = axes[0]
+    ax1.set_facecolor("#16213e")
+    ax1.plot(daily["date"], daily["cumsum_pnl"], color="#00ff88", linewidth=2, label="累積PnL")
+    ax1.fill_between(daily["date"], 0, daily["cumsum_pnl"],
+                     where=daily["cumsum_pnl"] >= 0, color="#00ff8830")
+    ax1.fill_between(daily["date"], 0, daily["cumsum_pnl"],
+                     where=daily["cumsum_pnl"] < 0, color="#ff444430")
+    ax1.axhline(y=0, color="#ffffff30", linewidth=0.5)
+    ax1.set_ylabel("累積PnL [pips]", color="white", fontsize=11)
+    ax1.tick_params(colors="white")
+    ax1.legend(loc="upper left", fontsize=9, facecolor="#16213e", edgecolor="gray",
+               labelcolor="white")
+
+    # 右軸: 30日ローリング勝率
+    ax1r = ax1.twinx()
+    ax1r.plot(daily["date"], daily["rolling_wr"] * 100, color="#ffd700", linewidth=1.2,
+              alpha=0.8, label="30日勝率")
+    ax1r.set_ylabel("勝率 [%]", color="#ffd700", fontsize=10)
+    ax1r.tick_params(colors="#ffd700")
+    ax1r.set_ylim(0, 100)
+    ax1r.legend(loc="upper right", fontsize=9, facecolor="#16213e", edgecolor="gray",
+                labelcolor="white")
+
+    ax1.xaxis.set_major_formatter(mdates.DateFormatter("%m/%d"))
+    ax1.xaxis.set_major_locator(mdates.AutoDateLocator())
+
+    # ── 下段: 日次PnL棒グラフ（直近30日） ──
+    ax2 = axes[1]
+    ax2.set_facecolor("#16213e")
+    recent = daily.tail(30)
+    colors = ["#00ff88" if v >= 0 else "#ff4444" for v in recent["daily_pnl"]]
+    ax2.bar(recent["date"], recent["daily_pnl"], color=colors, width=0.8, alpha=0.85)
+    ax2.axhline(y=0, color="#ffffff30", linewidth=0.5)
+    ax2.set_ylabel("日次PnL [pips]", color="white", fontsize=11)
+    ax2.set_xlabel("")
+    ax2.tick_params(colors="white")
+    ax2.xaxis.set_major_formatter(mdates.DateFormatter("%m/%d"))
+    ax2.xaxis.set_major_locator(mdates.AutoDateLocator())
+
+    # 直近30日PnLの合計を表示
+    r30_pnl = recent["daily_pnl"].sum()
+    ax2.set_title(f"直近30日 PnL: {r30_pnl:+.0f} pips", color="white", fontsize=10, loc="left")
+
+    plt.tight_layout()
+
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=120, bbox_inches="tight", facecolor=fig.get_facecolor())
+    plt.close(fig)
+    buf.seek(0)
+    return buf
+
+
 def send_daily_report(open_positions, trades_df):
     n  = len(trades_df) if len(trades_df) > 0 else 0
     if n > 0 and "pnl" in trades_df.columns:
@@ -300,6 +436,27 @@ def send_daily_report(open_positions, trades_df):
     pf_pos = trades_df[trades_df["pnl"] > 0]["pnl"].sum() if n > 0 else 0
     pf_neg = abs(trades_df[trades_df["pnl"] < 0]["pnl"].sum()) if n > 0 else 1
     pf = pf_pos / pf_neg if pf_neg > 0 else 0
+
+    # 日次PnL（今日）
+    today_pnl = 0
+    today_trades = 0
+    if n > 0 and "exit_time" in trades_df.columns:
+        now_jst = datetime.now(timezone.utc) + timedelta(hours=9)
+        today_str = now_jst.strftime("%Y-%m-%d")
+        today_mask = trades_df["exit_time"].astype(str).str.startswith(today_str)
+        if today_mask.any():
+            today_pnl = trades_df.loc[today_mask, "pnl"].sum()
+            today_trades = today_mask.sum()
+
+    # 直近30日
+    r30_pnl = 0
+    r30_wr = 0
+    if n > 0 and "exit_time" in trades_df.columns:
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+        r30 = trades_df[trades_df["exit_time"].astype(str) >= cutoff]
+        if len(r30) > 0:
+            r30_pnl = r30["pnl"].sum()
+            r30_wr = (r30["pnl"] > 0).mean() * 100
 
     # 銘柄別成績
     sym_stats = ""
@@ -330,21 +487,29 @@ def send_daily_report(open_positions, trades_df):
             pos_lines.append(f"  {pair} {'L' if p['dir']>0 else 'S'} EP:{p['ep']:.5f}")
     pos_str = "\n".join(pos_lines) or "  なし"
 
+    now_jst = datetime.now(timezone.utc) + timedelta(hours=9)
     embed = {
-        "title": "📊 朝9時レポート (YAGAMI改)",
-        "color": 0x1565c0,
+        "title": f"📊 YAGAMI改 日次レポート - {now_jst.strftime('%Y/%m/%d')}",
+        "color": 0x00ff88 if today_pnl >= 0 else 0xff4444,
         "fields": [
-            {"name": "累計トレード", "value": f"`{n}件`",         "inline": True},
+            {"name": "日次損益",     "value": f"`{today_pnl:+.1f} pips ({today_trades}件)`", "inline": True},
+            {"name": "直近30日",     "value": f"`{r30_pnl:+.1f} pips (WR:{r30_wr:.0f}%)`",   "inline": True},
+            {"name": "通算",         "value": f"`{trades_df['pnl'].sum() if n > 0 else 0:+.1f} pips ({n}件)`", "inline": True},
             {"name": "勝率",         "value": f"`{wr:.1f}%`",     "inline": True},
             {"name": "PF",           "value": f"`{pf:.2f}`",      "inline": True},
             {"name": "オープン",     "value": f"`{len(open_positions)}件`", "inline": True},
-            {"name": "監視銘柄",     "value": f"`{', '.join(APPROVED_UNIVERSE.keys())}`", "inline": True},
             {"name": "銘柄別成績",   "value": f"```{sym_stats or 'データなし'}```", "inline": False},
-            {"name": "ポジション（含み損益）", "value": f"```{pos_str}```", "inline": False},
+            {"name": "ポジション",   "value": f"```{pos_str}```", "inline": False},
         ],
-        "footer": {"text": f"YAGAMI改 | {datetime.now(timezone.utc).strftime('%Y/%m/%d %H:%M UTC')}"}
+        "footer": {"text": f"YAGAMI改 | {now_jst.strftime('%H:%M JST')}"}
     }
-    send_discord("", embeds=[embed])
+
+    # チャート生成・送信
+    chart_buf = generate_daily_chart(trades_df)
+    if chart_buf:
+        send_discord_with_image("", [embed], chart_buf, "yagami_daily.png")
+    else:
+        send_discord("", embeds=[embed])
 
 
 def log_weekly_feedback(trades_df):
@@ -456,10 +621,53 @@ def run_cycle():
     if len(trades_df) > 0 and "pnl" in trades_df.columns:
         trades_df["pnl"] = pd.to_numeric(trades_df["pnl"], errors="coerce")
 
-    # ── 1. 既存ポジション決済チェック ──────────────────────────
+    # ── 1a. 半利確チェック（1R到達で50%決済 → SLをBEへ） ─────
+    broker_positions = broker.get_open_positions()
+
+    for tid, pos in list(open_positions.items()):
+        if pos.get("half_done"):
+            continue  # 既に半利確済み
+        if tid not in broker_positions:
+            continue  # ブローカーに存在しない（決済済み）→ 1bで処理
+
+        pair = pos["pair"]
+        cfg  = APPROVED_UNIVERSE.get(pair, {})
+        ps   = cfg.get("pip_size", 0.0001)
+        ep   = pos["ep"]; d = pos["dir"]
+        risk = abs(ep - pos["sl"])
+        half_target = ep + d * risk * HALF_R  # 1R到達価格
+
+        price = get_current_price(pair)
+        if price <= 0:
+            continue
+
+        # 1R到達判定
+        reached = (d == 1 and price >= half_target) or \
+                  (d == -1 and price <= half_target)
+        if not reached:
+            continue
+
+        # ブローカーのポジションvolumeを取得して50%決済
+        bp = broker_positions[tid]
+        full_vol = bp.get("volume", 0)
+        half_vol = round(full_vol / 2, 2)
+        if half_vol < 0.01:
+            half_vol = 0.01
+
+        res = broker.partial_close(tid, half_vol)
+        if res:
+            # SLをBE（エントリー価格）に移動
+            broker.modify_position(tid, sl=ep, tp=pos["tp"])
+            pos["half_done"] = True
+            pos["sl"] = ep  # 内部状態もBEに更新
+            half_pnl = (half_target - ep) * d / ps
+            notify_half_profit(pair, d, ep, half_target, half_pnl, pos.get("tf", "?"))
+            logger.info(f"HALF PROFIT: {pair} {half_vol}lot closed at 1R, SL→BE")
+
+    # ── 1b. 既存ポジション決済チェック ──────────────────────────
     # ブローカー側でSL/TPが約定するため、Cloud Run側では
     # ポジションの消滅を検知して記録する（二重決済を防止）。
-    broker_positions = broker.get_open_positions()
+    # broker_positions は 1a で取得済み
     closed_tids = []
 
     for tid, pos in list(open_positions.items()):
@@ -575,6 +783,7 @@ def run_cycle():
                     "entry_time": now.isoformat(),
                     "fill_price": fp, "slippage": slip,
                     "signal_ep": latest["ep"],
+                    "half_done": False,
                 }
                 gcs_append_csv("logs/paper_signals.csv", {
                     "signal_time": latest["time"].isoformat(), "pair": pair,
@@ -723,3 +932,152 @@ async def notify_test_endpoint():
         "footer": {"text": f"YAGAMI改 | {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}"}
     }])
     return {"status": "ok", "universe": list(APPROVED_UNIVERSE.keys())}
+
+
+@app.post("/test_trade")
+async def test_trade_endpoint():
+    """テスト取引: 最小ロットでGBPUSD成行買い → 即決済。ブローカー接続・応答速度確認用。"""
+    import time
+    results = {"steps": []}
+
+    # 1. 価格取得テスト
+    t0 = time.time()
+    price = broker.get_current_price("GBPUSD")
+    t_price = round(time.time() - t0, 3)
+    results["steps"].append({"action": "get_price", "price": price, "time_sec": t_price})
+    if price <= 0:
+        results["error"] = "価格取得失敗"
+        return results
+
+    # 2. 最小ロット成行買い（SL/TPは広めに設定）
+    sl = round(price - 0.0100, 5)   # 100pips下
+    tp = round(price + 0.0100, 5)   # 100pips上
+    t0 = time.time()
+    order = broker.place_order("GBPUSD", 100, sl, tp)  # 100 units = 0.01 lot (最小)
+    t_order = round(time.time() - t0, 3)
+    results["steps"].append({"action": "place_order", "result": order, "time_sec": t_order})
+    if not order:
+        results["error"] = "注文失敗"
+        return results
+
+    trade_id = order.get("trade_id", "")
+
+    # 3. 即決済
+    t0 = time.time()
+    close = broker.close_trade(trade_id)
+    t_close = round(time.time() - t0, 3)
+    results["steps"].append({"action": "close_trade", "result": close, "time_sec": t_close})
+
+    results["total_time_sec"] = round(t_price + t_order + t_close, 3)
+    results["status"] = "ok" if close else "close_failed"
+
+    # Discord通知
+    send_discord("", embeds=[{
+        "title": "🧪 テスト取引完了",
+        "color": 0x00ff00 if close else 0xff0000,
+        "fields": [
+            {"name": "銘柄", "value": "GBPUSD (0.01 lot)", "inline": True},
+            {"name": "価格取得", "value": f"{price:.5f} ({t_price}s)", "inline": True},
+            {"name": "約定", "value": f"{order.get('fill_price', 'N/A')} ({t_order}s)", "inline": True},
+            {"name": "決済", "value": f"{close.get('exit_price', 'N/A')} ({t_close}s)", "inline": True},
+            {"name": "合計時間", "value": f"{results['total_time_sec']}秒", "inline": True},
+        ],
+    }])
+    return results
+
+
+@app.get("/debug_broker")
+async def debug_broker_endpoint():
+    """ブローカー接続デバッグ: Provisioning APIでアカウント情報+複数ドメインテスト"""
+    import requests as req
+    results = {}
+    aid = broker.account_id
+    token = broker.token
+
+    # 0. Provisioning APIでアカウント一覧取得（リージョン情報を含む）
+    prov_domains = [
+        "mt-provisioning-api-v1.agiliumtrade.agiliumtrade.ai",
+        "mt-provisioning-api-v1.vint-hill.agiliumtrade.agiliumtrade.ai",
+    ]
+    for pd_domain in prov_domains:
+        try:
+            r = req.get(
+                f"https://{pd_domain}/users/current/accounts",
+                headers={"auth-token": token}, timeout=10)
+            if r.status_code == 200:
+                accounts = r.json()
+                results["provisioning"] = {
+                    "domain": pd_domain,
+                    "account_count": len(accounts),
+                    "accounts": [
+                        {
+                            "id": a.get("_id", ""),
+                            "name": a.get("name", ""),
+                            "region": a.get("region", ""),
+                            "state": a.get("state", ""),
+                            "connectionStatus": a.get("connectionStatus", ""),
+                            "server": a.get("server", ""),
+                            "platform": a.get("platform", ""),
+                            "type": a.get("type", ""),
+                        }
+                        for a in accounts[:5]
+                    ],
+                }
+                break
+            else:
+                results[f"prov_{pd_domain}"] = {"status": r.status_code, "body": r.text[:200]}
+        except Exception as e:
+            err = str(e)
+            results[f"prov_{pd_domain}"] = {
+                "status": "DNS_FAIL" if "NameResolution" in err else "ERROR",
+                "error": err[:150],
+            }
+
+    # 1. 複数ドメインパターンで account-information テスト
+    domain_patterns = {
+        "vint-hill_single": "mt-client-api-v1.vint-hill.agiliumtrade.ai",
+        "vint-hill_double": "mt-client-api-v1.vint-hill.agiliumtrade.agiliumtrade.ai",
+        "no_region_double": "mt-client-api-v1.agiliumtrade.agiliumtrade.ai",
+        "new-york_single":  "mt-client-api-v1.new-york.agiliumtrade.ai",
+        "new-york_double":  "mt-client-api-v1.new-york.agiliumtrade.agiliumtrade.ai",
+    }
+    results["domain_tests"] = {}
+    for name, domain in domain_patterns.items():
+        url = f"https://{domain}/users/current/accounts/{aid}/account-information"
+        try:
+            r = req.get(url, headers=broker.headers, timeout=8)
+            if r.status_code == 200:
+                data = r.json()
+                results["domain_tests"][name] = {
+                    "status": "OK",
+                    "domain": domain,
+                    "balance": data.get("balance"),
+                    "equity": data.get("equity"),
+                    "currency": data.get("currency"),
+                    "leverage": data.get("leverage"),
+                }
+            else:
+                results["domain_tests"][name] = {
+                    "status": r.status_code,
+                    "domain": domain,
+                    "body": r.text[:150],
+                }
+        except Exception as e:
+            err = str(e)
+            if "NameResolution" in err:
+                results["domain_tests"][name] = {"status": "DNS_FAIL", "domain": domain}
+            elif "SSL" in err:
+                results["domain_tests"][name] = {"status": "SSL_ERROR", "domain": domain}
+            else:
+                results["domain_tests"][name] = {"status": "ERROR", "domain": domain, "error": err[:150]}
+
+    # 2. 現在の設定
+    from broker_metaapi import METAAPI_BASE, METAAPI_MARKET
+    results["current_config"] = {
+        "METAAPI_BASE": METAAPI_BASE,
+        "METAAPI_MARKET": METAAPI_MARKET,
+        "account_id": aid,
+        "token_first_20": token[:20] + "..." if len(token) > 20 else token,
+    }
+
+    return results

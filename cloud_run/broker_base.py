@@ -37,3 +37,12 @@ class BrokerBase(ABC):
     def get_open_positions(self) -> dict:
         """ブローカー上のオープンポジション一覧。
         {position_id: {"symbol": str, "type": "buy"|"sell", "profit": float}} or {}"""
+
+    def partial_close(self, trade_id: str, volume: float) -> dict:
+        """ポジションの一部（volume lot分）を決済する。半利確用。
+        デフォルトは全決済にフォールバック。"""
+        return self.close_trade(trade_id)
+
+    def modify_position(self, trade_id: str, sl: float, tp: float = None) -> bool:
+        """ポジションのSL/TPを変更する。デフォルトは未対応（False）。"""
+        return False

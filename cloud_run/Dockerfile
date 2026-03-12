@@ -2,6 +2,15 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
+# CA証明書 + 日本語フォント（matplotlib用）
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates fonts-noto-cjk && \
+    update-ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
+
+# matplotlibの日本語フォント設定
+ENV MPLCONFIGDIR=/tmp/matplotlib
+
 # 依存パッケージをインストール
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
@@ -12,6 +21,10 @@ COPY broker_base.py .
 COPY broker_oanda.py .
 COPY broker_metaapi.py .
 COPY strategies/ ./strategies/
+
+# SSL証明書パスを明示（requests/certifi用）
+ENV REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
+ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
 
 # Cloud Runのポート
 ENV PORT=8080
