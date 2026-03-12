@@ -6,8 +6,11 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# アプリコードをコピー
+# アプリコード + ブローカーモジュール
 COPY main.py .
+COPY broker_base.py .
+COPY broker_oanda.py .
+COPY broker_metaapi.py .
 COPY strategies/ ./strategies/
 
 # Cloud Runのポート
