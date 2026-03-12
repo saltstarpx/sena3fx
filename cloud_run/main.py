@@ -103,9 +103,27 @@ MAX_OPEN_POSITIONS = 3    # 採用銘柄数に合わせる（銘柄ごとに1ポ
 RR_RATIO           = 2.5
 CANDLE_COUNT       = 200
 
-ACCOUNT_BALANCE_JPY = 1_000_000   # 総資産 100万円
+ACCOUNT_BALANCE_JPY = float(os.environ.get("EQUITY_JPY", "1000000"))  # .envフォールバック
 MIN_UNITS           = 100
 MAX_UNITS           = 100_000
+
+_cached_equity = {"value": 0.0, "ts": 0.0}   # エクイティキャッシュ（5分間有効）
+
+def _get_equity_jpy() -> float:
+    """ブローカーからエクイティを動的取得。5分キャッシュ、失敗時は.env値。"""
+    import time
+    now = time.time()
+    if _cached_equity["value"] > 0 and (now - _cached_equity["ts"]) < 300:
+        return _cached_equity["value"]
+    try:
+        eq = broker.get_account_equity()
+        if eq > 0:
+            _cached_equity["value"] = eq
+            _cached_equity["ts"] = now
+            return eq
+    except Exception as e:
+        logger.warning(f"equity fetch failed: {e}")
+    return _cached_equity["value"] if _cached_equity["value"] > 0 else ACCOUNT_BALANCE_JPY
 
 
 # ── リスク計算 ────────────────────────────────────────────────
@@ -113,6 +131,7 @@ def calc_units_from_risk(ep: float, sl: float, pip_size: float,
                          pair: str, risk_pct: float) -> int:
     """
     指定risk_pct（銘柄別・動的）でロット数を計算する。
+    エクイティはブローカーから動的取得（JPY換算済み）。
 
     pip_value（1pip = 何円か）:
         JPYクロス (XXX_JPY): pip_size円/unit
@@ -128,7 +147,8 @@ def calc_units_from_risk(ep: float, sl: float, pip_size: float,
     else:
         pip_val_per_unit = pip_size * 150.0
 
-    risk_amount_jpy = ACCOUNT_BALANCE_JPY * risk_pct
+    equity_jpy = _get_equity_jpy()
+    risk_amount_jpy = equity_jpy * risk_pct
     units = int(risk_amount_jpy / (sl_pips * pip_val_per_unit))
     return max(MIN_UNITS, min(units, MAX_UNITS))
 

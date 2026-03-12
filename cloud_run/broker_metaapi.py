@@ -181,6 +181,7 @@ class MetaApiBroker(BrokerBase):
         return {}
 
     def get_account_equity(self) -> float:
+        """口座エクイティをJPY換算で返す。BTC/USD/JPY口座に対応。"""
         try:
             r = requests.get(
                 self._api_url("/account-information"),
@@ -190,10 +191,18 @@ class MetaApiBroker(BrokerBase):
             if r.status_code == 200:
                 data = r.json()
                 equity = float(data.get("equity", 0))
-                currency = data.get("currency", "USD")
+                currency = data.get("currency", "USD").upper()
+                logger.info(f"account equity: {equity} {currency}")
                 if currency == "JPY":
                     return equity
-                # USD→JPY変換（概算）
+                if currency == "BTC":
+                    # BTC→USD→JPY
+                    btcusd = self.get_current_price("BTCUSD")
+                    usdjpy = self.get_current_price("USDJPY")
+                    if btcusd > 0 and usdjpy > 0:
+                        return equity * btcusd * usdjpy
+                    return equity * 14_000_000  # フォールバック概算（BTC≈1400万円）
+                # USD/その他 → JPY
                 usdjpy = self.get_current_price("USDJPY")
                 if usdjpy > 0:
                     return equity * usdjpy
