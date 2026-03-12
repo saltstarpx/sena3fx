@@ -1069,7 +1069,33 @@ async def debug_broker_endpoint():
             else:
                 results["domain_tests"][name] = {"status": "ERROR", "domain": domain, "error": err[:150]}
 
-    # 2. 現在の設定
+    # 2. 同期状態・マーケットデータ確認（london リージョン使用）
+    base = "https://mt-client-api-v1.london.agiliumtrade.ai"
+    market = "https://mt-market-data-client-api-v1.london.agiliumtrade.ai"
+    hdrs = broker.headers
+
+    # 同期状態確認
+    try:
+        r = req.get(f"{base}/users/current/accounts/{aid}/synchronization-status",
+                     headers=hdrs, timeout=8)
+        results["sync_status"] = r.json() if r.status_code == 200 else {"code": r.status_code, "body": r.text[:200]}
+    except Exception as e:
+        results["sync_status"] = {"error": str(e)[:150]}
+
+    # 価格取得テスト（マーケットデータAPI）
+    for sym in ["USDJPYm", "USDJPY", "XAUUSDm", "XAUUSD"]:
+        try:
+            r = req.get(f"{market}/users/current/accounts/{aid}/symbols/{sym}/current-price",
+                         headers=hdrs, timeout=5)
+            if r.status_code == 200:
+                data = r.json()
+                results[f"price_{sym}"] = {"ask": data.get("ask"), "bid": data.get("bid")}
+            else:
+                results[f"price_{sym}"] = {"code": r.status_code, "body": r.text[:100]}
+        except Exception as e:
+            results[f"price_{sym}"] = {"error": str(e)[:80]}
+
+    # 3. 現在の設定
     from broker_metaapi import METAAPI_BASE, METAAPI_MARKET
     results["current_config"] = {
         "METAAPI_BASE": METAAPI_BASE,
