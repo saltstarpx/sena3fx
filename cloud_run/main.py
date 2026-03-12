@@ -988,16 +988,57 @@ async def test_trade_endpoint():
 
 @app.get("/debug_broker")
 async def debug_broker_endpoint():
-    """ブローカー接続デバッグ: 複数ドメインパターンで接続テスト"""
+    """ブローカー接続デバッグ: Provisioning APIでアカウント情報+複数ドメインテスト"""
     import requests as req
     results = {}
     aid = broker.account_id
+    token = broker.token
 
-    # 複数のドメインパターンを試行
+    # 0. Provisioning APIでアカウント一覧取得（リージョン情報を含む）
+    prov_domains = [
+        "mt-provisioning-api-v1.agiliumtrade.agiliumtrade.ai",
+        "mt-provisioning-api-v1.vint-hill.agiliumtrade.agiliumtrade.ai",
+    ]
+    for pd_domain in prov_domains:
+        try:
+            r = req.get(
+                f"https://{pd_domain}/users/current/accounts",
+                headers={"auth-token": token}, timeout=10)
+            if r.status_code == 200:
+                accounts = r.json()
+                results["provisioning"] = {
+                    "domain": pd_domain,
+                    "account_count": len(accounts),
+                    "accounts": [
+                        {
+                            "id": a.get("_id", ""),
+                            "name": a.get("name", ""),
+                            "region": a.get("region", ""),
+                            "state": a.get("state", ""),
+                            "connectionStatus": a.get("connectionStatus", ""),
+                            "server": a.get("server", ""),
+                            "platform": a.get("platform", ""),
+                            "type": a.get("type", ""),
+                        }
+                        for a in accounts[:5]
+                    ],
+                }
+                break
+            else:
+                results[f"prov_{pd_domain}"] = {"status": r.status_code, "body": r.text[:200]}
+        except Exception as e:
+            err = str(e)
+            results[f"prov_{pd_domain}"] = {
+                "status": "DNS_FAIL" if "NameResolution" in err else "ERROR",
+                "error": err[:150],
+            }
+
+    # 1. 複数ドメインパターンで account-information テスト
     domain_patterns = {
-        "no_region_double": "mt-client-api-v1.agiliumtrade.agiliumtrade.ai",
-        "vint-hill_double": "mt-client-api-v1.vint-hill.agiliumtrade.agiliumtrade.ai",
         "vint-hill_single": "mt-client-api-v1.vint-hill.agiliumtrade.ai",
+        "vint-hill_double": "mt-client-api-v1.vint-hill.agiliumtrade.agiliumtrade.ai",
+        "no_region_double": "mt-client-api-v1.agiliumtrade.agiliumtrade.ai",
+        "new-york_single":  "mt-client-api-v1.new-york.agiliumtrade.ai",
         "new-york_double":  "mt-client-api-v1.new-york.agiliumtrade.agiliumtrade.ai",
     }
     results["domain_tests"] = {}
@@ -1030,11 +1071,13 @@ async def debug_broker_endpoint():
             else:
                 results["domain_tests"][name] = {"status": "ERROR", "domain": domain, "error": err[:150]}
 
-    # 現在設定中のURL
+    # 2. 現在の設定
     from broker_metaapi import METAAPI_BASE, METAAPI_MARKET
     results["current_config"] = {
         "METAAPI_BASE": METAAPI_BASE,
         "METAAPI_MARKET": METAAPI_MARKET,
+        "account_id": aid,
+        "token_first_20": token[:20] + "..." if len(token) > 20 else token,
     }
 
     return results
