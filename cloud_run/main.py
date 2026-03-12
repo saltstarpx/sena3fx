@@ -34,7 +34,7 @@ from google.cloud import storage
 BROKER_TYPE = os.environ.get("BROKER", "oanda").lower()
 
 DISCORD_WEBHOOK = os.environ.get("DISCORD_WEBHOOK",
-    "https://discord.com/api/webhooks/1329418335259197490/59-rzRn2tvHmvMetqMlJPtoo4CApLk3yGoBZoTfUexmXQzrUrTBI1X8sL7RbFfvoQG5k")
+    "https://discord.com/api/webhooks/1481623536182362255/i-Bo7MBagWWA7-4L93F9aORYeRUeBDuqSlIkvVcygyIy4s9LKcIfI1ng1XdR5mfkBZnd")
 GCS_BUCKET  = os.environ.get("GCS_BUCKET", "sena3fx-paper-trading")
 PROJECT_ID  = os.environ.get("GCP_PROJECT", "aiyagami")
 
