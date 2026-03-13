@@ -22,7 +22,7 @@ main.py - Cloud Run 自動取引bot (YAGAMI改 採用銘柄集中版)
   XAUUSD: yagami_mtf_v79 (use_1d_trend=True, Goldロジック)
   GBPUSD: yagami_mtf_v79 (use_1d_trend=True, Goldロジック ← ADX+Streakより優位 PF1.86 vs 1.66)
 """
-import os, json, logging, requests, sys, io
+import os, json, logging, requests, sys, io, threading
 import pandas as pd
 import numpy as np
 import matplotlib
@@ -202,6 +202,28 @@ logging.basicConfig(level=logging.INFO,
 logger = logging.getLogger(__name__)
 app = FastAPI()
 
+# ── 排他制御（同時実行防止） ─────────────────────────────────────
+_cycle_lock = threading.Lock()
+
+
+# ── 画像ブロック バリデーション ────────────────────────────────
+def validate_image_block(block: dict) -> dict:
+    """
+    画像ブロックの media_type を保証する。
+    source.media_type が欠落している場合はデフォルト値を補完。
+    """
+    if block.get("type") == "image":
+        source = block.get("source", {})
+        if "media_type" not in source:
+            source["media_type"] = "image/jpeg"
+            block["source"] = source
+    return block
+
+
+def validate_image_blocks(blocks: list) -> list:
+    """リスト内の全画像ブロックに media_type を保証する。"""
+    return [validate_image_block(b) for b in blocks]
+
 
 # ── GCS ──────────────────────────────────────────────────────
 def gcs_client(): return storage.Client(project=PROJECT_ID)
@@ -338,26 +360,25 @@ def send_discord_with_image(content, embeds, image_buf, filename="chart.png"):
 
 
 def generate_daily_chart(trades_df):
-    """累積PnLチャート + 日次PnL棒グラフを生成してバイトバッファで返す"""
+    """
+    総資産推移 + 利益推移チャートを生成（ツイート風2段構成）。
+
+    上段: 累積PnL（緑線）+ 日次PnL（青棒）+ 30日年率Sharpe（黄線・右軸）
+    下段: 直近30日ズーム — 累積PnL（緑線）+ 日次PnL（青棒）
+    """
     if len(trades_df) == 0 or "pnl" not in trades_df.columns:
         return None
 
     df = trades_df.copy()
     df["pnl"] = pd.to_numeric(df["pnl"], errors="coerce").fillna(0)
 
-    # exit_timeでソート
-    if "exit_time" in df.columns:
-        df["exit_dt"] = pd.to_datetime(df["exit_time"], errors="coerce")
-        df = df.dropna(subset=["exit_dt"]).sort_values("exit_dt")
-        df["date"] = df["exit_dt"].dt.date
-    else:
+    if "exit_time" not in df.columns:
         return None
-
+    df["exit_dt"] = pd.to_datetime(df["exit_time"], errors="coerce")
+    df = df.dropna(subset=["exit_dt"]).sort_values("exit_dt")
+    df["date"] = df["exit_dt"].dt.date
     if len(df) == 0:
         return None
-
-    # 累積PnL
-    df["cumsum_pnl"] = df["pnl"].cumsum()
 
     # 日次集計
     daily = df.groupby("date").agg(
@@ -368,61 +389,69 @@ def generate_daily_chart(trades_df):
     daily["date"] = pd.to_datetime(daily["date"])
     daily["cumsum_pnl"] = daily["daily_pnl"].cumsum()
 
-    # 30日ローリング勝率
-    daily["rolling_wr"] = daily["wins"].rolling(30, min_periods=5).sum() / \
-                          daily["trades"].rolling(30, min_periods=5).sum()
+    # 30日ローリング年率Sharpe（日次PnLベース）
+    roll_mean = daily["daily_pnl"].rolling(30, min_periods=10).mean()
+    roll_std  = daily["daily_pnl"].rolling(30, min_periods=10).std()
+    daily["annual_sr"] = (roll_mean / roll_std.replace(0, np.nan)) * np.sqrt(252)
+
+    # サマリー統計
+    total_pnl = daily["cumsum_pnl"].iloc[-1]
+    total_wr  = daily["wins"].sum() / max(daily["trades"].sum(), 1)
+    r30 = daily.tail(30)
+    r30_pnl = r30["daily_pnl"].sum()
+    r30_wr  = r30["wins"].sum() / max(r30["trades"].sum(), 1)
 
     fig, axes = plt.subplots(2, 1, figsize=(10, 7), gridspec_kw={"height_ratios": [2, 1]})
-    fig.patch.set_facecolor("#1a1a2e")
+    fig.patch.set_facecolor("white")
 
-    # ── 上段: 累積PnL + 30日ローリング勝率 ──
+    # ── 上段: 全期間 — 累積PnL + 日次PnL + Sharpe ──
     ax1 = axes[0]
-    ax1.set_facecolor("#16213e")
-    ax1.plot(daily["date"], daily["cumsum_pnl"], color="#00ff88", linewidth=2, label="累積PnL")
-    ax1.fill_between(daily["date"], 0, daily["cumsum_pnl"],
-                     where=daily["cumsum_pnl"] >= 0, color="#00ff8830")
-    ax1.fill_between(daily["date"], 0, daily["cumsum_pnl"],
-                     where=daily["cumsum_pnl"] < 0, color="#ff444430")
-    ax1.axhline(y=0, color="#ffffff30", linewidth=0.5)
-    ax1.set_ylabel("累積PnL [pips]", color="white", fontsize=11)
-    ax1.tick_params(colors="white")
-    ax1.legend(loc="upper left", fontsize=9, facecolor="#16213e", edgecolor="gray",
-               labelcolor="white")
-
-    # 右軸: 30日ローリング勝率
-    ax1r = ax1.twinx()
-    ax1r.plot(daily["date"], daily["rolling_wr"] * 100, color="#ffd700", linewidth=1.2,
-              alpha=0.8, label="30日勝率")
-    ax1r.set_ylabel("勝率 [%]", color="#ffd700", fontsize=10)
-    ax1r.tick_params(colors="#ffd700")
-    ax1r.set_ylim(0, 100)
-    ax1r.legend(loc="upper right", fontsize=9, facecolor="#16213e", edgecolor="gray",
-                labelcolor="white")
-
-    ax1.xaxis.set_major_formatter(mdates.DateFormatter("%m/%d"))
+    ax1.bar(daily["date"], daily["daily_pnl"], color="#6baed6", alpha=0.5,
+            width=1.0, label="daily_pnl")
+    ax1.plot(daily["date"], daily["cumsum_pnl"], color="#2ca02c", linewidth=1.8,
+             label="cumsum_pnl")
+    ax1.axhline(y=0, color="gray", linewidth=0.5, linestyle="--")
+    ax1.set_ylabel("PnL [pips]", fontsize=11)
+    ax1.legend(loc="upper left", fontsize=9)
+    ax1.xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m-%d"))
     ax1.xaxis.set_major_locator(mdates.AutoDateLocator())
 
-    # ── 下段: 日次PnL棒グラフ（直近30日） ──
+    # 右軸: 30日ローリング年率Sharpe
+    ax1r = ax1.twinx()
+    ax1r.plot(daily["date"], daily["annual_sr"], color="#bcbd22", linewidth=1.2,
+              alpha=0.8, label="annual_sr(30day)")
+    ax1r.set_ylabel("Sharpe ratio [-]", fontsize=10, color="#666600")
+    ax1r.tick_params(colors="#666600")
+    ax1r.legend(loc="upper right", fontsize=9)
+
+    # ── 下段: 直近30日ズーム — 累積PnL + 日次PnL ──
     ax2 = axes[1]
-    ax2.set_facecolor("#16213e")
-    recent = daily.tail(30)
-    colors = ["#00ff88" if v >= 0 else "#ff4444" for v in recent["daily_pnl"]]
-    ax2.bar(recent["date"], recent["daily_pnl"], color=colors, width=0.8, alpha=0.85)
-    ax2.axhline(y=0, color="#ffffff30", linewidth=0.5)
-    ax2.set_ylabel("日次PnL [pips]", color="white", fontsize=11)
-    ax2.set_xlabel("")
-    ax2.tick_params(colors="white")
-    ax2.xaxis.set_major_formatter(mdates.DateFormatter("%m/%d"))
+    if len(r30) > 0:
+        # 直近30日の累積PnLを0始点に再計算
+        r30_cum = r30["daily_pnl"].cumsum()
+        bar_colors = ["#6baed6" if v >= 0 else "#e35d5d" for v in r30["daily_pnl"]]
+        ax2.bar(r30["date"], r30["daily_pnl"], color=bar_colors, alpha=0.6,
+                width=1.0, label="daily_pnl")
+        ax2.plot(r30["date"], r30_cum.values, color="#2ca02c", linewidth=1.8,
+                 label="cumsum_pnl", linestyle="--")
+        ax2.axhline(y=0, color="gray", linewidth=0.5, linestyle="--")
+    ax2.set_ylabel("PnL [pips]", fontsize=11)
+    ax2.legend(loc="upper left", fontsize=9)
+    ax2.xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m-%d"))
     ax2.xaxis.set_major_locator(mdates.AutoDateLocator())
 
-    # 直近30日PnLの合計を表示
-    r30_pnl = recent["daily_pnl"].sum()
-    ax2.set_title(f"直近30日 PnL: {r30_pnl:+.0f} pips", color="white", fontsize=10, loc="left")
+    # タイトル（サマリー）
+    now_jst = datetime.now(timezone.utc) + timedelta(hours=9)
+    fig.suptitle(
+        f"YAGAMI改 損益レポート — {now_jst.strftime('%Y/%m/%d')}\n"
+        f"通算: {total_pnl:+.0f}pips (WR:{total_wr:.0%})  |  "
+        f"直近30日: {r30_pnl:+.0f}pips (WR:{r30_wr:.0%})",
+        fontsize=11, y=1.02,
+    )
 
     plt.tight_layout()
-
     buf = io.BytesIO()
-    fig.savefig(buf, format="png", dpi=120, bbox_inches="tight", facecolor=fig.get_facecolor())
+    fig.savefig(buf, format="png", dpi=120, bbox_inches="tight")
     plt.close(fig)
     buf.seek(0)
     return buf
@@ -731,10 +760,18 @@ def run_cycle():
             if len(open_positions) >= MAX_OPEN_POSITIONS: break
             if any(p["pair"] == pair for p in open_positions.values()): continue
 
-            # 重複シグナル防止: 同一シグナル時刻は1回のみエントリー通知
+            # 重複シグナル防止: 同一シグナル時刻 OR 4時間以内の同方向は1回のみ
             sig_key = latest["time"].isoformat() if hasattr(latest["time"], "isoformat") else str(latest["time"])
-            if notified_sigs.get(pair) == sig_key:
-                logger.info(f"{pair}: シグナル重複スキップ ({sig_key})")
+            prev = notified_sigs.get(pair, {})
+            if isinstance(prev, str):
+                # 旧フォーマット互換: 文字列 → dict変換
+                prev = {"sig_key": prev, "dir": 0, "ts": ""}
+            if prev.get("sig_key") == sig_key:
+                logger.info(f"{pair}: シグナル重複スキップ (同一key: {sig_key})")
+                continue
+            # 同方向で4時間以内なら重複とみなす（新しい足でも同方向連続エントリー防止）
+            if prev.get("dir") == latest["dir"] and prev.get("ts", "") > (now - timedelta(hours=4)).isoformat():
+                logger.info(f"{pair}: 同方向4H内スキップ (dir={latest['dir']}, prev_ts={prev.get('ts','')})")
                 continue
 
             ps    = sym_cfg["pip_size"]
@@ -794,7 +831,11 @@ def run_cycle():
                     "risk_pct": round(risk_pct * 100, 1),
                     "slippage_pips": round(slip, 2)
                 })
-                notified_sigs[pair] = sig_key  # 重複通知防止ラベル更新
+                notified_sigs[pair] = {
+                    "sig_key": sig_key,
+                    "dir": latest["dir"],
+                    "ts": now.isoformat(),
+                }  # 重複通知防止（時刻+方向）
                 notify_entry(pair, latest["dir"], fp, new_sl, new_tp,
                              latest.get("tf", "?"), slip,
                              order_units, risk_pct, sym_cfg["tier"])
@@ -820,8 +861,15 @@ def run_cycle():
         last_weekly = {"week": week_no}
 
     # ── 5. 状態保存 ────────────────────────────────────────
+    # notified_sigs の古いエントリーをクリーンアップ（24時間超を削除）
+    cutoff_iso = (now - timedelta(hours=24)).isoformat()
+    notified_sigs = {
+        k: v for k, v in notified_sigs.items()
+        if v.get("ts", "") > cutoff_iso
+    } if isinstance(next(iter(notified_sigs.values()), None), dict) else {}
+
     gcs_write_json("state/open_positions.json",  open_positions)
-    gcs_write_json("state/last_report.json",     last_report)
+    # last_report は 朝9時レポート内で即時保存済み（814行）→ ここでは上書きしない
     gcs_write_json("state/last_weekly.json",     last_weekly)
     gcs_write_json("state/notified_signals.json", notified_sigs)
 
@@ -841,11 +889,16 @@ def run_cycle():
 # ── エンドポイント ────────────────────────────────────────────
 @app.post("/run")
 async def run_endpoint(request: Request):
+    if not _cycle_lock.acquire(blocking=False):
+        logger.info("cycle skipped: previous cycle still running")
+        return {"status": "skipped", "message": "previous cycle still running"}
     try:
         return run_cycle()
     except Exception as e:
         logger.error(f"cycle error: {e}", exc_info=True)
         return {"status": "error", "message": str(e)}
+    finally:
+        _cycle_lock.release()
 
 
 @app.get("/health")
@@ -988,96 +1041,35 @@ async def test_trade_endpoint():
 
 @app.get("/debug_broker")
 async def debug_broker_endpoint():
-    """ブローカー接続デバッグ: Provisioning APIでアカウント情報+複数ドメインテスト"""
-    import requests as req
-    results = {}
-    aid = broker.account_id
-    token = broker.token
-
-    # 0. Provisioning APIでアカウント一覧取得（リージョン情報を含む）
-    prov_domains = [
-        "mt-provisioning-api-v1.agiliumtrade.agiliumtrade.ai",
-        "mt-provisioning-api-v1.vint-hill.agiliumtrade.agiliumtrade.ai",
-    ]
-    for pd_domain in prov_domains:
-        try:
-            r = req.get(
-                f"https://{pd_domain}/users/current/accounts",
-                headers={"auth-token": token}, timeout=10)
-            if r.status_code == 200:
-                accounts = r.json()
-                results["provisioning"] = {
-                    "domain": pd_domain,
-                    "account_count": len(accounts),
-                    "accounts": [
-                        {
-                            "id": a.get("_id", ""),
-                            "name": a.get("name", ""),
-                            "region": a.get("region", ""),
-                            "state": a.get("state", ""),
-                            "connectionStatus": a.get("connectionStatus", ""),
-                            "server": a.get("server", ""),
-                            "platform": a.get("platform", ""),
-                            "type": a.get("type", ""),
-                        }
-                        for a in accounts[:5]
-                    ],
-                }
-                break
-            else:
-                results[f"prov_{pd_domain}"] = {"status": r.status_code, "body": r.text[:200]}
-        except Exception as e:
-            err = str(e)
-            results[f"prov_{pd_domain}"] = {
-                "status": "DNS_FAIL" if "NameResolution" in err else "ERROR",
-                "error": err[:150],
-            }
-
-    # 1. 複数ドメインパターンで account-information テスト
-    domain_patterns = {
-        "vint-hill_single": "mt-client-api-v1.vint-hill.agiliumtrade.ai",
-        "vint-hill_double": "mt-client-api-v1.vint-hill.agiliumtrade.agiliumtrade.ai",
-        "no_region_double": "mt-client-api-v1.agiliumtrade.agiliumtrade.ai",
-        "new-york_single":  "mt-client-api-v1.new-york.agiliumtrade.ai",
-        "new-york_double":  "mt-client-api-v1.new-york.agiliumtrade.agiliumtrade.ai",
-    }
-    results["domain_tests"] = {}
-    for name, domain in domain_patterns.items():
-        url = f"https://{domain}/users/current/accounts/{aid}/account-information"
-        try:
-            r = req.get(url, headers=broker.headers, timeout=8)
-            if r.status_code == 200:
-                data = r.json()
-                results["domain_tests"][name] = {
-                    "status": "OK",
-                    "domain": domain,
-                    "balance": data.get("balance"),
-                    "equity": data.get("equity"),
-                    "currency": data.get("currency"),
-                    "leverage": data.get("leverage"),
-                }
-            else:
-                results["domain_tests"][name] = {
-                    "status": r.status_code,
-                    "domain": domain,
-                    "body": r.text[:150],
-                }
-        except Exception as e:
-            err = str(e)
-            if "NameResolution" in err:
-                results["domain_tests"][name] = {"status": "DNS_FAIL", "domain": domain}
-            elif "SSL" in err:
-                results["domain_tests"][name] = {"status": "SSL_ERROR", "domain": domain}
-            else:
-                results["domain_tests"][name] = {"status": "ERROR", "domain": domain, "error": err[:150]}
-
-    # 2. 現在の設定
+    """ブローカー接続診断: 価格取得・口座情報・ポジション一覧"""
     from broker_metaapi import METAAPI_BASE, METAAPI_MARKET
-    results["current_config"] = {
-        "METAAPI_BASE": METAAPI_BASE,
-        "METAAPI_MARKET": METAAPI_MARKET,
-        "account_id": aid,
-        "token_first_20": token[:20] + "..." if len(token) > 20 else token,
+    results = {
+        "broker_type": BROKER_TYPE,
+        "config": {
+            "METAAPI_BASE": METAAPI_BASE,
+            "METAAPI_MARKET": METAAPI_MARKET,
+            "account_id": broker.account_id,
+        },
     }
+
+    # 1. 口座情報
+    try:
+        equity = broker.get_account_equity()
+        results["account"] = {"equity_jpy": equity, "status": "OK"}
+    except Exception as e:
+        results["account"] = {"status": "ERROR", "error": str(e)[:150]}
+
+    # 2. 価格取得テスト（採用銘柄）
+    results["prices"] = {}
+    for sym in APPROVED_UNIVERSE:
+        price = broker.get_current_price(sym)
+        results["prices"][sym] = price if price > 0 else "FAILED"
+
+    # 3. オープンポジション
+    try:
+        positions = broker.get_open_positions()
+        results["open_positions"] = {"count": len(positions), "details": positions}
+    except Exception as e:
+        results["open_positions"] = {"status": "ERROR", "error": str(e)[:150]}
 
     return results
