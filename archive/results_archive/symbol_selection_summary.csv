@@ -1,8 +1,0 @@
-﻿symbol,n,win_rate,pf,pf_jpy,total_pips,mdd_pips,monthly_sharpe,kelly,plus_months,max_consec_loss,avg_win_pips,avg_loss_pips,spread_pips,mdd_pct,pass_pf,pass_winrate,pass_mdd,pass_kelly,pass_months,pass_count,all_pass,status
-AUDUSD,1151,69.6,2.33,2.45,5234.3,215.0,8.81,0.397,100.0,7,11.5,11.3,0.0,2.4,False,True,True,False,True,3,False,FAIL(3/5)
-EURUSD,1233,69.3,2.28,2.44,7559.6,215.0,7.03,0.389,100.0,7,15.8,15.6,0.0,2.6,False,True,True,False,True,3,False,FAIL(3/5)
-GBPUSD,1203,72.0,2.61,2.55,9065.8,182.6,7.82,0.444,100.0,6,17.0,16.7,0.1,2.2,False,True,True,False,True,3,False,FAIL(3/5)
-NAS100,901,69.3,2.13,1.85,21099.1,2071.3,4.53,0.367,92.9,8,63.8,67.5,8.3,8.4,False,True,True,False,True,3,False,FAIL(3/5)
-SPX500,1020,72.6,2.96,2.51,68975.0,2818.7,6.73,0.481,100.0,6,140.6,126.2,0.1,2.6,False,True,True,True,True,4,False,FAIL(4/5)
-US30,1113,71.1,2.49,2.33,39554.3,1366.3,4.22,0.425,92.9,5,83.6,82.5,0.8,3.6,False,True,True,False,True,3,False,FAIL(3/5)
-XAUUSD,728,77.7,4.57,4.06,617395.2,9801.3,5.92,0.607,100.0,5,1396.0,1066.4,5.2,1.4,True,True,True,True,True,5,True,PASS
