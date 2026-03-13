@@ -67,13 +67,38 @@ KMID + KLOW フィルターを核に、銘柄別ロジック（Logic-A/B/C）で
 | パターン成立 | 二番底/二番天井の安値/高値が ATR×0.3 以内 |
 | **KMID** | 直前4H足の実体方向がエントリー方向と一致 |
 | **KLOW** | 直前4H足の下ヒゲ比率 < 0.15%（`< 0.0015`） |
-| リスク幅 | SLまでの距離が ATR×2（1H基準）以内 |
+| **EMA距離** | 4H終値とEMA20の距離 ≥ ATR×1.0 |
+| **パターン** | 1H足 二番底/二番天井（ATR×0.30以内） |
+| **SL** | パターンの安値/高値 ± ATR×0.15 |
+| **TP** | リスク幅 × 2.5倍（RR=2.5） |
+| **半利確** | 1R到達でポジション50%決済 → SLをBE移動 |
 
-### SL/TP設定
+---
 
-- **SL**: 二番底/天井の安値・高値から ATR×0.15 外側
-- **TP**: SLリスク幅 × 2.5倍（RR=2.5）
-- **半利確**: 1R到達でポジション半分決済 → SLをBEへ移動
+## 3つのロジック
+
+### Logic-A: GOLDYAGAMI（Goldロジック）
+
+> **「引き算の美学 + 足し算の効果」**で生まれた現行主力ロジック。
+> ADXやセッションフィルターを除去（引き算）し、日足EMA20アライメントとE2エントリーを追加（足し算）。
+> 定量・計量分析で過学習なしを確認済み（IS-0.52 / OOS+0.13）。
+
+| 項目 | 設定 |
+|------|------|
+| トレンドフィルター追加 | **日足EMA20方向一致**（クローズ > 日足EMA20） |
+| エントリー方式 | **E2方式**: スパイク足除外（レンジ > ATR×2.0をスキップ）、足確定後2〜3分以内 |
+| ADX | 不使用（過学習リスクで除去） |
+| セッション | 不使用（過学習リスクで除去） |
+| **採用銘柄** | **GBPUSD / USDCAD / NZDUSD / XAUUSD** |
+
+**OOS成績（2025/03〜2026/02）**
+
+| 銘柄 | PF | Sharpe | MDD | 月次+ |
+|:---:|:---:|:---:|:---:|:---:|
+| GBPUSD | 1.86 | 7.12 | 18.3% | 9/9 |
+| USDCAD | 2.02 | 5.62 | 22.7% | 8/9 |
+| NZDUSD | 1.98 | 5.45 | 20.5% | 8/9 |
+| XAUUSD | 3.10 | 3.42 | 8.7% | 9/9 |
 
 ---
 
@@ -118,6 +143,13 @@ sena3fx/
 │       ├── yagami_mtf_v77.py        # Logic-C 本番用
 │       └── archive/
 │
+├── scripts/                         # バックテスト・分析スクリプト
+│   ├── backtest_logic_comparison.py # ★ Logic-A/B/C 比較バックテスト
+│   ├── backtest_final_optimized.py  # ★ 最終採用銘柄確定バックテスト
+│   ├── backtest_portfolio_integration.py  # ★ ポートフォリオ統合分析
+│   ├── fetch_*.py                   # データ取得（OANDA API）
+│   └── archive/                     # 旧バックテストスクリプト全件
+│
 ├── data/                            # バックテスト用CSVデータ
 │   ├── {symbol}_is_*.csv            # IS期間（2024/7〜2025/2）
 │   ├── {symbol}_oos_*.csv           # OOS期間（2025/3〜2026/2）
@@ -147,7 +179,7 @@ sena3fx/
 
 ---
 
-## Cloud Run エンドポイント
+## セットアップ
 
 | エンドポイント | メソッド | 説明 |
 |---|---|---|
@@ -157,12 +189,20 @@ sena3fx/
 | `/status` | GET | 現在のオープンポジション一覧 |
 | `/weekly_feedback` | POST | 週次フィードバック記録 |
 
----
+```bash
+cd /home/user/sena3fx
+pip install -r requirements.txt
+python scripts/backtest_final_optimized.py
+```
 
-## セットアップ
+### 本番（Exness MT5 VPS）
 
 ```bash
+cd production/
+cp .env.example .env
+# .env にMT5認証情報・Discord URLを記載
 pip install -r requirements.txt
+python mt5_bot.py
 ```
 
 ### 環境変数（deploy/.env）
@@ -183,6 +223,13 @@ GCP_PROJECT=aiyagami
 cd ~/sena3fx
 bash deploy/deploy_gcp.sh
 ```
+
+| エンドポイント | メソッド | 説明 |
+|---|---|---|
+| `/run` | POST | 1サイクル実行（シグナル判定・注文） |
+| `/report` | GET | 定時レポートをDiscordへ送信 |
+| `/health` | GET | ヘルスチェック |
+| `/status` | GET | 現在のオープンポジション一覧 |
 
 ---
 
