@@ -1,18 +1,16 @@
 """
-main.py - Cloud Run 自動取引bot (YAGAMI改 Phase2: 全7銘柄本番再現性確認)
+main.py - Cloud Run 自動取引bot (YAGAMI改 Phase2: 全5銘柄本番再現性確認)
 =================================================================
 【ブローカー切り替え】
   BROKER=oanda   → OANDA v20 REST API（ペーパートレード）
   BROKER=exness  → MetaApi経由 Exness MT5（本番取引、Windows不要）
 
-【Phase2: 全7銘柄 1.0% 標準運用】
+【Phase2: 全5銘柄 1.0% 標準運用】
   USDJPY: v77       / 1.0%  (OOS PF=4.96)
-  XAUUSD: v79A      / 1.0%  (OOS PF=2.16, Goldロジック)
-  EURUSD: v79A      / 1.0%  (OOS PF=1.73, Goldロジック)
-  GBPUSD: v79A      / 1.0%  (OOS PF=1.86, Goldロジック)
-  AUDUSD: v79A      / 1.0%  (OOS PF=1.98, Goldロジック)
-  EURJPY: v77       / 1.0%  (クロス円)
-  GBPJPY: v77       / 1.0%  (クロス円)
+  XAUUSD: v79A      / 1.0%  (OOS PF=2.16, 日足EMA20方向一致)
+  EURUSD: v79BC     / 1.0%  (OOS PF=1.87, ADX≥20+Streak≥4)
+  GBPUSD: v79BC     / 1.0%  (OOS PF=2.17, ADX≥20+Streak≥4)
+  AUDUSD: v79BC     / 1.0%  (OOS PF=1.90, ADX≥20+Streak≥4)
 
 【動的リスク調整】
   直近30トレードの勝率に基づいて乗数を自動調整:
@@ -22,8 +20,9 @@ main.py - Cloud Run 自動取引bot (YAGAMI改 Phase2: 全7銘柄本番再現性
   最大 5% / 最小 0.5% の安全上限
 
 【戦略バリアント】
-  USDJPY/EURJPY/GBPJPY: yagami_mtf_v77 (KMID+KLOWフィルター)
-  XAUUSD/EURUSD/GBPUSD/AUDUSD: yagami_mtf_v79 (use_1d_trend=True, Goldロジック)
+  USDJPY: yagami_mtf_v77 (KMID+KLOWフィルター)
+  XAUUSD: yagami_mtf_v79 (use_1d_trend=True, v79A: 日足EMA20方向一致)
+  EURUSD/GBPUSD/AUDUSD: yagami_mtf_v79 (streak_min=4, v79BC: ADX≥20+Streak≥4)
 """
 import os, json, logging, requests, sys, io, threading
 import pandas as pd
@@ -90,72 +89,48 @@ APPROVED_UNIVERSE = {
         "base_risk_pct": 0.01,                    # Phase2: 1.0%統一
         "oos_pf":        2.16,
         "kelly":         0.45,
-        "note":          "METALS Goldロジック",
+        "note":          "METALS v79A",
     },
     "EURUSD": {
         "oanda":         "EUR_USD",
         "pip_size":      0.0001,
         "spread_pips":   0.0,
         "strategy":      "v79",
-        "strategy_params": {"use_1d_trend": True}, # Goldロジック
+        "strategy_params": {"adx_min": 20, "streak_min": 4},  # v79BC
         "tier":          1,
         "base_risk_pct": 0.01,                    # Phase2: 1.0%統一
-        "oos_pf":        1.73,
+        "oos_pf":        1.87,
         "kelly":         0.25,
-        "note":          "FX Goldロジック",
+        "note":          "FX v79BC",
     },
     "GBPUSD": {
         "oanda":         "GBP_USD",
         "pip_size":      0.0001,
         "spread_pips":   0.1,
         "strategy":      "v79",
-        "strategy_params": {"use_1d_trend": True}, # Goldロジック
+        "strategy_params": {"adx_min": 20, "streak_min": 4},  # v79BC
         "tier":          1,
         "base_risk_pct": 0.01,                    # Phase2: 1.0%統一
-        "oos_pf":        1.86,
+        "oos_pf":        2.17,
         "kelly":         0.30,
-        "note":          "FX Goldロジック",
+        "note":          "FX v79BC",
     },
     "AUDUSD": {
         "oanda":         "AUD_USD",
         "pip_size":      0.0001,
         "spread_pips":   0.0,
         "strategy":      "v79",
-        "strategy_params": {"use_1d_trend": True}, # Goldロジック
+        "strategy_params": {"adx_min": 20, "streak_min": 4},  # v79BC
         "tier":          1,
         "base_risk_pct": 0.01,                    # Phase2: 1.0%統一
-        "oos_pf":        1.98,
+        "oos_pf":        1.90,
         "kelly":         0.35,
-        "note":          "FX Goldロジック",
-    },
-    "EURJPY": {
-        "oanda":         "EUR_JPY",
-        "pip_size":      0.01,
-        "spread_pips":   2.4,
-        "strategy":      "v77",
-        "strategy_params": {},                    # v77（クロス円）
-        "tier":          1,
-        "base_risk_pct": 0.01,                    # Phase2: 1.0%統一
-        "oos_pf":        0.0,
-        "kelly":         0.0,
-        "note":          "クロス円 v77 再現性確認",
-    },
-    "GBPJPY": {
-        "oanda":         "GBP_JPY",
-        "pip_size":      0.01,
-        "spread_pips":   2.2,
-        "strategy":      "v77",
-        "strategy_params": {},                    # v77（クロス円）
-        "tier":          1,
-        "base_risk_pct": 0.01,                    # Phase2: 1.0%統一
-        "oos_pf":        0.0,
-        "kelly":         0.0,
-        "note":          "クロス円 v77 再現性確認",
+        "note":          "FX v79BC",
     },
 }
 
-# Phase2: 全7銘柄（銘柄ごとに1ポジション上限）
-MAX_OPEN_POSITIONS = 7
+# Phase2: 全5銘柄（銘柄ごとに1ポジション上限）
+MAX_OPEN_POSITIONS = 5
 RR_RATIO           = 2.5
 HALF_R             = 1.0   # 半利確トリガー: 1R到達で50%決済 → SLをBEへ
 CANDLE_COUNT       = 200
