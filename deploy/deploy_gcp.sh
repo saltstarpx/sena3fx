@@ -73,7 +73,7 @@ gcloud run deploy "${SERVICE_NAME}" \
     --set-env-vars "${ENV_VARS}" \
     --memory 512Mi \
     --timeout 60 \
-    --min-instances 0 \
+    --min-instances 1 \
     --max-instances 1
 
 SERVICE_URL=$(gcloud run services describe "${SERVICE_NAME}" \
