@@ -126,60 +126,56 @@ sena3fx/
 ├── CLAUDE.md                        # AI開発ガイド（Claude Code用）
 ├── TRADING_MEMO.md                  # 本番運用ルール書
 │
-├── strategies/
-│   ├── current/
-│   │   ├── yagami_mtf_v79.py        # Logic-A (GOLD) / Logic-B (ADX+Streak)
-│   │   └── yagami_mtf_v78.py        # 参照用（過学習チェック済）
-│   └── archive/                     # v1〜v77（履歴）
-│
-├── cloud_run/                       # Cloud Run 本番コード
-│   ├── main.py                      # FastAPI エンドポイント（全7銘柄）
-│   ├── broker_metaapi.py            # Exness MT5 ブローカー（MetaApi経由）
-│   ├── broker_oanda.py              # OANDA ブローカー（ペーパー用）
+├── cloud_run/                       # ★ Cloud Run 本番コード
+│   ├── main.py                      #   FastAPI エンドポイント（Phase2 全7銘柄）
+│   ├── broker_metaapi.py            #   Exness MT5 ブローカー（MetaApi経由）
+│   ├── broker_base.py               #   抽象ブローカーインターフェース
 │   ├── Dockerfile
 │   ├── requirements.txt
 │   └── strategies/
-│       ├── yagami_mtf_v79.py        # Logic-A / Logic-B 本番用
-│       ├── yagami_mtf_v77.py        # Logic-C 本番用
-│       └── archive/
+│       ├── yagami_mtf_v79.py        #   Logic-A / Logic-B 本番用
+│       ├── yagami_mtf_v77.py        #   Logic-C 本番用（USDJPY/EURUSD）
+│       └── yagami_mtf_v78.py        #   参照用（過学習チェック済）
 │
-├── scripts/                         # バックテスト・分析スクリプト
-│   ├── backtest_logic_comparison.py # ★ Logic-A/B/C 比較バックテスト
-│   ├── backtest_final_optimized.py  # ★ 最終採用銘柄確定バックテスト
-│   ├── backtest_portfolio_integration.py  # ★ ポートフォリオ統合分析
-│   ├── fetch_*.py                   # データ取得（OANDA API）
-│   └── archive/                     # 旧バックテストスクリプト全件
+├── strategies/
+│   └── current/
+│       ├── yagami_mtf_v79.py        # cloud_run/strategies/ と同期必須
+│       └── yagami_mtf_v78.py        # 参照用
+│
+├── utils/
+│   └── risk_manager.py              # AdaptiveRiskManager / SYMBOL_CONFIG
+│
+├── scripts/                         # バックテスト・データ取得
+│   ├── backtest_portfolio_integration.py  # ★ ポートフォリオ統合BT
+│   ├── backtest_logic_comparison.py       # ★ Logic-A/B/C 比較BT
+│   ├── backtest_all_symbols.py
+│   ├── backtest_final_optimized.py
+│   ├── fetch_*.py                   # データ取得（OANDA API、13本）
+│   ├── generate_htf_from_1m.py
+│   └── main_loop.py
+│
+├── deploy/
+│   ├── deploy_gcp.sh               # GCPデプロイ（min-instances=1）
+│   └── .env.example
 │
 ├── data/                            # バックテスト用CSVデータ
 │   ├── {symbol}_is_*.csv            # IS期間（2024/7〜2025/2）
 │   ├── {symbol}_oos_*.csv           # OOS期間（2025/3〜2026/2）
 │   └── ohlc/                        # 全期間1ファイル（大文字銘柄名）
 │
-├── scripts/                         # アクティブスクリプト
-│   ├── backtest_portfolio_integration.py  # ポートフォリオ統合バックテスト
-│   ├── fetch_*.py                   # データ取得
-│   └── archive/                     # 旧スクリプト
-│
-├── utils/
-│   ├── risk_manager.py              # AdaptiveRiskManager / SYMBOL_CONFIG
-│   └── position_manager.py
-│
-├── production/                      # Exness本番セットアップ
-│   ├── mt5_bot.py                   # Windows MT5直接接続版
-│   └── SETUP.md
-│
-├── trade_logs/                      # トレード実績ログ
 ├── results/                         # バックテスト結果（PNG・CSV）
-├── docs/
-│   ├── LIVE_SETUP_GUIDE.md          # Exness セットアップガイド
-│   ├── strategy_development_log_v60_v76.md
-│   └── learning_materials/          # やがみ氏PDF教材
-└── tests/
+├── trade_logs/                      # トレード実績ログ
+├── reports/                         # PDCAレポート
+├── docs/                            # ドキュメント・やがみ氏PDF教材
+├── tests/                           # テスト
+└── tools/                           # Windows用batファイル
 ```
+
+※ 旧ファイル（v1〜v77戦略、旧スクリプト、lib/、live/等）は全て削除済み。git履歴から復元可能。
 
 ---
 
-## セットアップ
+## Cloud Run エンドポイント
 
 | エンドポイント | メソッド | 説明 |
 |---|---|---|
@@ -189,21 +185,9 @@ sena3fx/
 | `/status` | GET | 現在のオープンポジション一覧 |
 | `/weekly_feedback` | POST | 週次フィードバック記録 |
 
-```bash
-cd /home/user/sena3fx
-pip install -r requirements.txt
-python scripts/backtest_final_optimized.py
-```
+---
 
-### 本番（Exness MT5 VPS）
-
-```bash
-cd production/
-cp .env.example .env
-# .env にMT5認証情報・Discord URLを記載
-pip install -r requirements.txt
-python mt5_bot.py
-```
+## セットアップ
 
 ### 環境変数（deploy/.env）
 
@@ -224,13 +208,6 @@ cd ~/sena3fx
 bash deploy/deploy_gcp.sh
 ```
 
-| エンドポイント | メソッド | 説明 |
-|---|---|---|
-| `/run` | POST | 1サイクル実行（シグナル判定・注文） |
-| `/report` | GET | 定時レポートをDiscordへ送信 |
-| `/health` | GET | ヘルスチェック |
-| `/status` | GET | 現在のオープンポジション一覧 |
-
 ---
 
 ## 注意事項
@@ -238,5 +215,4 @@ bash deploy/deploy_gcp.sh
 - `gcp-key.json` / `deploy/.env` は `.gitignore` 対象。コミット禁止
 - `strategies/current/` と `cloud_run/strategies/` は常に同一内容を保つこと
 - USDJPYに1分足データは存在しない（15m/1h/4hのみ）
-- 旧バックテストスクリプトは `scripts/archive/`、旧戦略は `strategies/archive/` を参照
 - 詳細な運用ルールは `TRADING_MEMO.md` を参照
