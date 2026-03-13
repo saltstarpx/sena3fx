@@ -1,9 +1,0 @@
-strategy,pf,wr_pct,mdd_pct,n_trades,rr,total_return_pct,passed
-Yagami_A_original,0.956,37.5,18.0,56,1.59,-2.52,False
-Yagami_B_original,0.82,35.4,37.4,223,1.49,-30.32,False
-Yagami_C4ext_A,0.921,35.7,29.2,126,1.66,-10.72,False
-Yagami_C4ext_B,0.992,38.4,32.0,354,1.59,-2.1,False
-Yagami_NoC4_B,1.004,40.3,29.3,360,1.49,1.06,False
-Yagami_NoC4_A,0.828,37.3,32.0,158,1.39,-21.98,False
-Yagami_C4ext_B_USDJPY,0.913,37.9,3.4,285,1.5,-1.29,False
-Yagami_C4ext_B_EURUSD,0.994,37.4,0.0,281,1.67,-0.0,False

@@ -1,4 +1,0 @@
-pair,spread_pips,trades,win_rate,pf,total_pnl_pips,max_dd_pips,sharpe,kelly,plus_months,total_months,max_consec_loss,p_value
-USDJPY,0.4,1289,0.6843,1.946,13137.2,523.0,6.23,0.3326,11,12,9,0.000000
-EURJPY,0.7,1630,0.6663,1.74,13999.4,721.1,5.301,0.2834,12,14,7,0.000000
-GBPJPY,0.9,1584,0.6383,1.414,10336.9,729.1,4.899,0.187,12,14,7,0.000000
