@@ -1,14 +1,18 @@
 """
-main.py - Cloud Run 自動取引bot (YAGAMI改 採用銘柄集中版)
+main.py - Cloud Run 自動取引bot (YAGAMI改 Phase2: 全7銘柄本番再現性確認)
 =================================================================
 【ブローカー切り替え】
   BROKER=oanda   → OANDA v20 REST API（ペーパートレード）
   BROKER=exness  → MetaApi経由 Exness MT5（本番取引、Windows不要）
 
-【APPROVED_UNIVERSE (採用銘柄)】
-  USDJPY: v77       / Tier1 / base 3%  (OOS PF=4.96, Kelly=0.608)
-  XAUUSD: v79A      / Tier2 / base 2%  (OOS PF=2.16, Goldロジック=日足EMA20)
-  GBPUSD: v79A      / Tier3 / base 1%  (OOS PF=1.86, Goldロジック=日足EMA20, FXカテゴリ最高)
+【Phase2: 全7銘柄 1.0% 標準運用】
+  USDJPY: v77       / 1.0%  (OOS PF=4.96)
+  XAUUSD: v79A      / 1.0%  (OOS PF=2.16, Goldロジック)
+  EURUSD: v79A      / 1.0%  (OOS PF=1.73, Goldロジック)
+  GBPUSD: v79A      / 1.0%  (OOS PF=1.86, Goldロジック)
+  AUDUSD: v79A      / 1.0%  (OOS PF=1.98, Goldロジック)
+  EURJPY: v77       / 1.0%  (クロス円)
+  GBPJPY: v77       / 1.0%  (クロス円)
 
 【動的リスク調整】
   直近30トレードの勝率に基づいて乗数を自動調整:
@@ -18,9 +22,8 @@ main.py - Cloud Run 自動取引bot (YAGAMI改 採用銘柄集中版)
   最大 5% / 最小 0.5% の安全上限
 
 【戦略バリアント】
-  USDJPY: yagami_mtf_v77 (KMID+KLOWフィルター)
-  XAUUSD: yagami_mtf_v79 (use_1d_trend=True, Goldロジック)
-  GBPUSD: yagami_mtf_v79 (use_1d_trend=True, Goldロジック ← ADX+Streakより優位 PF1.86 vs 1.66)
+  USDJPY/EURJPY/GBPJPY: yagami_mtf_v77 (KMID+KLOWフィルター)
+  XAUUSD/EURUSD/GBPUSD/AUDUSD: yagami_mtf_v79 (use_1d_trend=True, Goldロジック)
 """
 import os, json, logging, requests, sys, io, threading
 import pandas as pd
@@ -72,7 +75,7 @@ APPROVED_UNIVERSE = {
         "strategy":      "v77",
         "strategy_params": {},                    # v77デフォルト（KMID+KLOW）
         "tier":          1,
-        "base_risk_pct": 0.03,                    # Kelly=0.608 → Half-Kelly≈3%
+        "base_risk_pct": 0.01,                    # Phase2: 1.0%統一
         "oos_pf":        4.96,
         "kelly":         0.608,
         "note":          "YAGAMI改 旗艦銘柄",
@@ -83,28 +86,76 @@ APPROVED_UNIVERSE = {
         "spread_pips":   5.2,
         "strategy":      "v79",
         "strategy_params": {"use_1d_trend": True}, # v79A: 日足EMA20方向一致
-        "tier":          2,
-        "base_risk_pct": 0.02,                    # Kelly≈0.45 → 2%
+        "tier":          1,
+        "base_risk_pct": 0.01,                    # Phase2: 1.0%統一
         "oos_pf":        2.16,
         "kelly":         0.45,
-        "note":          "METALS v79A",
+        "note":          "METALS Goldロジック",
+    },
+    "EURUSD": {
+        "oanda":         "EUR_USD",
+        "pip_size":      0.0001,
+        "spread_pips":   0.0,
+        "strategy":      "v79",
+        "strategy_params": {"use_1d_trend": True}, # Goldロジック
+        "tier":          1,
+        "base_risk_pct": 0.01,                    # Phase2: 1.0%統一
+        "oos_pf":        1.73,
+        "kelly":         0.25,
+        "note":          "FX Goldロジック",
     },
     "GBPUSD": {
         "oanda":         "GBP_USD",
         "pip_size":      0.0001,
         "spread_pips":   0.1,
         "strategy":      "v79",
-        "strategy_params": {"use_1d_trend": True},  # Goldロジック: 日足EMA20方向一致
-        "tier":          3,
-        "base_risk_pct": 0.01,                    # FXカテゴリ次点候補 → リスク最小
+        "strategy_params": {"use_1d_trend": True}, # Goldロジック
+        "tier":          1,
+        "base_risk_pct": 0.01,                    # Phase2: 1.0%統一
         "oos_pf":        1.86,
         "kelly":         0.30,
-        "note":          "FX v79A Goldロジック (次点候補)",
+        "note":          "FX Goldロジック",
+    },
+    "AUDUSD": {
+        "oanda":         "AUD_USD",
+        "pip_size":      0.0001,
+        "spread_pips":   0.0,
+        "strategy":      "v79",
+        "strategy_params": {"use_1d_trend": True}, # Goldロジック
+        "tier":          1,
+        "base_risk_pct": 0.01,                    # Phase2: 1.0%統一
+        "oos_pf":        1.98,
+        "kelly":         0.35,
+        "note":          "FX Goldロジック",
+    },
+    "EURJPY": {
+        "oanda":         "EUR_JPY",
+        "pip_size":      0.01,
+        "spread_pips":   2.4,
+        "strategy":      "v77",
+        "strategy_params": {},                    # v77（クロス円）
+        "tier":          1,
+        "base_risk_pct": 0.01,                    # Phase2: 1.0%統一
+        "oos_pf":        0.0,
+        "kelly":         0.0,
+        "note":          "クロス円 v77 再現性確認",
+    },
+    "GBPJPY": {
+        "oanda":         "GBP_JPY",
+        "pip_size":      0.01,
+        "spread_pips":   2.2,
+        "strategy":      "v77",
+        "strategy_params": {},                    # v77（クロス円）
+        "tier":          1,
+        "base_risk_pct": 0.01,                    # Phase2: 1.0%統一
+        "oos_pf":        0.0,
+        "kelly":         0.0,
+        "note":          "クロス円 v77 再現性確認",
     },
 }
 
-# ペア数削減: 全68→採用3銘柄のみ
-MAX_OPEN_POSITIONS = 3    # 採用銘柄数に合わせる（銘柄ごとに1ポジション上限）
+# Phase2: 全7銘柄（銘柄ごとに1ポジション上限）
+MAX_OPEN_POSITIONS = 7
 RR_RATIO           = 2.5
 HALF_R             = 1.0   # 半利確トリガー: 1R到達で50%決済 → SLをBEへ
 CANDLE_COUNT       = 200
