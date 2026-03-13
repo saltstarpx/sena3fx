@@ -1,14 +1,18 @@
 """
-main.py - Cloud Run 自動取引bot (YAGAMI改 採用銘柄集中版)
+main.py - Cloud Run 自動取引bot (YAGAMI改 Phase2: 全7銘柄本番再現性確認)
 =================================================================
 【ブローカー切り替え】
   BROKER=oanda   → OANDA v20 REST API（ペーパートレード）
   BROKER=exness  → MetaApi経由 Exness MT5（本番取引、Windows不要）
 
-【APPROVED_UNIVERSE (採用銘柄)】
-  USDJPY: v77       / Tier1 / base 3%  (OOS PF=4.96, Kelly=0.608)
-  XAUUSD: v79A      / Tier2 / base 2%  (OOS PF=2.16, Goldロジック=日足EMA20)
-  GBPUSD: v79A      / Tier3 / base 1%  (OOS PF=1.86, Goldロジック=日足EMA20, FXカテゴリ最高)
+【Phase2: 全7銘柄 1.0% 標準運用（ポートフォリオ統合結果準拠）】
+  1. USDJPY: Logic-C（オーパーツ v77）/ 1.0%  (OOS PF=2.15, Sharpe=6.18)
+  2. GBPUSD: Logic-A（GOLD v79A）    / 1.0%  (OOS PF=1.86, Sharpe=7.12)
+  3. EURUSD: Logic-C（オーパーツ v77）/ 1.0%  (OOS PF=1.81, Sharpe=6.18)
+  4. USDCAD: Logic-A（GOLD v79A）    / 1.0%  (OOS PF=2.02, Sharpe=5.62)
+  5. NZDUSD: Logic-A（GOLD v79A）    / 1.0%  (OOS PF=1.98, Sharpe=5.45)
+  6. XAUUSD: Logic-A（GOLD v79A）    / 1.0%  (OOS PF=3.10, Sharpe=3.42)
+  7. AUDUSD: Logic-B（ADX+Streak）   / 1.0%  (OOS PF=2.03, Sharpe=3.66)
 
 【動的リスク調整】
   直近30トレードの勝率に基づいて乗数を自動調整:
@@ -18,9 +22,9 @@ main.py - Cloud Run 自動取引bot (YAGAMI改 採用銘柄集中版)
   最大 5% / 最小 0.5% の安全上限
 
 【戦略バリアント】
-  USDJPY: yagami_mtf_v77 (KMID+KLOWフィルター)
-  XAUUSD: yagami_mtf_v79 (use_1d_trend=True, Goldロジック)
-  GBPUSD: yagami_mtf_v79 (use_1d_trend=True, Goldロジック ← ADX+Streakより優位 PF1.86 vs 1.66)
+  USDJPY/EURUSD: yagami_mtf_v77 (Logic-C オーパーツ: KMID+KLOWフィルター)
+  GBPUSD/USDCAD/NZDUSD/XAUUSD: yagami_mtf_v79 (Logic-A GOLD: use_1d_trend=True)
+  AUDUSD: yagami_mtf_v79 (Logic-B: adx_min=20, streak_min=4)
 """
 import os, json, logging, requests, sys, io, threading
 import pandas as pd
@@ -65,46 +69,97 @@ broker = _create_broker()
 # ── 採用銘柄ユニバース ─────────────────────────────────────────
 # バックテスト検証済み銘柄のみ。OOS PF・Kelly基準に基づくティア配分。
 APPROVED_UNIVERSE = {
+    # ── Logic-C（オーパーツ v77: KMID+KLOW）──────────────────
     "USDJPY": {
         "oanda":         "USD_JPY",
         "pip_size":      0.01,
         "spread_pips":   0.4,
         "strategy":      "v77",
-        "strategy_params": {},                    # v77デフォルト（KMID+KLOW）
+        "strategy_params": {},
         "tier":          1,
-        "base_risk_pct": 0.03,                    # Kelly=0.608 → Half-Kelly≈3%
-        "oos_pf":        4.96,
+        "base_risk_pct": 0.01,                    # Phase2: 1.0%統一
+        "oos_pf":        2.15,
         "kelly":         0.608,
-        "note":          "YAGAMI改 旗艦銘柄",
+        "note":          "Logic-C オーパーツ (Sharpe=6.18)",
+    },
+    "EURUSD": {
+        "oanda":         "EUR_USD",
+        "pip_size":      0.0001,
+        "spread_pips":   0.0,
+        "strategy":      "v77",
+        "strategy_params": {},
+        "tier":          3,
+        "base_risk_pct": 0.01,                    # Phase2: 1.0%統一
+        "oos_pf":        1.81,
+        "kelly":         0.25,
+        "note":          "Logic-C オーパーツ (Sharpe=6.18)",
+    },
+    # ── Logic-A（GOLD v79A: 日足EMA20方向一致）───────────────
+    "GBPUSD": {
+        "oanda":         "GBP_USD",
+        "pip_size":      0.0001,
+        "spread_pips":   0.1,
+        "strategy":      "v79",
+        "strategy_params": {"use_1d_trend": True},
+        "tier":          2,
+        "base_risk_pct": 0.01,                    # Phase2: 1.0%統一
+        "oos_pf":        1.86,
+        "kelly":         0.30,
+        "note":          "Logic-A GOLD (Sharpe=7.12)",
+    },
+    "USDCAD": {
+        "oanda":         "USD_CAD",
+        "pip_size":      0.0001,
+        "spread_pips":   0.1,
+        "strategy":      "v79",
+        "strategy_params": {"use_1d_trend": True},
+        "tier":          4,
+        "base_risk_pct": 0.01,                    # Phase2: 1.0%統一
+        "oos_pf":        2.02,
+        "kelly":         0.35,
+        "note":          "Logic-A GOLD (Sharpe=5.62)",
+    },
+    "NZDUSD": {
+        "oanda":         "NZD_USD",
+        "pip_size":      0.0001,
+        "spread_pips":   0.5,
+        "strategy":      "v79",
+        "strategy_params": {"use_1d_trend": True},
+        "tier":          5,
+        "base_risk_pct": 0.01,                    # Phase2: 1.0%統一
+        "oos_pf":        1.98,
+        "kelly":         0.30,
+        "note":          "Logic-A GOLD (Sharpe=5.45)",
     },
     "XAUUSD": {
         "oanda":         "XAU_USD",
         "pip_size":      0.01,
         "spread_pips":   5.2,
         "strategy":      "v79",
-        "strategy_params": {"use_1d_trend": True}, # v79A: 日足EMA20方向一致
-        "tier":          2,
-        "base_risk_pct": 0.02,                    # Kelly≈0.45 → 2%
-        "oos_pf":        2.16,
+        "strategy_params": {"use_1d_trend": True},
+        "tier":          6,
+        "base_risk_pct": 0.01,                    # Phase2: 1.0%統一
+        "oos_pf":        3.10,
         "kelly":         0.45,
-        "note":          "METALS v79A",
+        "note":          "Logic-A GOLD (Sharpe=3.42)",
     },
-    "GBPUSD": {
-        "oanda":         "GBP_USD",
+    # ── Logic-B（ADX+Streak v79BC）───────────────────────────
+    "AUDUSD": {
+        "oanda":         "AUD_USD",
         "pip_size":      0.0001,
-        "spread_pips":   0.1,
+        "spread_pips":   0.0,
         "strategy":      "v79",
-        "strategy_params": {"use_1d_trend": True},  # Goldロジック: 日足EMA20方向一致
-        "tier":          3,
-        "base_risk_pct": 0.01,                    # FXカテゴリ次点候補 → リスク最小
-        "oos_pf":        1.86,
-        "kelly":         0.30,
-        "note":          "FX v79A Goldロジック (次点候補)",
+        "strategy_params": {"adx_min": 20, "streak_min": 4},
+        "tier":          7,
+        "base_risk_pct": 0.01,                    # Phase2: 1.0%統一
+        "oos_pf":        2.03,
+        "kelly":         0.35,
+        "note":          "Logic-B ADX+Streak (Sharpe=3.66)",
     },
 }
 
-# ペア数削減: 全68→採用3銘柄のみ
-MAX_OPEN_POSITIONS = 3    # 採用銘柄数に合わせる（銘柄ごとに1ポジション上限）
+# Phase2: 全7銘柄（銘柄ごとに1ポジション上限）
+MAX_OPEN_POSITIONS = 7
 RR_RATIO           = 2.5
 HALF_R             = 1.0   # 半利確トリガー: 1R到達で50%決済 → SLをBEへ
 CANDLE_COUNT       = 200

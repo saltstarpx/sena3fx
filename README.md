@@ -2,6 +2,7 @@
 
 やがみメソッドをベースに定量・計量分析で再設計した **YAGAMI改** 戦略の自動化システム。
 4時間足EMA20によるトレンドフィルター + 1時間足の二番底・二番天井パターン検出。
+Google Cloud Run + Exness MT5（MetaApi経由）で本番取引を24時間稼働。
 
 ---
 
@@ -9,13 +10,36 @@
 
 | 項目 | 内容 |
 |------|------|
-| **本番環境** | Exness × MT5（Windows VPS） |
-| **稼働モード** | ライブトレード（アダプティブリスク 0.5〜2.0%） |
-| **採用7銘柄** | USDJPY / GBPUSD / EURUSD / USDCAD / NZDUSD / XAUUSD / AUDUSD |
-| **本番ロジック** | ロジック別に銘柄を割り当て（下記参照） |
-| **データ取得** | MT5 Python API（リアルタイム） |
-| **PDCA** | 毎日/毎週/毎月レビュー自動生成 → Discord通知 |
-| **Cloud Run** | OANDA ペーパートレード継続中（asia-northeast1） |
+| **稼働環境** | Google Cloud Run（asia-northeast1、min-instances=1） |
+| **稼働モード** | **本番取引（Exness MT5 / MetaApi経由）** |
+| **戦略名** | **YAGAMI改**（Logic-C / Logic-A / Logic-B 銘柄別） |
+| **取引ペア** | 全7銘柄（下記ポートフォリオ参照） |
+| **リスク** | Phase2: 1.0% / 銘柄 |
+| **実行間隔** | 毎分（Cloud Scheduler） |
+| **データ取得** | MetaApi REST API（1分・15分・4時間足） |
+| **状態管理** | Google Cloud Storage（positions.json, trade_history.json） |
+
+---
+
+## 採用7銘柄 × ポートフォリオ統合結果
+
+| 優先 | 銘柄 | ロジック | OOS PF | Sharpe | 運用フェーズ |
+|:---:|------|:---:|:---:|:---:|---|
+| 1 | **USDJPY** | Logic-C（オーパーツ） | 2.15 | 6.18 | Phase1（即導入） |
+| 2 | **GBPUSD** | Logic-A（GOLD） | 1.86 | 7.12 | Phase1（即導入） |
+| 3 | **EURUSD** | Logic-C（オーパーツ） | 1.81 | 6.18 | Phase1（即導入） |
+| 4 | **USDCAD** | Logic-A（GOLD） | 2.02 | 5.62 | Phase1（即導入） |
+| 5 | **NZDUSD** | Logic-A（GOLD） | 1.98 | 5.45 | Phase2（3ヶ月後） |
+| 6 | **XAUUSD** | Logic-A（GOLD） | 3.10 | 3.42 | Phase2（別カテゴリ） |
+| 7 | **AUDUSD** | Logic-B（ADX+Streak） | 2.03 | 3.66 | Phase2（月次安定確認後） |
+
+### ポートフォリオ合成指標（OOS: 2025-06〜2026-02）
+
+| Phase | リスク | 銘柄数 | トレード数 | Sharpe | MDD | 月次+ |
+|---|---|:---:|:---:|:---:|:---:|:---:|
+| Phase1 | 0.5% × 4 | 4 | 2,537 | 10.46 | 7.0% | 9/9 |
+| **Phase2** | **1.0% × 7** | **7** | **3,634** | **6.95** | **8.2%** | **9/9** |
+| Phase3 | 2.0% × 7 | 7 | 3,634 | 7.32 | 13.0% | 9/9 |
 
 ---
 
@@ -25,12 +49,22 @@
 
 やがみメソッドに基づく**二番底・二番天井パターン**の自動検出。
 マルチタイムフレーム（4時間足・1時間足・1分足）を組み合わせ、高確率なエントリーポイントを機械的に判定する。
+KMID + KLOW フィルターを核に、銘柄別ロジック（Logic-A/B/C）で最適化。
 
-#### 共通ベースロジック（全銘柄）
+### 3ロジック体系
 
-| フィルター | 内容 |
+| ロジック | 名称 | フィルター | エントリー | 対象銘柄 |
+|:---:|---|---|---|---|
+| **Logic-C** | オーパーツYAGAMI | KMID + KLOW + 1H確認足方向 | E0（即時2分以内） | USDJPY, EURUSD |
+| **Logic-A** | GOLDYAGAMI | KMID + KLOW + 日足EMA20方向一致 + EMA距離≥ATR×1.0 | E2（スパイク除外3分以内） | GBPUSD, USDCAD, NZDUSD, XAUUSD |
+| **Logic-B** | ADX+Streak | KMID + KLOW + ADX≥20 + 直近4H Streak≥4 | E1（方向一致待ち5分以内） | AUDUSD |
+
+### エントリー条件（全ロジック共通 AND）
+
+| 条件 | 内容 |
 |------|------|
-| **4H EMA20** | クローズ > EMA20 → Long / 下 → Short（トレンド方向） |
+| トレンド一致 | 4H EMA20より上→ロングのみ、下→ショートのみ |
+| パターン成立 | 二番底/二番天井の安値/高値が ATR×0.3 以内 |
 | **KMID** | 直前4H足の実体方向がエントリー方向と一致 |
 | **KLOW** | 直前4H足の下ヒゲ比率 < 0.15%（`< 0.0015`） |
 | **EMA距離** | 4H終値とEMA20の距離 ≥ ATR×1.0 |
@@ -68,82 +102,19 @@
 
 ---
 
-### Logic-C: オーパーツYAGAMI（v77ピュア）
+## リスクステージング
 
-> **「どこから来たのか分からないほど強い」** ことからオーパーツと命名。
-> KMID + KLOW + 4H EMA20 + 1H二番底・二番天井のみのシンプル構成。
-> 現行ロジック全ての土台であり、特定銘柄では最強性能を発揮。
+| Phase | リスク | 対象 | 昇格条件 |
+|---|---|---|---|
+| Phase1 | 0.5% × 4銘柄 | USDJPY/GBPUSD/EURUSD/USDCAD | — |
+| **Phase2（現在）** | **1.0% × 7銘柄** | **全7銘柄** | **20トレード+PF≥1.30+MDD≤8%** |
+| Phase3 | 2.0% × 7銘柄 | 全7銘柄 | 40トレード+PF≥1.35+MDD≤10% |
 
-| 項目 | 設定 |
-|------|------|
-| トレンドフィルター | 4H EMA20のみ（日足なし） |
-| エントリー方式 | E1方式: 足確定後2分以内の1分足始値 |
-| ADX | 不使用 |
-| セッション | 不使用 |
-| **採用銘柄** | **USDJPY / EURUSD** |
+### ストップルール
 
-**OOS成績（2025/03〜2026/02）**
-
-| 銘柄 | PF | Sharpe | MDD | 月次+ |
-|:---:|:---:|:---:|:---:|:---:|
-| USDJPY | 2.15 | 6.18 | 21.6% | 9/9 |
-| EURUSD | 1.81 | 6.18 | 22.7% | 9/9 |
-
-> USDJPY単体ではv77基準（PF 4.96）だが、ポートフォリオ統合後のOOS期間結果。
-
----
-
-### Logic-B: ADX+Streak
-
-> **「トレンドの強さ × 方向一貫性」** で厳選する補完ロジック。
-> ADX≥20（強トレンド判定の業界標準）+ 直近4本の4H足が同方向（Streak≥4）の組み合わせ。
-> GOLDロジックが僅差で劣後する銘柄（AUDUSD）に適用。
-
-| 項目 | 設定 |
-|------|------|
-| ADXフィルター | 4H ADX ≥ 20（強トレンド判定） |
-| Streakフィルター | 直近4本の4H足が同方向 |
-| エントリー方式 | E1方式 |
-| 日足EMA20 | 不使用 |
-| **採用銘柄** | **AUDUSD** |
-
-**OOS成績（2025/03〜2026/02）**
-
-| 銘柄 | PF | Sharpe | MDD | 月次+ |
-|:---:|:---:|:---:|:---:|:---:|
-| AUDUSD | 2.03 | 3.66 | 23.2% | 7/9 |
-
----
-
-## 採用7銘柄 × ポートフォリオ統合結果
-
-| 優先 | 銘柄 | ロジック | OOS PF | Sharpe | 運用フェーズ |
-|:---:|------|:---:|:---:|:---:|---|
-| 1 | **USDJPY** | Logic-C（オーパーツ） | 2.15 | 6.18 | Phase1（即導入） |
-| 2 | **GBPUSD** | Logic-A（GOLD） | 1.86 | 7.12 | Phase1（即導入） |
-| 3 | **EURUSD** | Logic-C（オーパーツ） | 1.81 | 6.18 | Phase1（即導入） |
-| 4 | **USDCAD** | Logic-A（GOLD） | 2.02 | 5.62 | Phase1（即導入） |
-| 5 | **NZDUSD** | Logic-A（GOLD） | 1.98 | 5.45 | Phase2（3ヶ月後） |
-| 6 | **XAUUSD** | Logic-A（GOLD） | 3.10 | 3.42 | Phase2（別カテゴリ） |
-| 7 | **AUDUSD** | Logic-B（ADX+Streak） | 2.03 | 3.66 | Phase2（月次安定確認後） |
-
-**ポートフォリオ統合（全7銘柄同時運用）**
-
-| 指標 | 値 |
-|------|:---:|
-| PF | **1.97** |
-| 年率Sharpe | **7.32** |
-| MDD | **12.98%** |
-
----
-
-## 運用フェーズ（リスクステージング）
-
-| フェーズ | リスク/銘柄 | 対象 | 目的 |
-|------|:---:|---|---|
-| **Phase1** | 0.5% | 上位4銘柄（USDJPY/GBPUSD/EURUSD/USDCAD） | 執行確認・滑り確認 |
-| **Phase2** | 1.0% | 全7銘柄 | 本番再現性確認（**標準運用**） |
-| **Phase3** | 1.5〜2.0% | 全7銘柄 | 最大化（Sharpe 5.0+確認後） |
+- **日次**: -2R で新規エントリー凍結
+- **週次**: -4R で週間凍結
+- **月次DD**: -8% でPhase降格（Phase3→2→1→停止）
 
 ---
 
@@ -155,27 +126,21 @@ sena3fx/
 ├── CLAUDE.md                        # AI開発ガイド（Claude Code用）
 ├── TRADING_MEMO.md                  # 本番運用ルール書
 │
-├── production/                      # ★ Exness×MT5 本番ライブトレーダー
-│   ├── mt5_bot.py                   # MT5自動売買ボット本体
-│   ├── review_manager.py            # PDCA レビュー管理（日次/週次/月次）
-│   ├── signal_engine.py             # シグナル生成エンジン
-│   ├── requirements.txt
-│   ├── SETUP.md                     # VPSセットアップ手順
-│   └── .env.example                 # 環境変数テンプレート
-│
 ├── strategies/
 │   ├── current/
-│   │   ├── yagami_mtf_v79.py        # ★ YAGAMI改 本体（FX/METALS カテゴリ別フィルター）
+│   │   ├── yagami_mtf_v79.py        # Logic-A (GOLD) / Logic-B (ADX+Streak)
 │   │   └── yagami_mtf_v78.py        # 参照用（過学習チェック済）
 │   └── archive/                     # v1〜v77（履歴）
 │
-├── cloud_run/                       # Cloud Run 本番コード（OANDA ペーパートレード）
-│   ├── main.py                      # FastAPI エンドポイント
+├── cloud_run/                       # Cloud Run 本番コード
+│   ├── main.py                      # FastAPI エンドポイント（全7銘柄）
+│   ├── broker_metaapi.py            # Exness MT5 ブローカー（MetaApi経由）
+│   ├── broker_oanda.py              # OANDA ブローカー（ペーパー用）
 │   ├── Dockerfile
 │   ├── requirements.txt
 │   └── strategies/
-│       ├── yagami_mtf_v79.py        # 本番用（FX/METALS）
-│       ├── yagami_mtf_v77.py        # USDJPY本番用
+│       ├── yagami_mtf_v79.py        # Logic-A / Logic-B 本番用
+│       ├── yagami_mtf_v77.py        # Logic-C 本番用
 │       └── archive/
 │
 ├── scripts/                         # バックテスト・分析スクリプト
@@ -190,17 +155,23 @@ sena3fx/
 │   ├── {symbol}_oos_*.csv           # OOS期間（2025/3〜2026/2）
 │   └── ohlc/                        # 全期間1ファイル（大文字銘柄名）
 │
+├── scripts/                         # アクティブスクリプト
+│   ├── backtest_portfolio_integration.py  # ポートフォリオ統合バックテスト
+│   ├── fetch_*.py                   # データ取得
+│   └── archive/                     # 旧スクリプト
+│
 ├── utils/
 │   ├── risk_manager.py              # AdaptiveRiskManager / SYMBOL_CONFIG
 │   └── position_manager.py
 │
-├── results/                         # バックテスト結果（CSV・PNG）
-│   ├── backtest_final_optimized.csv # 最終採用7銘柄の結果
-│   ├── backtest_portfolio_integration.csv
-│   └── approved_universe.json
+├── production/                      # Exness本番セットアップ
+│   ├── mt5_bot.py                   # Windows MT5直接接続版
+│   └── SETUP.md
 │
-├── trade_logs/                      # 本番・ペーパートレード実績ログ
+├── trade_logs/                      # トレード実績ログ
+├── results/                         # バックテスト結果（PNG・CSV）
 ├── docs/
+│   ├── LIVE_SETUP_GUIDE.md          # Exness セットアップガイド
 │   ├── strategy_development_log_v60_v76.md
 │   └── learning_materials/          # やがみ氏PDF教材
 └── tests/
@@ -210,7 +181,13 @@ sena3fx/
 
 ## セットアップ
 
-### バックテスト環境
+| エンドポイント | メソッド | 説明 |
+|---|---|---|
+| `/run` | POST | 1サイクル実行（シグナル判定・注文） |
+| `/report` | POST | 手動レポート送信 |
+| `/health` | GET | ヘルスチェック |
+| `/status` | GET | 現在のオープンポジション一覧 |
+| `/weekly_feedback` | POST | 週次フィードバック記録 |
 
 ```bash
 cd /home/user/sena3fx
@@ -228,15 +205,23 @@ pip install -r requirements.txt
 python mt5_bot.py
 ```
 
-詳細手順: `production/SETUP.md` 参照
-
-### Cloud Run（OANDA ペーパートレード）
+### 環境変数（deploy/.env）
 
 ```
-OANDA_ACCOUNT_ID=xxx-xxx-xxxxxxxx-xxx
-OANDA_API_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/...
-GCS_BUCKET_NAME=sena3fx-paper-trading
+BROKER=exness
+METAAPI_TOKEN=<MetaApi APIトークン>
+METAAPI_ACCOUNT_ID=<MetaApi アカウントID>
+EQUITY_JPY=<口座残高(円)>
+DISCORD_WEBHOOK=<Discord Webhook URL>
+GCS_BUCKET=sena3fx-paper-trading
+GCP_PROJECT=aiyagami
+```
+
+### デプロイ
+
+```bash
+cd ~/sena3fx
+bash deploy/deploy_gcp.sh
 ```
 
 | エンドポイント | メソッド | 説明 |
@@ -250,8 +235,8 @@ GCS_BUCKET_NAME=sena3fx-paper-trading
 
 ## 注意事項
 
-- `gcp-key.json` / `.env` は `.gitignore` 対象。コミット禁止
-- USDJPYに1分足データは存在しない（15m/1h/4hのみ）
+- `gcp-key.json` / `deploy/.env` は `.gitignore` 対象。コミット禁止
 - `strategies/current/` と `cloud_run/strategies/` は常に同一内容を保つこと
+- USDJPYに1分足データは存在しない（15m/1h/4hのみ）
 - 旧バックテストスクリプトは `scripts/archive/`、旧戦略は `strategies/archive/` を参照
-- `data/ohlc/` の銘柄名は大文字（`AUDUSD_1m.csv`）、`data/` は小文字（`audusd_1m.csv`）
+- 詳細な運用ルールは `TRADING_MEMO.md` を参照
