@@ -22,12 +22,26 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils.risk_manager import RiskManager, SYMBOL_CONFIG
 
 # ── 定数 ─────────────────────────────────────────────────────────
-INIT_CASH     = 1_000_000
 RR_RATIO      = 2.5
 HALF_R        = 1.0
 USDJPY_RATE   = 150.0
 MAX_LOOKAHEAD = 20_000
-RISK_PCT      = 0.02   # 固定2%
+
+# ── 本番同一: 資産規模連動リスクテーブル ──────────────────────────
+EQUITY_RISK_TABLE = [
+    (100_000_000, 0.005),  # 1億〜:       0.5%
+    ( 70_000_000, 0.010),  # 7000万〜1億: 1.0%
+    ( 50_000_000, 0.015),  # 5000万〜7000万: 1.5%
+    ( 30_000_000, 0.020),  # 3000万〜5000万: 2.0%
+    ( 10_000_000, 0.025),  # 1000万〜3000万: 2.5%
+    (          0, 0.030),  # 〜1000万:    3.0%（加速成長期）
+]
+
+def equity_base_risk(equity_jpy):
+    for threshold, risk in EQUITY_RISK_TABLE:
+        if equity_jpy >= threshold:
+            return risk
+    return 0.030
 
 KLOW_THR        = 0.0015
 A1_EMA_DIST_MIN = 1.0
@@ -245,29 +259,23 @@ def _exit(highs, lows, ep, sl, tp, risk, d):
                 return None, None, True
     return None, None, False
 
-# ── メイン ───────────────────────────────────────────────────────
-def main():
-    t0 = time.time()
-    print(f"\n{'='*90}")
-    print(f"  YAGAMI改 2026年3月 単月バックテスト")
-    print(f"  初期資金: ¥{INIT_CASH:,.0f}  |  リスク: 固定2%  |  期間: 2026/3/1〜3/13")
-    print(f"{'='*90}")
-
-    all_trades = []
-    sym_results = {}
+# ── シグナル事前生成（全銘柄） ────────────────────────────────────
+def load_march_signals():
+    """全銘柄の3月シグナルを事前生成して返す"""
+    sym_signals = {}
+    sym_m1_data = {}
 
     for tgt in TARGETS:
         sym   = tgt["sym"]
         logic = tgt["logic"]
         tol   = tgt["tol"]
         hbr   = tgt.get("h4_body_ratio_min", 0.0)
-        print(f"\n  {tgt['label']} ... ", end="", flush=True)
+        print(f"  {tgt['label']} ... ", end="", flush=True)
 
         d1m = load_1m(sym)
         if d1m is None:
             print("データ未発見"); continue
 
-        # 4hデータ: ohlcディレクトリ優先、なければresample
         sym_l = sym.lower()
         d4h = None
         for p in [os.path.join(DATA_DIR_OHLC, f"{sym}_4h.csv"),
@@ -286,89 +294,115 @@ def main():
                   "closes": d1m["close"].values,
                   "highs":  d1m["high"].values, "lows": d1m["low"].values}
 
-        # 全期間でシグナル生成（インジケーターウォームアップ含む）
         sigs = generate_signals(d1m, d4h, spread, logic, atr_d, m1c,
                                 tol_factor=tol, h4_body_ratio_min=hbr)
-
-        # 3月のシグナルのみフィルタ
         march_sigs = [s for s in sigs if MARCH_START <= s["time"] < MARCH_END]
-        print(f"全{len(sigs)}sig → 3月{len(march_sigs)}sig", end="", flush=True)
+        # シグナルに銘柄情報を付与
+        for s in march_sigs:
+            s["sym"] = sym
+        sym_signals[sym] = march_sigs
+        sym_m1_data[sym] = {"idx": d1m.index, "highs": d1m["high"].values, "lows": d1m["low"].values}
+        print(f"全{len(sigs)}sig → 3月{len(march_sigs)}sig")
 
-        # シミュレーション（3月のシグナルのみ）
-        rm = RiskManager(sym, risk_pct=RISK_PCT)
-        m1t = d1m.index; m1h = d1m["high"].values; m1l = d1m["low"].values
+    return sym_signals, sym_m1_data
 
-        sym_trades = []
-        for sig in march_sigs:
-            rm.risk_pct = RISK_PCT
-            lot = rm.calc_lot(INIT_CASH, sig["risk"], sig["ep"], usdjpy_rate=USDJPY_RATE)
-            sp  = m1t.searchsorted(sig["time"], side="right")
-            if sp >= len(m1t): continue
 
-            xp, result, half_done = _exit(m1h[sp:], m1l[sp:],
-                                           sig["ep"], sig["sl"], sig["tp"],
-                                           sig["risk"], sig["dir"])
-            if result is None: continue
+def run_compound_backtest(init_cash, sym_signals, sym_m1_data):
+    """
+    資産規模連動リスクテーブルによる複利バックテスト。
+    全銘柄のシグナルを時系列統合し、ポートフォリオ単位でエクイティを追跡。
+    """
+    # 全シグナルを時系列統合
+    all_sigs = []
+    for sym, sigs in sym_signals.items():
+        for s in sigs:
+            all_sigs.append(s)
+    all_sigs.sort(key=lambda x: x["time"])
 
-            half_pnl = 0.0
-            if half_done:
-                hp = sig["ep"] + sig["dir"] * sig["risk"] * HALF_R
-                half_pnl = rm.calc_pnl_jpy(sig["dir"], sig["ep"], hp, lot*0.5, USDJPY_RATE, sig["ep"])
-                rem = lot * 0.5
-            else:
-                rem = lot
+    equity = init_cash
+    peak = init_cash; mdd = 0.0; mdd_yen = 0.0
+    trades = []
+    milestones = []  # ボーダー到達記録
+    THRESHOLDS = [100_000, 500_000, 1_000_000, 3_000_000, 5_000_000,
+                  10_000_000, 30_000_000, 50_000_000, 70_000_000, 100_000_000,
+                  300_000_000, 500_000_000, 1_000_000_000]
+    reached = set()
+    for th in THRESHOLDS:
+        if init_cash >= th:
+            reached.add(th)
 
-            pnl   = rm.calc_pnl_jpy(sig["dir"], sig["ep"], xp, rem, USDJPY_RATE, sig["ep"])
-            total = half_pnl + pnl
+    prev_risk_pct = equity_base_risk(init_cash)
 
-            trade = {
-                "time": sig["time"], "sym": sym, "dir": sig["dir"],
-                "ep": sig["ep"], "sl": sig["sl"], "tp": sig["tp"],
-                "xp": xp, "result": result, "half": half_done,
-                "pnl": total, "date": sig["time"].strftime("%m/%d"),
-                "week": f"W{sig['time'].isocalendar()[1]}"
-            }
-            sym_trades.append(trade)
-            all_trades.append(trade)
+    for sig in all_sigs:
+        sym = sig["sym"]
+        risk_pct = equity_base_risk(equity)
+        rm = RiskManager(sym, risk_pct=risk_pct)
+        lot = rm.calc_lot(equity, sig["risk"], sig["ep"], usdjpy_rate=USDJPY_RATE)
 
-        wins = [t for t in sym_trades if t["pnl"] > 0]
-        losses = [t for t in sym_trades if t["pnl"] <= 0]
-        total_pnl = sum(t["pnl"] for t in sym_trades)
-        wr = len(wins) / len(sym_trades) * 100 if sym_trades else 0
-        gw = sum(t["pnl"] for t in wins)
-        gl = abs(sum(t["pnl"] for t in losses))
-        pf = gw / gl if gl > 0 else float("inf")
+        m1d = sym_m1_data[sym]
+        sp = m1d["idx"].searchsorted(sig["time"], side="right")
+        if sp >= len(m1d["idx"]): continue
 
-        sym_results[sym] = {
-            "trades": len(sym_trades), "wins": len(wins), "losses": len(losses),
-            "wr": wr, "pf": pf, "pnl": total_pnl, "gw": gw, "gl": gl,
-            "trade_list": sym_trades
-        }
-        pf_s = f"{pf:.2f}" if pf < 99 else "INF"
-        print(f" → {len(sym_trades)}トレード WR={wr:.0f}% PF={pf_s} PnL=¥{total_pnl:+,.0f}")
+        xp, result, half_done = _exit(m1d["highs"][sp:], m1d["lows"][sp:],
+                                       sig["ep"], sig["sl"], sig["tp"],
+                                       sig["risk"], sig["dir"])
+        if result is None: continue
 
-    if not all_trades:
-        print("\n3月のトレードなし"); return
+        half_pnl = 0.0
+        if half_done:
+            hp = sig["ep"] + sig["dir"] * sig["risk"] * HALF_R
+            half_pnl = rm.calc_pnl_jpy(sig["dir"], sig["ep"], hp, lot*0.5, USDJPY_RATE, sig["ep"])
+            rem = lot * 0.5
+        else:
+            rem = lot
+        pnl = rm.calc_pnl_jpy(sig["dir"], sig["ep"], xp, rem, USDJPY_RATE, sig["ep"])
+        total_pnl = half_pnl + pnl
+        equity += total_pnl
 
-    # ── 時系列ソート・ポートフォリオ統計 ──────────────────────────
-    all_trades.sort(key=lambda x: x["time"])
-    df = pd.DataFrame(all_trades)
+        # リスク%切替チェック
+        new_risk_pct = equity_base_risk(equity)
+        risk_changed = ""
+        if new_risk_pct != prev_risk_pct:
+            risk_changed = f" [RISK {prev_risk_pct*100:.1f}%→{new_risk_pct*100:.1f}%]"
+            prev_risk_pct = new_risk_pct
 
-    # エクイティカーブ
-    equity = INIT_CASH
-    peak = INIT_CASH; mdd = 0; mdd_yen = 0
-    eq_history = []
-    for _, row in df.iterrows():
-        equity += row["pnl"]
+        trades.append({
+            "time": sig["time"], "sym": sym, "dir": sig["dir"],
+            "ep": sig["ep"], "sl": sig["sl"], "tp": sig["tp"],
+            "xp": xp, "result": result, "half": half_done,
+            "pnl": total_pnl, "equity": equity, "risk_pct": risk_pct,
+            "risk_changed": risk_changed,
+            "date": sig["time"].strftime("%m/%d"),
+            "week": f"W{sig['time'].isocalendar()[1]}"
+        })
+
         peak = max(peak, equity)
         dd = (peak - equity) / peak * 100
         if dd > mdd:
             mdd = dd
             mdd_yen = peak - equity
-        eq_history.append({"time": row["time"], "equity": equity})
 
-    final_equity = equity
-    total_pnl = final_equity - INIT_CASH
+        # マイルストーン到達チェック
+        for th in THRESHOLDS:
+            if th not in reached and equity >= th:
+                reached.add(th)
+                milestones.append({
+                    "threshold": th,
+                    "time": sig["time"],
+                    "equity": equity,
+                    "trade_no": len(trades)
+                })
+
+    return trades, equity, mdd, mdd_yen, milestones
+
+
+def print_results(init_cash, trades, final_equity, mdd, mdd_yen, milestones):
+    """結果表示"""
+    if not trades:
+        print(f"\n  初期資金¥{init_cash:,.0f}: トレードなし"); return
+
+    total_pnl = final_equity - init_cash
+    df = pd.DataFrame(trades)
     total_trades = len(df)
     total_wins = len(df[df["pnl"] > 0])
     total_wr = total_wins / total_trades * 100
@@ -376,39 +410,55 @@ def main():
     total_gl = abs(df[df["pnl"] < 0]["pnl"].sum())
     total_pf = total_gw / total_gl if total_gl > 0 else float("inf")
 
-    # ── 結果表示 ──────────────────────────────────────────────────
-    print(f"\n{'='*90}")
-    print(f"  ポートフォリオ結果（2026年3月）")
-    print(f"{'='*90}")
+    print(f"\n{'='*100}")
+    print(f"  YAGAMI改 2026年3月バックテスト — 初期資金 ¥{init_cash:,.0f}")
+    print(f"  リスク: 資産規模連動テーブル（本番同一）  |  複利運用")
+    print(f"{'='*100}")
 
-    print(f"\n  {'銘柄':<10} {'Logic':<8} {'tol':>5} {'取引':>4} {'勝':>3} {'負':>3} "
-          f"{'勝率':>6} {'PF':>6} {'損益(¥)':>12} {'利益(¥)':>12} {'損失(¥)':>12}")
-    print("  " + "-" * 88)
-
+    # ── 銘柄別集計 ──
     logic_names = {"A": "GOLD", "B": "ADX+Stk", "C": "OP"}
+    print(f"\n  {'銘柄':<10} {'Logic':<8} {'取引':>4} {'勝':>3} {'負':>3} "
+          f"{'勝率':>6} {'PF':>6} {'損益(¥)':>14}")
+    print("  " + "-" * 60)
     for tgt in TARGETS:
         sym = tgt["sym"]
-        if sym not in sym_results: continue
-        r = sym_results[sym]
-        pf_s = f"{r['pf']:.2f}" if r['pf'] < 99 else "INF"
-        print(f"  {sym:<10} {logic_names[tgt['logic']]:<8} {tgt['tol']:>5.2f} "
-              f"{r['trades']:>4} {r['wins']:>3} {r['losses']:>3} "
-              f"{r['wr']:>5.0f}% {pf_s:>6} {r['pnl']:>+12,.0f} "
-              f"{r['gw']:>12,.0f} {-r['gl']:>12,.0f}")
-
+        st = df[df["sym"] == sym]
+        if len(st) == 0: continue
+        w = len(st[st["pnl"] > 0]); l = len(st[st["pnl"] <= 0])
+        wr = w / len(st) * 100
+        gw = st[st["pnl"] > 0]["pnl"].sum(); gl = abs(st[st["pnl"] < 0]["pnl"].sum())
+        pf = gw / gl if gl > 0 else float("inf")
+        pf_s = f"{pf:.2f}" if pf < 99 else "INF"
+        print(f"  {sym:<10} {logic_names[tgt['logic']]:<8} {len(st):>4} {w:>3} {l:>3} "
+              f"{wr:>5.0f}% {pf_s:>6} {st['pnl'].sum():>+14,.0f}")
     pf_s = f"{total_pf:.2f}" if total_pf < 99 else "INF"
-    print("  " + "-" * 88)
-    print(f"  {'合計':<10} {'':8} {'':>5} "
-          f"{total_trades:>4} {total_wins:>3} {total_trades-total_wins:>3} "
-          f"{total_wr:>5.0f}% {pf_s:>6} {total_pnl:>+12,.0f} "
-          f"{total_gw:>12,.0f} {-total_gl:>12,.0f}")
+    print("  " + "-" * 60)
+    print(f"  {'合計':<10} {'':8} {total_trades:>4} {total_wins:>3} {total_trades-total_wins:>3} "
+          f"{total_wr:>5.0f}% {pf_s:>6} {total_pnl:>+14,.0f}")
 
-    print(f"\n  初期資金:    ¥{INIT_CASH:>12,.0f}")
-    print(f"  最終資金:    ¥{final_equity:>12,.0f}")
-    print(f"  総損益:      ¥{total_pnl:>+12,.0f} ({total_pnl/INIT_CASH*100:+.1f}%)")
+    # ── サマリー ──
+    print(f"\n  初期資金:    ¥{init_cash:>14,.0f}")
+    print(f"  最終資金:    ¥{final_equity:>14,.0f}")
+    print(f"  総損益:      ¥{total_pnl:>+14,.0f} ({total_pnl/init_cash*100:+.1f}%)")
     print(f"  最大DD:       {mdd:.1f}% (¥{mdd_yen:,.0f})")
 
-    # ── 週別内訳 ──────────────────────────────────────────────────
+    # ── マイルストーン到達日時 ──
+    if milestones:
+        print(f"\n  資産マイルストーン到達:")
+        for m in milestones:
+            th_label = f"¥{m['threshold']:>14,.0f}"
+            t_str = m["time"].strftime("%m/%d %H:%M")
+            print(f"    {th_label} 到達 → {t_str} (#{m['trade_no']}トレード目, 残高¥{m['equity']:,.0f})")
+
+    # ── リスク%切替ポイント ──
+    risk_changes = [t for t in trades if t["risk_changed"]]
+    if risk_changes:
+        print(f"\n  リスク%切替ポイント:")
+        for t in risk_changes:
+            t_str = t["time"].strftime("%m/%d %H:%M")
+            print(f"    {t_str} | 残高¥{t['equity']:,.0f}{t['risk_changed']}")
+
+    # ── 週別 ──
     weekly = df.groupby("week").agg(
         trades=("pnl", "count"),
         wins=("pnl", lambda x: (x > 0).sum()),
@@ -417,27 +467,52 @@ def main():
     print(f"\n  週別:")
     for wk, row in weekly.iterrows():
         wr_w = row["wins"] / row["trades"] * 100 if row["trades"] > 0 else 0
-        print(f"    {wk}: {row['trades']}件 WR={wr_w:.0f}% PnL=¥{row['pnl']:+,.0f}")
+        print(f"    {wk}: {row['trades']:.0f}件 WR={wr_w:.0f}% PnL=¥{row['pnl']:+,.0f}")
 
-    # ── 全トレード詳細 ────────────────────────────────────────────
+    # ── 全トレード詳細 ──
     print(f"\n  全トレード詳細:")
-    print(f"  {'日時':<18} {'銘柄':<8} {'方向':>4} {'EP':>12} {'SL':>12} {'TP':>12} "
-          f"{'決済':>12} {'結果':>4} {'半利確':>4} {'損益(¥)':>12}")
-    print("  " + "-" * 108)
-    for t in all_trades:
+    print(f"  {'#':>3} {'日時':<14} {'銘柄':<8} {'方向':>2} {'結果':>4} {'Risk%':>5} "
+          f"{'損益(¥)':>12} {'残高(¥)':>14} {'メモ'}")
+    print("  " + "-" * 90)
+    for i, t in enumerate(trades, 1):
         dir_s = "L" if t["dir"] == 1 else "S"
-        half_s = "Y" if t["half"] else ""
+        half_s = "半" if t["half"] else ""
         time_s = t["time"].strftime("%m/%d %H:%M")
-        print(f"  {time_s:<18} {t['sym']:<8} {dir_s:>4} {t['ep']:>12.5f} {t['sl']:>12.5f} "
-              f"{t['tp']:>12.5f} {t['xp']:>12.5f} {t['result']:>4} {half_s:>4} {t['pnl']:>+12,.0f}")
+        memo = t["risk_changed"] if t["risk_changed"] else half_s
+        print(f"  {i:>3} {time_s:<14} {t['sym']:<8} {dir_s:>2} {t['result']:>4} "
+              f"{t['risk_pct']*100:>4.1f}% {t['pnl']:>+12,.0f} {t['equity']:>14,.0f} {memo}")
 
-    # ── CSV出力 ────────────────────────────────────────────────────
-    out_csv = os.path.join(OUT_DIR, "backtest_march2026.csv")
-    df_out = pd.DataFrame(all_trades)
-    df_out.to_csv(out_csv, index=False)
+    # ── CSV出力 ──
+    suffix = f"_{init_cash//10000}万" if init_cash >= 10000 else f"_{init_cash}"
+    out_csv = os.path.join(OUT_DIR, f"backtest_march2026_compound{suffix}.csv")
+    df.to_csv(out_csv, index=False)
     print(f"\n  CSV保存: {out_csv}")
-    print(f"  実行時間: {time.time()-t0:.1f}秒")
-    print(f"{'='*90}\n")
+
+
+# ── メイン ───────────────────────────────────────────────────────
+def main():
+    t0 = time.time()
+    print(f"\n{'='*100}")
+    print(f"  シグナル生成（全銘柄共通・1回のみ）")
+    print(f"{'='*100}")
+
+    sym_signals, sym_m1_data = load_march_signals()
+
+    total_sigs = sum(len(s) for s in sym_signals.values())
+    print(f"\n  合計3月シグナル: {total_sigs}件")
+
+    # ── 100万円バックテスト ──
+    trades_100, eq_100, mdd_100, mdd_yen_100, ms_100 = \
+        run_compound_backtest(1_000_000, sym_signals, sym_m1_data)
+    print_results(1_000_000, trades_100, eq_100, mdd_100, mdd_yen_100, ms_100)
+
+    # ── 10万円バックテスト ──
+    trades_10, eq_10, mdd_10, mdd_yen_10, ms_10 = \
+        run_compound_backtest(100_000, sym_signals, sym_m1_data)
+    print_results(100_000, trades_10, eq_10, mdd_10, mdd_yen_10, ms_10)
+
+    print(f"\n  総実行時間: {time.time()-t0:.1f}秒")
+    print(f"{'='*100}\n")
 
 
 if __name__ == "__main__":
