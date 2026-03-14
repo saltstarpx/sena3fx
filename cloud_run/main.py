@@ -1,21 +1,28 @@
 """
-main.py - Cloud Run 自動取引bot (YAGAMI改 Phase2: 全6銘柄本番運用)
+main.py - Cloud Run 自動取引bot (YAGAMI改 全7銘柄本番運用)
 =================================================================
 【ブローカー切り替え】
   BROKER=oanda   → OANDA v20 REST API（ペーパートレード）
   BROKER=exness  → MetaApi経由 Exness MT5（本番取引、Windows不要）
 
-【Phase2: 全6銘柄 1.0% 標準運用（ポートフォリオ統合結果準拠）】
-  1. GBPUSD: Logic-A（GOLD v79A）    / 1.0%  (OOS PF=1.86, Sharpe=7.12)
-  2. EURUSD: Logic-C（オーパーツ v77）/ 1.0%  (OOS PF=1.81, Sharpe=6.18)
-  3. USDCAD: Logic-A（GOLD v79A）    / 1.0%  (OOS PF=2.02, Sharpe=5.62)
-  4. NZDUSD: Logic-A（GOLD v79A）    / 1.0%  (PF=2.14, Sharpe=5.88, tol=0.20)
-  5. XAUUSD: Logic-A（GOLD v79A）    / 1.0%  (PF=2.46, Sharpe=3.87, tol=0.20)
-  6. AUDUSD: Logic-B（ADX+Streak）   / 1.0%  (OOS PF=2.03, Sharpe=3.66)
-  ※ USDJPY: バックテストデータ不鮮明のため一時除外（再検証後に復帰予定）
+【全7銘柄 資産規模連動リスク運用】
+  1. GBPUSD: Logic-A（GOLD v79A）    (OOS PF=1.86, Sharpe=7.12)
+  2. EURUSD: Logic-C（オーパーツ v77）(OOS PF=1.81, Sharpe=6.18)
+  3. USDCAD: Logic-A（GOLD v79A）    (OOS PF=2.02, Sharpe=5.62)
+  4. NZDUSD: Logic-A（GOLD v79A）    (PF=2.14, Sharpe=5.88, tol=0.20)
+  5. XAUUSD: Logic-A（GOLD v79A）    (PF=2.46, Sharpe=3.87, tol=0.20)
+  6. AUDUSD: Logic-B（ADX+Streak）   (OOS PF=2.03, Sharpe=3.66)
+  7. USDJPY: Logic-C（オーパーツ v77）(PF=2.02, Sharpe=7.83)
 
-【動的リスク調整】
-  直近30トレードの勝率に基づいて乗数を自動調整:
+【資産規模ベース リスク逓減テーブル】
+  〜1000万:        3.0%（加速成長期）
+  1000万〜3000万:  2.5%
+  3000万〜5000万:  2.0%
+  5000万〜7000万:  1.5%
+  7000万〜1億:     1.0%
+  1億〜:           0.5%（守りの運用）
+
+【動的リスク調整（WR連動、上記ベースに乗算）】
   WR ≥ 60%: ×1.5 (好調 → 増量)
   WR 35-60%: ×1.0 (標準)
   WR < 35%:  ×0.5 (不調 → 減量)
@@ -70,7 +77,18 @@ broker = _create_broker()
 # バックテスト検証済み銘柄のみ。OOS PF・Kelly基準に基づくティア配分。
 APPROVED_UNIVERSE = {
     # ── Logic-C（オーパーツ v77: KMID+KLOW）──────────────────
-    # USDJPY: バックテストデータ不鮮明のため一時除外（再検証後に復帰予定）
+    "USDJPY": {
+        "oanda":         "USD_JPY",
+        "pip_size":      0.01,
+        "spread_pips":   0.0,
+        "strategy":      "v77",
+        "strategy_params": {},
+        "tier":          1,
+        "base_risk_pct": 0.03,                    # 資産規模連動（EQUITY_RISK_TABLE）
+        "oos_pf":        2.02,
+        "kelly":         0.34,
+        "note":          "Logic-C オーパーツ (Sharpe=7.83)",
+    },
     "EURUSD": {
         "oanda":         "EUR_USD",
         "pip_size":      0.0001,
@@ -78,7 +96,7 @@ APPROVED_UNIVERSE = {
         "strategy":      "v77",
         "strategy_params": {},
         "tier":          3,
-        "base_risk_pct": 0.01,                    # Phase2: 1.0%統一
+        "base_risk_pct": 0.03,                    # 資産規模連動（EQUITY_RISK_TABLE）
         "oos_pf":        1.81,
         "kelly":         0.25,
         "note":          "Logic-C オーパーツ (Sharpe=6.18)",
@@ -91,7 +109,7 @@ APPROVED_UNIVERSE = {
         "strategy":      "v79",
         "strategy_params": {"use_1d_trend": True},
         "tier":          2,
-        "base_risk_pct": 0.01,                    # Phase2: 1.0%統一
+        "base_risk_pct": 0.03,                    # 資産規模連動（EQUITY_RISK_TABLE）
         "oos_pf":        1.86,
         "kelly":         0.30,
         "note":          "Logic-A GOLD (Sharpe=7.12)",
@@ -103,7 +121,7 @@ APPROVED_UNIVERSE = {
         "strategy":      "v79",
         "strategy_params": {"use_1d_trend": True},
         "tier":          4,
-        "base_risk_pct": 0.01,                    # Phase2: 1.0%統一
+        "base_risk_pct": 0.03,                    # 資産規模連動（EQUITY_RISK_TABLE）
         "oos_pf":        2.02,
         "kelly":         0.35,
         "note":          "Logic-A GOLD (Sharpe=5.62)",
@@ -115,7 +133,7 @@ APPROVED_UNIVERSE = {
         "strategy":      "v79",
         "strategy_params": {"use_1d_trend": True, "tol_factor": 0.20},  # MDD改善: 20.5%→12.8%
         "tier":          5,
-        "base_risk_pct": 0.01,                    # Phase2: 1.0%統一
+        "base_risk_pct": 0.03,                    # 資産規模連動（EQUITY_RISK_TABLE）
         "oos_pf":        2.14,                    # tol=0.20適用後
         "kelly":         0.37,
         "note":          "Logic-A GOLD tol=0.20 (MDD12.8%, Sharpe=5.88)",
@@ -127,7 +145,7 @@ APPROVED_UNIVERSE = {
         "strategy":      "v79",
         "strategy_params": {"use_1d_trend": True, "tol_factor": 0.20},  # MDD改善: 20.5%→12.6%
         "tier":          6,
-        "base_risk_pct": 0.01,                    # Phase2: 1.0%統一
+        "base_risk_pct": 0.03,                    # 資産規模連動（EQUITY_RISK_TABLE）
         "oos_pf":        2.46,                    # tol=0.20適用後
         "kelly":         0.41,
         "note":          "Logic-A GOLD tol=0.20 (MDD12.6%, Sharpe=3.87)",
@@ -140,7 +158,7 @@ APPROVED_UNIVERSE = {
         "strategy":      "v79",
         "strategy_params": {"adx_min": 20, "streak_min": 4, "h4_body_ratio_min": 0.3},  # 十字線除外: PnL+12%
         "tier":          7,
-        "base_risk_pct": 0.01,                    # Phase2: 1.0%統一
+        "base_risk_pct": 0.03,                    # 資産規模連動（EQUITY_RISK_TABLE）
         "oos_pf":        2.49,
         "kelly":         0.35,
         "note":          "Logic-B ADX+Streak h4_body≥0.3 (PF 1.81→2.49, 総PnL+12%)",
@@ -156,6 +174,24 @@ CANDLE_COUNT       = 200
 ACCOUNT_BALANCE_JPY = float(os.environ.get("EQUITY_JPY", "1000000"))  # .envフォールバック
 MIN_UNITS           = 100
 MAX_UNITS           = 100_000
+
+# ── 資産規模ベース リスク逓減テーブル ──────────────────────────────
+# (閾値JPY, base_risk_pct): 資産が閾値を超えたらそのリスク%を適用
+EQUITY_RISK_TABLE = [
+    (100_000_000, 0.005),  # 1億〜:       0.5%（守りの運用）
+    ( 70_000_000, 0.010),  # 7000万〜1億: 1.0%
+    ( 50_000_000, 0.015),  # 5000万〜7000万: 1.5%
+    ( 30_000_000, 0.020),  # 3000万〜5000万: 2.0%
+    ( 10_000_000, 0.025),  # 1000万〜3000万: 2.5%
+    (          0, 0.030),  # 〜1000万:    3.0%（加速成長期）
+]
+
+def _equity_base_risk(equity_jpy: float) -> float:
+    """資産規模に応じたベースリスク%を返す"""
+    for threshold, risk in EQUITY_RISK_TABLE:
+        if equity_jpy >= threshold:
+            return risk
+    return 0.030  # fallback
 
 _cached_equity = {"value": 0.0, "ts": 0.0}   # エクイティキャッシュ（5分間有効）
 
@@ -206,27 +242,33 @@ def calc_units_from_risk(ep: float, sl: float, pip_size: float,
 def calc_dynamic_risk_pct(pair: str, trades_df: pd.DataFrame,
                           base_risk_pct: float, min_sample: int = 30) -> float:
     """
-    直近 min_sample トレードの勝率に基づいてリスク乗数を決定する。
+    資産規模ベースのリスク逓減 + 直近WRによる動的乗数。
 
-    WR ≥ 60% → ×1.5 (好調: 増量)
-    WR 35-60% → ×1.0 (標準)
-    WR < 35%  → ×0.5 (不調: 減量)
+    1. エクイティからベースリスク%を決定（EQUITY_RISK_TABLE）
+    2. 直近 min_sample トレードのWRで乗数を適用:
+       WR ≥ 60% → ×1.5 (好調: 増量)
+       WR 35-60% → ×1.0 (標準)
+       WR < 35%  → ×0.5 (不調: 減量)
 
-    データ不足時はbase_risk_pctをそのまま返す。
+    データ不足時はエクイティベースリスクをそのまま返す。
     上限 5% / 下限 0.5% でキャップ。
     """
+    # 資産規模に応じたベースリスクを取得
+    equity = _get_equity_jpy()
+    eq_base = _equity_base_risk(equity)
+
     if trades_df is None or len(trades_df) == 0:
-        return base_risk_pct
+        return eq_base
     if "pair" not in trades_df.columns:
-        return base_risk_pct
+        return eq_base
 
     pt = trades_df[trades_df["pair"] == pair].tail(min_sample)
     if len(pt) < min_sample:
-        return base_risk_pct  # データ不足 → ベース維持
+        return eq_base  # データ不足 → エクイティベース維持
 
     pnl_vals = pd.to_numeric(pt["pnl"], errors="coerce").dropna()
     if len(pnl_vals) == 0:
-        return base_risk_pct
+        return eq_base
 
     wr = (pnl_vals > 0).mean()
     if wr >= 0.60:
@@ -236,7 +278,7 @@ def calc_dynamic_risk_pct(pair: str, trades_df: pd.DataFrame,
     else:
         mult = 1.0
 
-    adjusted = base_risk_pct * mult
+    adjusted = eq_base * mult
     return max(0.005, min(adjusted, 0.05))
 
 
@@ -1004,10 +1046,14 @@ async def status():
             pair, trades_df, cfg["base_risk_pct"]) * 100, 1)
         for pair, cfg in APPROVED_UNIVERSE.items()
     }
+    equity = _get_equity_jpy()
+    eq_base = _equity_base_risk(equity)
     return {
         "open_positions":    len(op),
         "positions":         op,
         "symbols_monitored": list(APPROVED_UNIVERSE.keys()),
+        "equity_jpy":        round(equity),
+        "equity_base_risk":  f"{eq_base*100:.1f}%",
         "dynamic_risk_pct":  dynamic_risk,
         "universe": {
             pair: {"tier": cfg["tier"], "oos_pf": cfg["oos_pf"],
