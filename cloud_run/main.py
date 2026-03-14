@@ -1,18 +1,18 @@
 """
-main.py - Cloud Run 自動取引bot (YAGAMI改 Phase2: 全7銘柄本番再現性確認)
+main.py - Cloud Run 自動取引bot (YAGAMI改 Phase2: 全6銘柄本番運用)
 =================================================================
 【ブローカー切り替え】
   BROKER=oanda   → OANDA v20 REST API（ペーパートレード）
   BROKER=exness  → MetaApi経由 Exness MT5（本番取引、Windows不要）
 
-【Phase2: 全7銘柄 1.0% 標準運用（ポートフォリオ統合結果準拠）】
-  1. USDJPY: Logic-C（オーパーツ v77）/ 1.0%  (OOS PF=2.15, Sharpe=6.18)
-  2. GBPUSD: Logic-A（GOLD v79A）    / 1.0%  (OOS PF=1.86, Sharpe=7.12)
-  3. EURUSD: Logic-C（オーパーツ v77）/ 1.0%  (OOS PF=1.81, Sharpe=6.18)
-  4. USDCAD: Logic-A（GOLD v79A）    / 1.0%  (OOS PF=2.02, Sharpe=5.62)
-  5. NZDUSD: Logic-A（GOLD v79A）    / 1.0%  (OOS PF=1.98, Sharpe=5.45)
-  6. XAUUSD: Logic-A（GOLD v79A）    / 1.0%  (OOS PF=3.10, Sharpe=3.42)
-  7. AUDUSD: Logic-B（ADX+Streak）   / 1.0%  (OOS PF=2.03, Sharpe=3.66)
+【Phase2: 全6銘柄 1.0% 標準運用（ポートフォリオ統合結果準拠）】
+  1. GBPUSD: Logic-A（GOLD v79A）    / 1.0%  (OOS PF=1.86, Sharpe=7.12)
+  2. EURUSD: Logic-C（オーパーツ v77）/ 1.0%  (OOS PF=1.81, Sharpe=6.18)
+  3. USDCAD: Logic-A（GOLD v79A）    / 1.0%  (OOS PF=2.02, Sharpe=5.62)
+  4. NZDUSD: Logic-A（GOLD v79A）    / 1.0%  (PF=2.14, Sharpe=5.88, tol=0.20)
+  5. XAUUSD: Logic-A（GOLD v79A）    / 1.0%  (PF=2.46, Sharpe=3.87, tol=0.20)
+  6. AUDUSD: Logic-B（ADX+Streak）   / 1.0%  (OOS PF=2.03, Sharpe=3.66)
+  ※ USDJPY: バックテストデータ不鮮明のため一時除外（再検証後に復帰予定）
 
 【動的リスク調整】
   直近30トレードの勝率に基づいて乗数を自動調整:
@@ -70,18 +70,7 @@ broker = _create_broker()
 # バックテスト検証済み銘柄のみ。OOS PF・Kelly基準に基づくティア配分。
 APPROVED_UNIVERSE = {
     # ── Logic-C（オーパーツ v77: KMID+KLOW）──────────────────
-    "USDJPY": {
-        "oanda":         "USD_JPY",
-        "pip_size":      0.01,
-        "spread_pips":   0.4,
-        "strategy":      "v77",
-        "strategy_params": {},
-        "tier":          1,
-        "base_risk_pct": 0.01,                    # Phase2: 1.0%統一
-        "oos_pf":        2.15,
-        "kelly":         0.608,
-        "note":          "Logic-C オーパーツ (Sharpe=6.18)",
-    },
+    # USDJPY: バックテストデータ不鮮明のため一時除外（再検証後に復帰予定）
     "EURUSD": {
         "oanda":         "EUR_USD",
         "pip_size":      0.0001,
@@ -124,24 +113,24 @@ APPROVED_UNIVERSE = {
         "pip_size":      0.0001,
         "spread_pips":   0.5,
         "strategy":      "v79",
-        "strategy_params": {"use_1d_trend": True},
+        "strategy_params": {"use_1d_trend": True, "tol_factor": 0.20},  # MDD改善: 20.5%→12.8%
         "tier":          5,
         "base_risk_pct": 0.01,                    # Phase2: 1.0%統一
-        "oos_pf":        1.98,
-        "kelly":         0.30,
-        "note":          "Logic-A GOLD (Sharpe=5.45)",
+        "oos_pf":        2.14,                    # tol=0.20適用後
+        "kelly":         0.37,
+        "note":          "Logic-A GOLD tol=0.20 (MDD12.8%, Sharpe=5.88)",
     },
     "XAUUSD": {
         "oanda":         "XAU_USD",
         "pip_size":      0.01,
         "spread_pips":   5.2,
         "strategy":      "v79",
-        "strategy_params": {"use_1d_trend": True},
+        "strategy_params": {"use_1d_trend": True, "tol_factor": 0.20},  # MDD改善: 20.5%→12.6%
         "tier":          6,
         "base_risk_pct": 0.01,                    # Phase2: 1.0%統一
-        "oos_pf":        3.10,
-        "kelly":         0.45,
-        "note":          "Logic-A GOLD (Sharpe=3.42)",
+        "oos_pf":        2.46,                    # tol=0.20適用後
+        "kelly":         0.41,
+        "note":          "Logic-A GOLD tol=0.20 (MDD12.6%, Sharpe=3.87)",
     },
     # ── Logic-B（ADX+Streak v79BC）───────────────────────────
     "AUDUSD": {
@@ -900,14 +889,22 @@ def run_cycle():
                     f"risk={risk_pct*100:.1f}% slip={slip:+.2f}p "
                     f"strategy={sym_cfg['strategy']}")
 
-    # ── 3. 朝9時レポート（JST 9:00のみ・1日1回） ────────────
+    # ── 3. 朝9時レポート（JST 9:00台の最初の1回のみ） ──────────
     now_jst    = now + timedelta(hours=9)
     now_jst_h  = now_jst.hour
     report_key = now_jst.strftime("%Y-%m-%d-09")   # "2026-03-10-09"
     if now_jst_h == 9 and last_report.get("key") != report_key:
-        send_daily_report(open_positions, trades_df)
-        last_report = {"key": report_key}
-        gcs_write_json("state/last_report.json", last_report)   # 即時保存（重複防止）
+        # GCSから最新状態を再読み込み（複数インスタンス対策: レースコンディション防止）
+        fresh_report = gcs_read_json("state/last_report.json", default={"key": ""})
+        if fresh_report.get("key") != report_key:
+            # 先にGCSにキーを書き込んで「送信予約」を確保（他インスタンスをブロック）
+            gcs_write_json("state/last_report.json", {"key": report_key})
+            send_daily_report(open_positions, trades_df)
+            last_report = {"key": report_key}
+            logger.info(f"daily report sent: {report_key}")
+        else:
+            last_report = fresh_report
+            logger.info(f"daily report already sent by another instance: {report_key}")
 
     # ── 4. 週次GCSログ（月曜0時 JST・Discord通知なし） ───────
     week_no = now_jst.isocalendar()[1]
@@ -972,9 +969,9 @@ async def report_endpoint():
         open_positions = gcs_read_json("state/open_positions.json", default={})
         trades_df = gcs_read_csv("logs/paper_trades.csv")
         send_daily_report(open_positions, trades_df)
-        # /run 側の重複防止キーと同じ形式で書き込む
+        # /run 側の重複防止キーと同じ形式で書き込む（固定 "-09" サフィックス）
         now_jst = datetime.now(timezone.utc) + timedelta(hours=9)
-        report_key = now_jst.strftime("%Y-%m-%d-%H")
+        report_key = now_jst.strftime("%Y-%m-%d-09")
         gcs_write_json("state/last_report.json", {"key": report_key})
         return {"status": "ok", "note": "手動送信完了（/run側と重複防止キー統一済み）"}
     except Exception as e:
