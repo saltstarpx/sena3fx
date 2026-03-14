@@ -89,12 +89,12 @@ APPROVED_UNIVERSE = {
         "pip_size":      0.0001,
         "spread_pips":   0.1,
         "strategy":      "v79",
-        "strategy_params": {"use_1d_trend": True, "ema_dist_min": 1.5},  # EMA距離1.5ATR: OOS PF 2.00→2.56
+        "strategy_params": {"use_1d_trend": True},
         "tier":          2,
         "base_risk_pct": 0.01,                    # Phase2: 1.0%統一
-        "oos_pf":        2.56,
+        "oos_pf":        1.86,
         "kelly":         0.30,
-        "note":          "Logic-A GOLD ema_dist=1.5 (OOS PF+28%, IS/OOS=1.08)",
+        "note":          "Logic-A GOLD (Sharpe=7.12)",
     },
     "USDCAD": {
         "oanda":         "USD_CAD",
@@ -138,12 +138,12 @@ APPROVED_UNIVERSE = {
         "pip_size":      0.0001,
         "spread_pips":   0.0,
         "strategy":      "v79",
-        "strategy_params": {"adx_min": 20, "streak_min": 4, "ema_dist_min": 1.5},  # EMA距離1.5ATR: IS/OOS=1.13
+        "strategy_params": {"adx_min": 20, "streak_min": 4, "h4_body_ratio_min": 0.3},  # 十字線除外: PnL+12%
         "tier":          7,
         "base_risk_pct": 0.01,                    # Phase2: 1.0%統一
-        "oos_pf":        1.83,
+        "oos_pf":        2.49,
         "kelly":         0.35,
-        "note":          "Logic-B ADX+Streak ema_dist=1.5 (IS/OOS=1.13, 過学習なし)",
+        "note":          "Logic-B ADX+Streak h4_body≥0.3 (PF 1.81→2.49, 総PnL+12%)",
     },
 }
 
