@@ -46,30 +46,20 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from fastapi import FastAPI, Request
 from google.cloud import storage
 
-# ── ブローカー選択 ────────────────────────────────────────────
-BROKER_TYPE = os.environ.get("BROKER", "oanda").lower()
-
+# ── ブローカー（Exness固定） ──────────────────────────────────────
 DISCORD_WEBHOOK = os.environ.get("DISCORD_WEBHOOK",
     "https://discord.com/api/webhooks/1481623536182362255/i-Bo7MBagWWA7-4L93F9aORYeRUeBDuqSlIkvVcygyIy4s9LKcIfI1ng1XdR5mfkBZnd")
 GCS_BUCKET  = os.environ.get("GCS_BUCKET", "sena3fx-paper-trading")
 PROJECT_ID  = os.environ.get("GCP_PROJECT", "aiyagami")
 
 def _create_broker():
-    """環境変数に基づいてブローカーインスタンスを生成"""
-    if BROKER_TYPE == "exness":
-        from broker_metaapi import MetaApiBroker
-        return MetaApiBroker(
-            token=os.environ.get("METAAPI_TOKEN", ""),
-            account_id=os.environ.get("METAAPI_ACCOUNT_ID", ""),
-            equity_jpy=float(os.environ.get("EQUITY_JPY", "1000000")),
-        )
-    else:
-        from broker_oanda import OandaBroker
-        return OandaBroker(
-            token=os.environ.get("OANDA_TOKEN",
-                "b3c7db048d5b6d1ac77e4263bd8bfb8b-1222fbcaf7d9ffe642692a226f7e7467"),
-            account_id=os.environ.get("OANDA_ACCOUNT", "101-009-38652105-001"),
-        )
+    """Exness (MetaApi) ブローカーを生成"""
+    from broker_metaapi import MetaApiBroker
+    return MetaApiBroker(
+        token=os.environ.get("METAAPI_TOKEN", ""),
+        account_id=os.environ.get("METAAPI_ACCOUNT_ID", ""),
+        equity_jpy=float(os.environ.get("EQUITY_JPY", "1000000")),
+    )
 
 broker = _create_broker()
 
