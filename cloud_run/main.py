@@ -900,14 +900,22 @@ def run_cycle():
                     f"risk={risk_pct*100:.1f}% slip={slip:+.2f}p "
                     f"strategy={sym_cfg['strategy']}")
 
-    # ── 3. 朝9時レポート（JST 9:00のみ・1日1回） ────────────
+    # ── 3. 朝9時レポート（JST 9:00台の最初の1回のみ） ──────────
     now_jst    = now + timedelta(hours=9)
     now_jst_h  = now_jst.hour
     report_key = now_jst.strftime("%Y-%m-%d-09")   # "2026-03-10-09"
     if now_jst_h == 9 and last_report.get("key") != report_key:
-        send_daily_report(open_positions, trades_df)
-        last_report = {"key": report_key}
-        gcs_write_json("state/last_report.json", last_report)   # 即時保存（重複防止）
+        # GCSから最新状態を再読み込み（複数インスタンス対策: レースコンディション防止）
+        fresh_report = gcs_read_json("state/last_report.json", default={"key": ""})
+        if fresh_report.get("key") != report_key:
+            # 先にGCSにキーを書き込んで「送信予約」を確保（他インスタンスをブロック）
+            gcs_write_json("state/last_report.json", {"key": report_key})
+            send_daily_report(open_positions, trades_df)
+            last_report = {"key": report_key}
+            logger.info(f"daily report sent: {report_key}")
+        else:
+            last_report = fresh_report
+            logger.info(f"daily report already sent by another instance: {report_key}")
 
     # ── 4. 週次GCSログ（月曜0時 JST・Discord通知なし） ───────
     week_no = now_jst.isocalendar()[1]
@@ -972,9 +980,9 @@ async def report_endpoint():
         open_positions = gcs_read_json("state/open_positions.json", default={})
         trades_df = gcs_read_csv("logs/paper_trades.csv")
         send_daily_report(open_positions, trades_df)
-        # /run 側の重複防止キーと同じ形式で書き込む
+        # /run 側の重複防止キーと同じ形式で書き込む（固定 "-09" サフィックス）
         now_jst = datetime.now(timezone.utc) + timedelta(hours=9)
-        report_key = now_jst.strftime("%Y-%m-%d-%H")
+        report_key = now_jst.strftime("%Y-%m-%d-09")
         gcs_write_json("state/last_report.json", {"key": report_key})
         return {"status": "ok", "note": "手動送信完了（/run側と重複防止キー統一済み）"}
     except Exception as e:
