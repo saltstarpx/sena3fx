@@ -12,7 +12,7 @@ main.py - Cloud Run 自動取引bot (YAGAMI改 Phase2: 全6銘柄本番運用)
   4. NZDUSD: Logic-A（GOLD v79A）    / 1.0%  (PF=2.14, Sharpe=5.88, tol=0.20)
   5. XAUUSD: Logic-A（GOLD v79A）    / 1.0%  (PF=2.46, Sharpe=3.87, tol=0.20)
   6. AUDUSD: Logic-B（ADX+Streak）   / 1.0%  (OOS PF=2.03, Sharpe=3.66)
-  ※ USDJPY: バックテストデータ不鮮明のため一時除外（再検証後に復帰予定）
+  7. USDJPY: Logic-C（オーパーツ v77） / 1.0%  (PF=2.02, Sharpe=7.83)
 
 【動的リスク調整】
   直近30トレードの勝率に基づいて乗数を自動調整:
@@ -70,7 +70,18 @@ broker = _create_broker()
 # バックテスト検証済み銘柄のみ。OOS PF・Kelly基準に基づくティア配分。
 APPROVED_UNIVERSE = {
     # ── Logic-C（オーパーツ v77: KMID+KLOW）──────────────────
-    # USDJPY: バックテストデータ不鮮明のため一時除外（再検証後に復帰予定）
+    "USDJPY": {
+        "oanda":         "USD_JPY",
+        "pip_size":      0.01,
+        "spread_pips":   0.0,
+        "strategy":      "v77",
+        "strategy_params": {},
+        "tier":          1,
+        "base_risk_pct": 0.01,                    # Phase2: 1.0%統一
+        "oos_pf":        2.02,
+        "kelly":         0.34,
+        "note":          "Logic-C オーパーツ (Sharpe=7.83)",
+    },
     "EURUSD": {
         "oanda":         "EUR_USD",
         "pip_size":      0.0001,
