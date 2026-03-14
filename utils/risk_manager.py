@@ -13,7 +13,7 @@ utils/risk_manager.py
 【設計思想】
 - 銘柄名を渡すだけで pip_size / spread / 円換算ロジックが自動設定される
 - SL距離はv77本体のATRベース（ATR × 0.15）で決まるため固定値最適化なし
-- 損切額 = 総資産 × risk_pct（デフォルト2%）を厳守
+- 損切額 = 総資産 × risk_pct（デフォルト3%、資産規模で逓減）を厳守
 - バックテストでも本番EAでも同一コードで動作する
 
 【通貨ペアタイプと円換算】
@@ -104,10 +104,10 @@ class RiskManager:
     symbol : str
         銘柄名（例: "EURUSD", "USDJPY"）。大文字・小文字どちらでも可。
     risk_pct : float
-        1トレードあたりのリスク割合（デフォルト: 0.02 = 2%）
+        1トレードあたりのリスク割合（デフォルト: 0.03 = 3%、資産規模で逓減）
     """
 
-    def __init__(self, symbol: str, risk_pct: float = 0.02):
+    def __init__(self, symbol: str, risk_pct: float = 0.03):
         self.symbol    = symbol.upper()
         self.risk_pct  = risk_pct
 
@@ -333,7 +333,7 @@ class RiskManager:
 
 
 # ── 便利関数: 銘柄名からRiskManagerを生成 ─────────────────
-def get_risk_manager(symbol: str, risk_pct: float = 0.02) -> RiskManager:
+def get_risk_manager(symbol: str, risk_pct: float = 0.03) -> RiskManager:
     """銘柄名からRiskManagerインスタンスを返す。"""
     return RiskManager(symbol, risk_pct)
 
@@ -392,7 +392,7 @@ if __name__ == "__main__":
               f"{lot:<14.1f} {abs(pnl):<14.0f} {desc}")
 
     print("-" * 90)
-    print(f"※ リスク額は全て {equity*0.02:,.0f}円（総資産{equity:,}円の2%）になるはず")
+    print(f"※ リスク額は全て {equity*0.03:,.0f}円（総資産{equity:,}円の3%）になるはず")
 
 
 # ══════════════════════════════════════════════════════════════
@@ -406,12 +406,12 @@ class AdaptiveRiskManager(RiskManager):
     - 資産規模テーブルと DD テーブルをそれぞれ評価し、
       より低い方のリスク% を採用する（保守的な方を優先）。
 
-    【資産規模テーブル】
-    資産 〜 1,000万円:   base_risk_pct × 1.00  (例: 2.0%)
-    資産 1,000万〜3,000万円: base_risk_pct × 0.75  (例: 1.5%)
-    資産 3,000万〜5,000万円: base_risk_pct × 0.50  (例: 1.0%)
-    資産 5,000万〜1億円:     base_risk_pct × 0.375 (例: 0.75%)
-    資産 1億円〜:            base_risk_pct × 0.25  (例: 0.5%)
+    【資産規模テーブル（加速成長 → 逓減）】
+    資産 〜 1,000万円:       base_risk_pct × 1.00  (3.0%)
+    資産 1,000万〜3,000万円: base_risk_pct × 0.833 (2.5%)
+    資産 3,000万〜5,000万円: base_risk_pct × 0.667 (2.0%)
+    資産 5,000万〜1億円:     base_risk_pct × 0.50  (1.5%)
+    資産 1億円〜:            base_risk_pct × 0.333 (1.0%)
 
     【DD テーブル】
     DD  0%未満:  × 1.00  (通常)
@@ -424,12 +424,13 @@ class AdaptiveRiskManager(RiskManager):
     """
 
     # 資産規模テーブル: (資産下限, リスク乗数)
+    # base_risk_pct=0.03 との組合せで 3.0% → 2.5% → 2.0% → 1.5% → 1.0%
     EQUITY_STEPS = [
-        (0,           1.00),   # 〜1,000万円
-        (10_000_000,  0.75),   # 1,000万〜3,000万円
-        (30_000_000,  0.50),   # 3,000万〜5,000万円
-        (50_000_000,  0.375),  # 5,000万〜1億円
-        (100_000_000, 0.25),   # 1億円〜
+        (0,           1.000),  # 〜1,000万円:       3.0%
+        (10_000_000,  0.833),  # 1,000万〜3,000万円: 2.5%
+        (30_000_000,  0.667),  # 3,000万〜5,000万円: 2.0%
+        (50_000_000,  0.500),  # 5,000万〜1億円:     1.5%
+        (100_000_000, 0.333),  # 1億円〜:           1.0%
     ]
 
     # 絶対下限リスク率（1億円超 + DD15%でも0.5%を下回らない）
@@ -443,7 +444,7 @@ class AdaptiveRiskManager(RiskManager):
         (0.15,  0.25),   # DD 15%以上 → ×0.25（最小）
     ]
 
-    def __init__(self, symbol: str, base_risk_pct: float = 0.02):
+    def __init__(self, symbol: str, base_risk_pct: float = 0.03):
         super().__init__(symbol, risk_pct=base_risk_pct)
         self.base_risk_pct = base_risk_pct
         self.peak_equity   = None   # 過去最高資産額
@@ -554,7 +555,7 @@ if __name__ == "__main__":
     print("AdaptiveRiskManager 動作確認")
     print("=" * 60)
 
-    arm = AdaptiveRiskManager("NZDUSD", base_risk_pct=0.02)
+    arm = AdaptiveRiskManager("NZDUSD", base_risk_pct=0.03)
     usdjpy = 150.0
     sl_dist = 0.00074
     ref_price = 0.565
@@ -579,8 +580,8 @@ if __name__ == "__main__":
         arm.peak_equity = equity / (1 - dd_rate) if dd_rate < 1 else equity
         eq_mult = arm.equity_risk_multiplier(equity)
         dd_mult = arm.dd_risk_multiplier(equity)
-        eff     = arm.effective_risk_pct(equity)
+        eff, reason = arm.effective_risk_pct(equity)
         risk_amt = equity * eff
-        lot, _  = arm.calc_lot_adaptive(equity, sl_dist, ref_price, usdjpy)
+        lot, _, _  = arm.calc_lot_adaptive(equity, sl_dist, ref_price, usdjpy)
         print(f"{equity:>14,.0f} {dd_rate:>6.0%} {eq_mult:>8.2f} {dd_mult:>8.2f} "
               f"{eff:>10.2%} {risk_amt:>10,.0f}円  {desc}")
