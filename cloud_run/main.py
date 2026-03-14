@@ -10,8 +10,8 @@ main.py - Cloud Run 自動取引bot (YAGAMI改 Phase2: 全7銘柄本番再現性
   2. GBPUSD: Logic-A（GOLD v79A）    / 1.0%  (OOS PF=1.86, Sharpe=7.12)
   3. EURUSD: Logic-C（オーパーツ v77）/ 1.0%  (OOS PF=1.81, Sharpe=6.18)
   4. USDCAD: Logic-A（GOLD v79A）    / 1.0%  (OOS PF=2.02, Sharpe=5.62)
-  5. NZDUSD: Logic-A（GOLD v79A）    / 1.0%  (OOS PF=1.98, Sharpe=5.45)
-  6. XAUUSD: Logic-A（GOLD v79A）    / 1.0%  (OOS PF=3.10, Sharpe=3.42)
+  5. NZDUSD: Logic-A（GOLD v79A）    / 1.0%  (PF=2.14, Sharpe=5.88, tol=0.20)
+  6. XAUUSD: Logic-A（GOLD v79A）    / 1.0%  (PF=2.46, Sharpe=3.87, tol=0.20)
   7. AUDUSD: Logic-B（ADX+Streak）   / 1.0%  (OOS PF=2.03, Sharpe=3.66)
 
 【動的リスク調整】
@@ -124,24 +124,24 @@ APPROVED_UNIVERSE = {
         "pip_size":      0.0001,
         "spread_pips":   0.5,
         "strategy":      "v79",
-        "strategy_params": {"use_1d_trend": True},
+        "strategy_params": {"use_1d_trend": True, "tol_factor": 0.20},  # MDD改善: 20.5%→12.8%
         "tier":          5,
         "base_risk_pct": 0.01,                    # Phase2: 1.0%統一
-        "oos_pf":        1.98,
-        "kelly":         0.30,
-        "note":          "Logic-A GOLD (Sharpe=5.45)",
+        "oos_pf":        2.14,                    # tol=0.20適用後
+        "kelly":         0.37,
+        "note":          "Logic-A GOLD tol=0.20 (MDD12.8%, Sharpe=5.88)",
     },
     "XAUUSD": {
         "oanda":         "XAU_USD",
         "pip_size":      0.01,
         "spread_pips":   5.2,
         "strategy":      "v79",
-        "strategy_params": {"use_1d_trend": True},
+        "strategy_params": {"use_1d_trend": True, "tol_factor": 0.20},  # MDD改善: 20.5%→12.6%
         "tier":          6,
         "base_risk_pct": 0.01,                    # Phase2: 1.0%統一
-        "oos_pf":        3.10,
-        "kelly":         0.45,
-        "note":          "Logic-A GOLD (Sharpe=3.42)",
+        "oos_pf":        2.46,                    # tol=0.20適用後
+        "kelly":         0.41,
+        "note":          "Logic-A GOLD tol=0.20 (MDD12.6%, Sharpe=3.87)",
     },
     # ── Logic-B（ADX+Streak v79BC）───────────────────────────
     "AUDUSD": {
