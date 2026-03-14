@@ -138,12 +138,12 @@ APPROVED_UNIVERSE = {
         "pip_size":      0.0001,
         "spread_pips":   0.0,
         "strategy":      "v79",
-        "strategy_params": {"adx_min": 20, "streak_min": 4},
+        "strategy_params": {"adx_min": 20, "streak_min": 4, "h4_body_ratio_min": 0.3},  # 十字線除外: PnL+12%
         "tier":          7,
         "base_risk_pct": 0.01,                    # Phase2: 1.0%統一
-        "oos_pf":        2.03,
+        "oos_pf":        2.49,
         "kelly":         0.35,
-        "note":          "Logic-B ADX+Streak (Sharpe=3.66)",
+        "note":          "Logic-B ADX+Streak h4_body≥0.3 (PF 1.81→2.49, 総PnL+12%)",
     },
 }
 

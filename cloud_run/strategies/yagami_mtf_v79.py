@@ -148,6 +148,20 @@ def check_v80_candle(conf_bar, direction,
     return True
 
 
+def check_h4_body_ratio(bar, min_ratio=0.0):
+    """
+    4H足ボディ比率フィルター: 実体/(高値-安値) >= min_ratio
+    十字線（ボディが小さい＝トレンド確信が弱い）を除外する。
+    AUDUSD: body_ratio < 0.3 → WR=44.1%, 純マイナス → 除外推奨
+    """
+    if min_ratio <= 0:
+        return True
+    rng = bar["high"] - bar["low"]
+    if rng <= 0:
+        return False
+    return abs(bar["close"] - bar["open"]) / rng >= min_ratio
+
+
 def check_kmid_klow(prev_4h_bar, direction):
     """
     KMID（実体方向一致）+ KLOW（下ヒゲ小）フィルター（v77継承）
@@ -181,7 +195,8 @@ def generate_signals(data_1m, data_15m, data_4h,
                      # v81 エントリー条件見直し（古典TA基準・データ非依存）
                      tol_factor=0.3,      # v81A: パターン許容幅係数 (ATR×tol_factor, デフォルト0.3)
                      neckline_break=False, # v81B: 確認足終値がネックライン（前バーhigh/low）を突破
-                     ema_dist_min=0.0):   # v81C: EMAからの距離≥ATR×ema_dist_min (0=無効, 推奨1.0)
+                     ema_dist_min=0.0,    # v81C: EMAからの距離≥ATR×ema_dist_min (0=無効, 推奨1.0)
+                     h4_body_ratio_min=0.0):  # 4H足ボディ比率 (0=無効, AUDUSD推奨0.3)
     """
     やがみメソッド MTF二番底・二番天井シグナル生成 v79版。
 
@@ -372,6 +387,8 @@ def generate_signals(data_1m, data_15m, data_4h,
 
             # v77継承: 4H文脈足 KMID+KLOW
             if not check_kmid_klow(h4_latest, direction): continue
+            # 4H足ボディ比率（十字線排除）
+            if not check_h4_body_ratio(h4_latest, h4_body_ratio_min): continue
             # v80B: 上昇型二番底 / 下降型二番天井のみ
             if ascending_only:
                 if direction == 1 and v2 < v1: continue

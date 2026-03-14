@@ -43,7 +43,7 @@ TARGETS = [
     {"sym": "GBPUSD",  "logic": "A", "label": "GBPUSD (Logic-A)"},
     {"sym": "USDCAD",  "logic": "A", "label": "USDCAD (Logic-A)"},
     {"sym": "NZDUSD",  "logic": "A", "label": "NZDUSD (Logic-A)"},
-    {"sym": "AUDUSD",  "logic": "B", "label": "AUDUSD (Logic-B)"},
+    {"sym": "AUDUSD",  "logic": "B", "label": "AUDUSD (Logic-B)", "h4_body_ratio_min": 0.3},
     {"sym": "XAUUSD",  "logic": "A", "label": "XAUUSD (Logic-A)"},
 ]
 
@@ -149,7 +149,15 @@ def chk_klow(b): return (min(b["open"], b["close"]) - b["low"]) / b["open"] < KL
 def chk_ema(b): return not pd.isna(b["atr"]) and b["atr"] > 0 and abs(b["close"] - b["ema20"]) >= b["atr"] * A1_EMA_DIST_MIN
 
 # ── シグナル生成 ──────────────────────────────────────────────────
-def generate_signals(d1m, d4h_full, spread, logic, atr_d, m1c):
+def chk_h4_body(b, min_ratio=0.0):
+    """4H足ボディ比率フィルター: 実体/(高値-安値) >= min_ratio"""
+    if min_ratio <= 0: return True
+    rng = b["high"] - b["low"]
+    if rng <= 0: return False
+    return abs(b["close"] - b["open"]) / rng >= min_ratio
+
+def generate_signals(d1m, d4h_full, spread, logic, atr_d, m1c,
+                     ema_dist_min=A1_EMA_DIST_MIN, h4_body_ratio_min=0.0):
     d4h, d1d = build_4h(d4h_full, need_1d=(logic == "A"))
     d1h = build_1h(d1m)
     signals = []; used = set()
@@ -176,7 +184,12 @@ def generate_signals(d1m, d4h_full, spread, logic, atr_d, m1c):
 
         if not chk_kmid(h4l, trend): continue
         if not chk_klow(h4l): continue
-        if logic != "C" and not chk_ema(h4l): continue
+        if not chk_h4_body(h4l, h4_body_ratio_min): continue
+        # EMA距離フィルター（per-symbol ema_dist_min対応）
+        if logic != "C" and not pd.isna(h4l["atr"]) and h4l["atr"] > 0:
+            ema_dist = abs(h4l["close"] - h4l["ema20"])
+            if ema_dist < ema_dist_min * h4l["atr"]:
+                continue
 
         d = trend
         v1 = p2["low"]  if d == 1 else p2["high"]
@@ -257,7 +270,10 @@ def main():
                   "closes": d1m["close"].values,
                   "highs":  d1m["high"].values, "lows": d1m["low"].values}
 
-        sigs = generate_signals(d1m, d4h, spread, logic, atr_d, m1c)
+        edm  = tgt.get("ema_dist_min", A1_EMA_DIST_MIN)
+        hbr  = tgt.get("h4_body_ratio_min", 0.0)
+        sigs = generate_signals(d1m, d4h, spread, logic, atr_d, m1c,
+                                ema_dist_min=edm, h4_body_ratio_min=hbr)
         print(f"{len(sigs)}シグナル", end="", flush=True)
 
         # シミュレーション（個別トレード記録）
