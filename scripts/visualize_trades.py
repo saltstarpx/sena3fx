@@ -17,8 +17,18 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
+import matplotlib.font_manager as fm
 from matplotlib.patches import FancyArrowPatch
 from datetime import timedelta
+
+# ── 日本語フォント設定 ──
+_JP_FONT_PATH = "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"
+if os.path.exists(_JP_FONT_PATH):
+    _jp_font = fm.FontProperties(fname=_JP_FONT_PATH)
+    plt.rcParams["font.family"] = _jp_font.get_name()
+    # TTC の場合 rcParams では効かないことがあるので FontProperties を使う
+else:
+    _jp_font = None
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils.risk_manager import SYMBOL_CONFIG
@@ -247,7 +257,8 @@ def plot_trade(d1m, trade_info, sym, trade_idx, tf="15min"):
     dir_str = "LONG ↑" if d == 1 else "SHORT ↓"
     title = (f"{sym}  {dir_str}  |  {exit_type}  |  "
              f"{total_pips:+.1f} pips  |  保持: {hold_str}")
-    ax.set_title(title, fontsize=14, color="white", fontweight="bold", pad=12)
+    _fp = {"fontproperties": _jp_font} if _jp_font else {}
+    ax.set_title(title, fontsize=14, color="white", fontweight="bold", pad=12, **_fp)
 
     # 右側にPnL表示
     ax.text(0.98, 0.95, f"{total_pips:+.1f} pips",
@@ -278,7 +289,8 @@ def plot_trade(d1m, trade_info, sym, trade_idx, tf="15min"):
         Line2D([0], [0], marker="D", color="#ffaa00", markersize=6, label="半利確ポイント", linestyle="None"),
     ]
     ax.legend(handles=legend_elements, loc="lower left", fontsize=8,
-              facecolor="#1a1a2e", edgecolor="#333", labelcolor="white", ncol=2)
+              facecolor="#1a1a2e", edgecolor="#333", labelcolor="white", ncol=2,
+              prop=_jp_font if _jp_font else None)
 
     # 軸の設定
     ax.xaxis.set_major_formatter(mdates.DateFormatter("%m/%d %H:%M"))
