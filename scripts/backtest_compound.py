@@ -133,6 +133,8 @@ def main():
 
     crossed_10m = False
     crossed_10m_idx = None
+    crossed_1oku = False
+    crossed_1oku_idx = None
 
     for sig in all_signals:
         sym = sig["sym"]
@@ -181,10 +183,13 @@ def main():
         })
         eq_history.append({"time": sig["time"], "equity": equity})
 
-        # 1000万円超えの最初のトレードを記録
+        # 1000万円・1億円超えの最初のトレードを記録
         if not crossed_10m and equity >= 10_000_000:
             crossed_10m = True
             crossed_10m_idx = trade_idx
+        if not crossed_1oku and equity >= 100_000_000:
+            crossed_1oku = True
+            crossed_1oku_idx = trade_idx
 
     if not trades:
         print("\nトレードなし"); return
@@ -297,6 +302,27 @@ def main():
                   f"{row['risk_pct']*100:.1f}%{marker}")
     else:
         print("  1000万円に到達しませんでした")
+
+    # ── 1億円超え後の30取引詳細 ───────────────────────────────
+    print(f"\n{'='*80}")
+    print(f"  ■ 1億円超え後の取引履歴（30取引）")
+    print(f"{'='*80}")
+    if crossed_1oku_idx is not None:
+        detail_start = crossed_1oku_idx
+        detail_end = min(detail_start + 30, len(df))
+        print(f"  {'#':>3} {'日時':19} {'銘柄':8} {'結果':4} {'損益(¥)':>14} {'残高(¥)':>16} {'リスク%':>7}")
+        print(f"  {'-'*76}")
+        for i in range(detail_start, detail_end):
+            row = df.iloc[i]
+            marker = ""
+            if i == detail_start:
+                marker = " ← 1億突破"
+            print(f"  {i-detail_start+1:>3} {row['time'].strftime('%Y-%m-%d %H:%M')} "
+                  f"{row['sym']:8} {row['result']:4} "
+                  f"¥{row['pnl']:>+13,.0f} ¥{row['equity']:>15,.0f} "
+                  f"{row['risk_pct']*100:.1f}%{marker}")
+    else:
+        print("  1億円に到達しませんでした")
 
     # ── エクイティカーブ描画 ──────────────────────────────────
     import matplotlib
