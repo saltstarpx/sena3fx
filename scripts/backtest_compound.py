@@ -1,13 +1,15 @@
 """
 backtest_compound.py
 ====================
-複利バックテスト — 総資産1億円まで損切り1%、1億円超は固定ロット
+複利バックテスト — 資産規模連動リスク逓減テーブル
 
 ルール:
-  - 初期資金: 68万円
-  - 資産 < 1億円: 損切り = 現在資産 × 1%
-  - 資産 ≥ 1億円: 損切り = 1億円 × 1% = 100万円 固定
-  - 6銘柄同時運用、シグナルは時系列で処理
+  - 初期資金: 65万円
+  - 資産規模連動リスク逓減:
+    ~1000万: 3.0% / 1000万~3000万: 2.5% / 3000万~5000万: 2.0%
+    5000万~1億: 1.5% / 1億~: 1.0%
+  - 7銘柄同時運用、シグナルは時系列で処理
+  - 1000万超え後の30取引を詳細表示
 """
 import os, sys, warnings
 warnings.filterwarnings("ignore")
@@ -18,9 +20,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils.risk_manager import RiskManager, SYMBOL_CONFIG
 
 # ── 定数 ─────────────────────────────────────────────────────────
-INIT_CASH         = 680_000
-COMPOUND_CAP      = 100_000_000   # 1億円で複利上限
-RISK_PCT          = 0.01          # 損切り = 資産の1%
+INIT_CASH         = 650_000
 RR_RATIO          = 2.5
 HALF_R            = 1.0
 MAX_LOOKAHEAD     = 20_000
@@ -41,14 +41,31 @@ DATA_DIR      = os.path.join(BASE_DIR, "data")
 OUT_DIR       = os.path.join(BASE_DIR, "results")
 os.makedirs(OUT_DIR, exist_ok=True)
 
-# ── 採用6銘柄 ────────────────────────────────────────────────────
+# ── 資産規模連動リスク逓減テーブル ──────────────────────────────────
+EQUITY_RISK_TABLE = [
+    (100_000_000, 0.010),  # 1億〜:      1.0%
+    ( 50_000_000, 0.015),  # 5000万〜1億: 1.5%
+    ( 30_000_000, 0.020),  # 3000万〜5000万: 2.0%
+    ( 10_000_000, 0.025),  # 1000万〜3000万: 2.5%
+    (          0, 0.030),  # 〜1000万:    3.0%（加速成長期）
+]
+
+def equity_risk_pct(equity_jpy: float) -> float:
+    """資産規模に応じたリスク%を返す"""
+    for threshold, risk in EQUITY_RISK_TABLE:
+        if equity_jpy >= threshold:
+            return risk
+    return 0.030
+
+# ── 採用7銘柄 ────────────────────────────────────────────────────
 TARGETS = [
     {"sym": "USDJPY",  "logic": "C", "label": "USDJPY (Logic-C)"},
+    {"sym": "EURUSD",  "logic": "C", "label": "EURUSD (Logic-C)"},
     {"sym": "GBPUSD",  "logic": "A", "label": "GBPUSD (Logic-A)"},
     {"sym": "USDCAD",  "logic": "A", "label": "USDCAD (Logic-A)"},
-    {"sym": "NZDUSD",  "logic": "A", "label": "NZDUSD (Logic-A)"},
+    {"sym": "NZDUSD",  "logic": "A", "label": "NZDUSD (Logic-A)", "tol_factor": 0.20},
     {"sym": "AUDUSD",  "logic": "B", "label": "AUDUSD (Logic-B)", "h4_body_ratio_min": 0.3},
-    {"sym": "XAUUSD",  "logic": "A", "label": "XAUUSD (Logic-A)"},
+    {"sym": "XAUUSD",  "logic": "A", "label": "XAUUSD (Logic-A)", "tol_factor": 0.20},
 ]
 
 # ── backtest_portfolio_680k.py から関数をインポート ──────────────────
@@ -67,8 +84,8 @@ _exit            = _bt._exit
 
 def main():
     print(f"\n{'='*80}")
-    print(f"  YAGAMI改 複利ポートフォリオバックテスト")
-    print(f"  初期資金 ¥{INIT_CASH:,.0f} / リスク1% / 1億円で固定ロット化")
+    print(f"  YAGAMI改 複利ポートフォリオバックテスト（資産規模連動リスク逓減）")
+    print(f"  初期資金 ¥{INIT_CASH:,.0f} / ~1000万:3% → 1000万~:2.5% → ... → 1億~:1%")
     print(f"{'='*80}")
 
     # ── Phase 1: 全銘柄のシグナルを収集 ─────────────────────────────
@@ -108,36 +125,25 @@ def main():
     all_signals.sort(key=lambda x: x["time"])
     print(f"\n  統合シグナル数: {len(all_signals)}")
 
-    # ── Phase 2: 複利シミュレーション ─────────────────────────────
+    # ── Phase 2: 複利シミュレーション（資産規模連動リスク） ─────────────
     equity = float(INIT_CASH)
     trades = []
     eq_history = [{"time": all_signals[0]["time"] - pd.Timedelta(days=1), "equity": equity}]
 
-    cap_reached = False
-    cap_reached_time = None
-    fixed_risk_jpy = None   # 1億円到達時のリスク額を固定
+    crossed_10m = False
+    crossed_10m_idx = None
 
     for sig in all_signals:
         sym = sig["sym"]
         sd  = sym_data[sym]
 
-        # ── リスク額の決定 ──────────────────────────────────────
-        if equity >= COMPOUND_CAP and not cap_reached:
-            cap_reached = True
-            cap_reached_time = sig["time"]
-            fixed_risk_jpy = COMPOUND_CAP * RISK_PCT  # 100万円固定
-
-        if cap_reached:
-            risk_jpy = fixed_risk_jpy
-        else:
-            risk_jpy = equity * RISK_PCT
+        # ── 資産規模連動リスク%の決定 ──────────────────────────────
+        risk_pct = equity_risk_pct(equity)
+        risk_jpy = equity * risk_pct
 
         # ── ロット計算 ──────────────────────────────────────────
-        rm = RiskManager(sym, risk_pct=RISK_PCT)
-        # risk_jpyからロットを逆算: lot = risk_jpy / (sl_distance * conversion)
-        # calc_lotはequity * risk_pctを使うので、equityを調整して渡す
-        effective_equity = risk_jpy / RISK_PCT
-        lot = rm.calc_lot(effective_equity, sig["risk"], sig["ep"], usdjpy_rate=150.0)
+        rm = RiskManager(sym, risk_pct=risk_pct)
+        lot = rm.calc_lot(equity, sig["risk"], sig["ep"], usdjpy_rate=150.0)
         if lot <= 0:
             continue
 
@@ -165,12 +171,19 @@ def main():
         total_pnl = half_pnl + pnl
         equity += total_pnl
 
+        trade_idx = len(trades)
         trades.append({
             "time": sig["time"], "sym": sym, "result": result,
             "pnl": total_pnl, "equity": equity, "risk_jpy": risk_jpy,
-            "lot": lot, "month": sig["time"].strftime("%Y-%m"),
+            "risk_pct": risk_pct, "lot": lot,
+            "month": sig["time"].strftime("%Y-%m"),
         })
         eq_history.append({"time": sig["time"], "equity": equity})
+
+        # 1000万円超えの最初のトレードを記録
+        if not crossed_10m and equity >= 10_000_000:
+            crossed_10m = True
+            crossed_10m_idx = trade_idx
 
     if not trades:
         print("\nトレードなし"); return
@@ -222,19 +235,35 @@ def main():
         print(f"  {sym_name:10} {len(sub):>8} {sw/len(sub)*100:>7.1f}% {sub['pnl'].sum():>+16,.0f}")
 
     print(f"\n{'='*80}")
-    print(f"  ■ 複利ポートフォリオ最終結果")
+    print(f"  ■ 複利ポートフォリオ最終結果（資産規模連動リスク逓減）")
     print(f"{'='*80}")
     print(f"  初期資金        : ¥{INIT_CASH:>16,.0f}")
     print(f"  最終資産        : ¥{final_equity:>16,.0f}")
     print(f"  総損益          : ¥{final_equity - INIT_CASH:>+16,.0f} ({(final_equity/INIT_CASH - 1)*100:+,.1f}%)")
     print(f"  トレード数      : {n:>10}")
     print(f"  勝率            : {wr*100:>9.1f}%")
+    print(f"  PF              : {pf:>9.2f}")
+    print(f"  Sharpe          : {sharpe:>9.2f}")
     print(f"  最大DD          : {mdd:>9.1f}% (¥{mdd_jpy:>12,.0f})")
     print(f"  プラス月        : {plus_m}/{len(monthly)}")
     print(f"  期間            : {df.iloc[0]['time'].strftime('%Y-%m-%d')} 〜 {df.iloc[-1]['time'].strftime('%Y-%m-%d')}")
-    if cap_reached:
-        print(f"\n  ★ 1億円到達    : {cap_reached_time.strftime('%Y-%m-%d')}")
-        print(f"  ★ 固定リスク額  : ¥{fixed_risk_jpy:>12,.0f}/トレード")
+
+    # ── リスク逓減ステージ到達時刻 ────────────────────────────────
+    print(f"\n  ■ リスクステージ到達")
+    stages = [
+        (10_000_000,  "1,000万（3.0%→2.5%）"),
+        (30_000_000,  "3,000万（2.5%→2.0%）"),
+        (50_000_000,  "5,000万（2.0%→1.5%）"),
+        (100_000_000, "1億（1.5%→1.0%）"),
+    ]
+    for threshold, label in stages:
+        reached = df[df["equity"] >= threshold]
+        if not reached.empty:
+            t = reached.iloc[0]["time"]
+            idx = reached.index[0]
+            print(f"    {label}: {t.strftime('%Y-%m-%d')} (第{idx+1}トレード)")
+        else:
+            print(f"    {label}: 未到達")
 
     # ── 月次損益 ──────────────────────────────────────────────
     print(f"\n  ■ 月次損益")
@@ -242,10 +271,30 @@ def main():
     for m in monthly.index:
         pnl_m = monthly[m]
         eq_m += pnl_m
-        # 月末の平均リスク額
         m_trades = df[df["month"] == m]
-        avg_risk = m_trades["risk_jpy"].mean()
-        print(f"    {m} : ¥{pnl_m:>+14,.0f}  (残高 ¥{eq_m:>14,.0f})  平均リスク ¥{avg_risk:>10,.0f}")
+        avg_risk = m_trades["risk_pct"].mean() * 100
+        print(f"    {m} : ¥{pnl_m:>+14,.0f}  (残高 ¥{eq_m:>14,.0f})  平均リスク {avg_risk:.1f}%")
+
+    # ── 1000万円超え後の30取引詳細 ──────────────────────────────
+    print(f"\n{'='*80}")
+    print(f"  ■ 1000万円超え後の取引履歴（30取引）")
+    print(f"{'='*80}")
+    if crossed_10m_idx is not None:
+        detail_start = crossed_10m_idx
+        detail_end = min(detail_start + 30, len(df))
+        print(f"  {'#':>3} {'日時':19} {'銘柄':8} {'結果':4} {'損益(¥)':>14} {'残高(¥)':>16} {'リスク%':>7}")
+        print(f"  {'-'*76}")
+        for i in range(detail_start, detail_end):
+            row = df.iloc[i]
+            marker = ""
+            if i == detail_start:
+                marker = " ← 1000万突破"
+            print(f"  {i-detail_start+1:>3} {row['time'].strftime('%Y-%m-%d %H:%M')} "
+                  f"{row['sym']:8} {row['result']:4} "
+                  f"¥{row['pnl']:>+13,.0f} ¥{row['equity']:>15,.0f} "
+                  f"{row['risk_pct']*100:.1f}%{marker}")
+    else:
+        print("  1000万円に到達しませんでした")
 
     # ── エクイティカーブ描画 ──────────────────────────────────
     import matplotlib
@@ -262,15 +311,21 @@ def main():
 
     ax.plot(times, eqs, color="#2196F3", linewidth=1.5, label="Portfolio Equity (Compound)")
     ax.axhline(y=INIT_CASH, color="gray", linestyle="--", linewidth=0.8, alpha=0.6)
-    ax.axhline(y=COMPOUND_CAP, color="red", linestyle="--", linewidth=1.0, alpha=0.7,
-               label=f"Compound Cap: ¥{COMPOUND_CAP/1e8:.0f}億")
+
+    # リスクステージ境界線
+    stage_colors = ["#4CAF50", "#FF9800", "#F44336", "#9C27B0"]
+    stage_labels = ["1000万(2.5%)", "3000万(2.0%)", "5000万(1.5%)", "1億(1.0%)"]
+    stage_vals   = [10_000_000, 30_000_000, 50_000_000, 100_000_000]
+    for sv, sc, sl in zip(stage_vals, stage_colors, stage_labels):
+        ax.axhline(y=sv, color=sc, linestyle="--", linewidth=0.8, alpha=0.7, label=sl)
 
     # MDD塗り
     peak_arr = np.maximum.accumulate(eqs)
     ax.fill_between(times, eqs, peak_arr, alpha=0.15, color="red", label="Drawdown")
 
     ax.set_title(
-        f"YAGAMI Kai Compound — ¥{INIT_CASH/1e4:.0f}万 → ¥{final_equity/1e8:.2f}億 "
+        f"YAGAMI Kai Compound (Equity-Scaled Risk) — "
+        f"¥{INIT_CASH/1e4:.0f}万 → ¥{final_equity/1e4:,.0f}万 "
         f"(+{(final_equity/INIT_CASH-1)*100:,.0f}%)",
         fontsize=14, fontweight="bold")
     ax.set_ylabel("Equity (JPY)")
@@ -280,11 +335,11 @@ def main():
     ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m"))
     ax.xaxis.set_major_locator(mdates.MonthLocator())
     plt.xticks(rotation=45)
-    ax.legend(loc="upper left")
+    ax.legend(loc="upper left", fontsize=9)
     ax.grid(True, alpha=0.3, which="both")
 
-    info = (f"Trades={n}  WR={wr*100:.1f}%  MDD={mdd:.1f}%  "
-            f"Risk=1% (cap ¥{COMPOUND_CAP/1e8:.0f}億)")
+    info = (f"Trades={n}  WR={wr*100:.1f}%  PF={pf:.2f}  MDD={mdd:.1f}%  "
+            f"Risk: 3.0%→2.5%→2.0%→1.5%→1.0%")
     ax.text(0.5, -0.15, info, transform=ax.transAxes, ha="center", fontsize=10, color="gray")
 
     plt.tight_layout()
