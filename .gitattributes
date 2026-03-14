@@ -1,3 +1,17 @@
 data/tick/*.csv.gz filter=lfs diff=lfs merge=lfs -text
 data/tick/*.csv filter=lfs diff=lfs merge=lfs -text
 data/tick_1min/*.csv.gz filter=lfs diff=lfs merge=lfs -text
+data/ohlc/EURJPY_1m.csv -filter -diff -merge -text
+data/ohlc/NZDUSD_1m.csv -filter -diff -merge -text
+data/ohlc/USDJPY_1m.csv -filter -diff -merge -text
+data/ohlc/USDCAD_1m.csv -filter -diff -merge -text
+data/ohlc/USDCHF_1m.csv -filter -diff -merge -text
+data/ohlc/AUDJPY_1m.csv -filter -diff -merge -text
+data/ohlc/CADJPY_1m.csv -filter -diff -merge -text
+data/ohlc/EURGBP_1m.csv -filter -diff -merge -text
+data/ohlc/GBPJPY_1m.csv -filter -diff -merge -text
+data/ohlc/XAGUSD_1m.csv -filter -diff -merge -text
+data/ohlc/AUDUSD_1m.csv -filter -diff -merge -text
+data/ohlc/EURUSD_1m.csv -filter -diff -merge -text
+data/ohlc/GBPUSD_1m.csv -filter -diff -merge -text
+data/ohlc/XAUUSD_1m.csv -filter -diff -merge -text
