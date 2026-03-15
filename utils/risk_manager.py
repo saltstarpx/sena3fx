@@ -35,19 +35,16 @@ utils/risk_manager.py
     → lot = risk_jpy / (sl_distance × usdjpy_rate)
     ※ US30/SPX500はcfd_multiplier=1として扱う（Exness標準）
 
-【スプレッド設定（fxfan.club / Exness 2026.3.8 計測値）】
+【スプレッド設定（Exness ロースプレッド口座 平均スプレッド 2026.3.15）】
   採用ルール:
-    FX主要ペア: ロースプレッド口座 最小スプレッド
-    クロス円（EURJPY等）: スタンダード口座 最小スプレッド
-    貴金属（XAUUSD, XAGUSD）: ロースプレッド口座 最小スプレッド
+    全銘柄: ロースプレッド口座 平均スプレッド（手数料$3.5/lot/side は省略）
     指数（US30, SPX500, NAS100）: ゼロ口座 平均スプレッド
-  出典: https://www.fxfan.club/?p=59656
-  USDJPY=0.0,  EURUSD=0.0,  GBPUSD=0.1,  AUDUSD=0.0,  NZDUSD=0.5
-  USDCAD=0.1,  USDCHF=0.2
-  EURJPY=2.4,  GBPJPY=2.2,  AUDJPY=1.9,  NZDJPY=4.3,  CADJPY=3.8
-  CHFJPY=2.4,  HKDJPY=3.0
+  出典: Exness公式スプレッド一覧
+  USDJPY=0.0,  EURUSD=0.0,  GBPUSD=0.0,  AUDUSD=0.0,  NZDUSD=0.4
+  USDCAD=0.0,  USDCHF=0.1
+  EURJPY=0.4,  GBPJPY=0.3
   US30=0.8pt,  SPX500=0.1pt, NAS100=8.3pt
-  XAUUSD=5.2,  XAGUSD=2.6
+  XAUUSD=3.7,  XAGUSD=2.6
 """
 
 from __future__ import annotations
@@ -62,10 +59,8 @@ from typing import Optional
 # quote_type: 円換算タイプ（A=円建て / B=USD建て / C=逆USD建て / D=指数）
 # color     : チャート用カラーコード
 
-# スプレッド採用ルール（fxfan.club / Exness 2026.3.8 計測値）:
-# FX主要ペア: ロースプレッド口座 最小スプレッド
-# クロス円（EURJPY等）: スタンダード口座 最小スプレッド
-# 貴金属: ロースプレッド口座 最小スプレッド
+# スプレッド採用ルール（Exness ロースプレッド口座 平均スプレッド 2026.3.15）:
+# 全銘柄: ロースプレッド口座 平均スプレッド（手数料$3.5/lot/side は省略）
 # 指数: ゼロ口座 平均スプレッド
 # ── Exness ロット上限（1注文あたり） ────────────────────────────
 # 日中 (UTC 07:00-20:59): max_lots_day   標準ロット
@@ -78,29 +73,29 @@ EXNESS_DAY_START = 7     # UTC 07:00〜
 EXNESS_DAY_END   = 21    # 〜UTC 20:59
 
 SYMBOL_CONFIG: dict[str, dict] = {
-    # FX主要ペア（ロースプレッド口座 / fxfan.club 2026.3.8）
+    # FX主要ペア（ロースプレッド口座 平均スプレッド / Exness 2026.3.15）
     "USDJPY": {"pip": 0.01,   "spread": 0.0,  "quote_type": "A", "color": "#ef4444", "account": "raw_spread", "contract_size": 100_000},
     "EURUSD": {"pip": 0.0001, "spread": 0.0,  "quote_type": "B", "color": "#f97316", "account": "raw_spread", "contract_size": 100_000},
-    "GBPUSD": {"pip": 0.0001, "spread": 0.1,  "quote_type": "B", "color": "#eab308", "account": "raw_spread", "contract_size": 100_000},
+    "GBPUSD": {"pip": 0.0001, "spread": 0.0,  "quote_type": "B", "color": "#eab308", "account": "raw_spread", "contract_size": 100_000},
     "AUDUSD": {"pip": 0.0001, "spread": 0.0,  "quote_type": "B", "color": "#22c55e", "account": "raw_spread", "contract_size": 100_000},
-    "USDCAD": {"pip": 0.0001, "spread": 0.1,  "quote_type": "C", "color": "#14b8a6", "account": "raw_spread", "contract_size": 100_000},
-    "USDCHF": {"pip": 0.0001, "spread": 0.2,  "quote_type": "C", "color": "#3b82f6", "account": "raw_spread", "contract_size": 100_000},
-    "NZDUSD": {"pip": 0.0001, "spread": 0.5,  "quote_type": "B", "color": "#8b5cf6", "account": "raw_spread", "contract_size": 100_000},
-    # クロス円（スタンダード口座 / fxfan.club 2026.3.8）
-    "EURJPY": {"pip": 0.01,   "spread": 2.4,  "quote_type": "A", "color": "#ec4899", "account": "standard", "contract_size": 100_000},
-    "GBPJPY": {"pip": 0.01,   "spread": 2.2,  "quote_type": "A", "color": "#f43f5e", "account": "standard", "contract_size": 100_000},
+    "USDCAD": {"pip": 0.0001, "spread": 0.0,  "quote_type": "C", "color": "#14b8a6", "account": "raw_spread", "contract_size": 100_000},
+    "USDCHF": {"pip": 0.0001, "spread": 0.1,  "quote_type": "C", "color": "#3b82f6", "account": "raw_spread", "contract_size": 100_000},
+    "NZDUSD": {"pip": 0.0001, "spread": 0.4,  "quote_type": "B", "color": "#8b5cf6", "account": "raw_spread", "contract_size": 100_000},
+    # クロス円（ロースプレッド口座 平均スプレッド / Exness 2026.3.15）
+    "EURJPY": {"pip": 0.01,   "spread": 0.4,  "quote_type": "A", "color": "#ec4899", "account": "raw_spread", "contract_size": 100_000},
+    "GBPJPY": {"pip": 0.01,   "spread": 0.3,  "quote_type": "A", "color": "#f43f5e", "account": "raw_spread", "contract_size": 100_000},
     "AUDJPY": {"pip": 0.01,   "spread": 1.9,  "quote_type": "A", "color": "#10b981", "account": "standard", "contract_size": 100_000},
     "NZDJPY": {"pip": 0.01,   "spread": 4.3,  "quote_type": "A", "color": "#6366f1", "account": "standard", "contract_size": 100_000},
     "CADJPY": {"pip": 0.01,   "spread": 3.8,  "quote_type": "A", "color": "#f472b6", "account": "standard", "contract_size": 100_000},
     "CHFJPY": {"pip": 0.01,   "spread": 2.4,  "quote_type": "A", "color": "#a78bfa", "account": "raw_spread", "contract_size": 100_000},
     "HKDJPY": {"pip": 0.001,  "spread": 3.0,  "quote_type": "A", "color": "#fb923c", "account": "raw_spread", "contract_size": 100_000},
-    "EURGBP": {"pip": 0.0001, "spread": 0.40, "quote_type": "B_GBP", "color": "#a855f7", "account": "zero", "contract_size": 100_000},
+    "EURGBP": {"pip": 0.0001, "spread": 0.3,  "quote_type": "B_GBP", "color": "#a855f7", "account": "raw_spread", "contract_size": 100_000},
     # 指数（ゼロ口座 平均スプレッド / fxfan.club 2026.3.8）
     "US30":   {"pip": 1.0,    "spread": 0.8,  "quote_type": "D", "color": "#f59e0b", "account": "zero", "contract_size": 1},
     "SPX500": {"pip": 0.1,    "spread": 0.1,  "quote_type": "D", "color": "#06b6d4", "account": "zero", "contract_size": 1},
     "NAS100": {"pip": 1.0,    "spread": 8.3,  "quote_type": "D", "color": "#84cc16", "account": "zero", "contract_size": 1},
-    # 貴金属（ロースプレッド口座 平均スプレッド / fxfan.club 2026.3.8）
-    "XAUUSD": {"pip": 0.01,   "spread": 5.2,  "quote_type": "B", "color": "#d97706", "account": "raw_spread", "contract_size": 100},
+    # 貴金属（ロースプレッド口座 平均スプレッド / Exness 2026.3.15）
+    "XAUUSD": {"pip": 0.01,   "spread": 3.7,  "quote_type": "B", "color": "#d97706", "account": "raw_spread", "contract_size": 100},
     "XAGUSD": {"pip": 0.001,  "spread": 2.6,  "quote_type": "B", "color": "#6b7280", "account": "raw_spread", "contract_size": 5_000},
 }
 

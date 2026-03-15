@@ -97,7 +97,7 @@ APPROVED_UNIVERSE = {
     "GBPUSD": {
         "oanda":         "GBP_USD",
         "pip_size":      0.0001,
-        "spread_pips":   0.1,
+        "spread_pips":   0.0,
         "strategy":      "v79",
         "strategy_params": {"h4_body_ratio_min": 0.3, "rr_ratio": 3.0},
         "tier":          2,
@@ -109,7 +109,7 @@ APPROVED_UNIVERSE = {
     "USDCAD": {
         "oanda":         "USD_CAD",
         "pip_size":      0.0001,
-        "spread_pips":   0.1,
+        "spread_pips":   0.0,
         "strategy":      "v79",
         "strategy_params": {"h4_body_ratio_min": 0.3, "rr_ratio": 3.0},
         "tier":          4,
@@ -121,7 +121,7 @@ APPROVED_UNIVERSE = {
     "NZDUSD": {
         "oanda":         "NZD_USD",
         "pip_size":      0.0001,
-        "spread_pips":   0.5,
+        "spread_pips":   0.4,
         "strategy":      "v79",
         "strategy_params": {"use_1d_trend": True, "tol_factor": 0.20},  # MDD改善: 20.5%→12.8%
         "tier":          5,
@@ -133,7 +133,7 @@ APPROVED_UNIVERSE = {
     "XAUUSD": {
         "oanda":         "XAU_USD",
         "pip_size":      0.01,
-        "spread_pips":   5.2,
+        "spread_pips":   3.7,
         "strategy":      "v79",
         "strategy_params": {"use_1d_trend": True, "tol_factor": 0.20},  # MDD改善: 20.5%→12.6%
         "tier":          6,
@@ -159,7 +159,7 @@ APPROVED_UNIVERSE = {
     "USDCHF": {
         "oanda":         "USD_CHF",
         "pip_size":      0.0001,
-        "spread_pips":   0.5,
+        "spread_pips":   0.1,
         "strategy":      "v79",
         "strategy_params": {"h4_body_ratio_min": 0.3, "rr_ratio": 3.0},
         "tier":          8,

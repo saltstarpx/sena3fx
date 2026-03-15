@@ -264,14 +264,14 @@ from utils.risk_manager import SYMBOL_CONFIG, AdaptiveRiskManager
 |---|---|---|---|---|
 | USDJPY | 0.01 | 0.0pips | A（JPY建て） | raw_spread |
 | EURUSD | 0.0001 | 0.0pips | B（USD建て） | raw_spread |
-| GBPUSD | 0.0001 | 0.1pips | B | raw_spread |
+| GBPUSD | 0.0001 | 0.0pips | B | raw_spread |
 | AUDUSD | 0.0001 | 0.0pips | B | raw_spread |
-| EURJPY | 0.01 | 2.4pips | A | standard |
-| GBPJPY | 0.01 | 2.2pips | A | standard |
+| EURJPY | 0.01 | 0.4pips | A | raw_spread |
+| GBPJPY | 0.01 | 0.3pips | A | raw_spread |
 | US30 | 1.0 | 0.8pips | D（指数） | zero |
 | SPX500 | 0.1 | 0.1pips | D | zero |
 | NAS100 | 1.0 | 8.3pips | D | zero |
-| XAUUSD | 0.01 | 5.2pips | B | raw_spread |
+| XAUUSD | 0.01 | 3.7pips | B | raw_spread |
 | XAGUSD | 0.001 | 2.6pips | B | raw_spread |
 
 ---
