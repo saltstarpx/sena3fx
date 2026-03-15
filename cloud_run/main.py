@@ -1,18 +1,19 @@
 """
-main.py - Cloud Run 自動取引bot (YAGAMI改 全7銘柄本番運用)
+main.py - Cloud Run 自動取引bot (YAGAMI改 全8銘柄本番運用)
 =================================================================
 【ブローカー切り替え】
   BROKER=oanda   → OANDA v20 REST API（ペーパートレード）
   BROKER=exness  → MetaApi経由 Exness MT5（本番取引、Windows不要）
 
-【全7銘柄 資産規模連動リスク運用】
+【全8銘柄 資産規模連動リスク運用】
   1. GBPUSD: v80（KMID+KLOW+Body 3.0R） (OOS PF=2.21, Sharpe=6.24)
   2. EURUSD: v80（KMID+KLOW+Body 3.0R） (OOS PF=2.61, Sharpe=5.70)
   3. USDCAD: v80（KMID+KLOW+Body 3.0R） (OOS PF=3.31, Sharpe=5.52)
-  4. NZDUSD: Logic-A（GOLD v79A）    (PF=2.14, Sharpe=5.88, tol=0.20)
-  5. XAUUSD: Logic-A（GOLD v79A）    (PF=2.46, Sharpe=3.87, tol=0.20)
-  6. AUDUSD: Logic-B（ADX+Streak）   (OOS PF=2.49, Sharpe=4.85)
-  7. USDJPY: Logic-C（オーパーツ v77）(PF=2.02, Sharpe=7.83)
+  4. USDCHF: v80（KMID+KLOW+Body 3.0R） (OOS PF=1.95, 月次安定型)
+  5. NZDUSD: Logic-A（GOLD v79A）    (PF=2.14, Sharpe=5.88, tol=0.20)
+  6. XAUUSD: Logic-A（GOLD v79A）    (PF=2.46, Sharpe=3.87, tol=0.20)
+  7. AUDUSD: Logic-B（ADX+Streak）   (OOS PF=2.49, Sharpe=4.85)
+  8. USDJPY: Logic-C（オーパーツ v77）(PF=2.02, Sharpe=7.83)
 
 【資産規模ベース リスク逓減テーブル】
   〜1000万:        3.0%（加速成長期）
@@ -29,7 +30,7 @@ main.py - Cloud Run 自動取引bot (YAGAMI改 全7銘柄本番運用)
   最大 5% / 最小 0.5% の安全上限
 
 【戦略バリアント】
-  GBPUSD/EURUSD/USDCAD: yagami_mtf_v79 (v80: KMID+KLOW+Body, rr=3.0)
+  GBPUSD/EURUSD/USDCAD/USDCHF: yagami_mtf_v79 (v80: KMID+KLOW+Body, rr=3.0)
   NZDUSD/XAUUSD: yagami_mtf_v79 (Logic-A GOLD: use_1d_trend=True)
   AUDUSD: yagami_mtf_v79 (Logic-B: adx_min=20, streak_min=4)
   USDJPY: yagami_mtf_v77 (Logic-C オーパーツ: KMID+KLOWフィルター)
@@ -154,10 +155,23 @@ APPROVED_UNIVERSE = {
         "kelly":         0.35,
         "note":          "Logic-B ADX+Streak h4_body≥0.3 (PF 1.81→2.49, 総PnL+12%)",
     },
+    # ── v80（KMID+KLOW+Body 3.0R）新規追加 ────────────────────
+    "USDCHF": {
+        "oanda":         "USD_CHF",
+        "pip_size":      0.0001,
+        "spread_pips":   0.5,
+        "strategy":      "v79",
+        "strategy_params": {"h4_body_ratio_min": 0.3, "rr_ratio": 3.0},
+        "tier":          8,
+        "base_risk_pct": 0.03,                    # 資産規模連動（EQUITY_RISK_TABLE）
+        "oos_pf":        1.95,
+        "kelly":         0.28,
+        "note":          "v80 KMID+KLOW+Body 3.0R (月次安定型, 直近3M占有25.7%)",
+    },
 }
 
-# Phase2: 全7銘柄（銘柄ごとに1ポジション上限）
-MAX_OPEN_POSITIONS = 7
+# Phase2: 全8銘柄（銘柄ごとに1ポジション上限）
+MAX_OPEN_POSITIONS = 8
 RR_RATIO           = 2.5
 HALF_R             = 1.0   # 半利確トリガー: 1R到達で50%決済 → SLをBEへ
 CANDLE_COUNT       = 200
