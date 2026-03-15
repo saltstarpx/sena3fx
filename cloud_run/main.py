@@ -828,7 +828,7 @@ def run_cycle():
 
         for pair, sym_cfg, latest in candidates:
             if MAX_OPEN_POSITIONS > 0 and len(open_positions) >= MAX_OPEN_POSITIONS: break
-            if any(p["pair"] == pair for p in open_positions.values()): continue
+            if sum(1 for p in open_positions.values() if p["pair"] == pair) >= 3: continue
 
             # 重複シグナル防止: 同一シグナル時刻 OR 4時間以内の同方向は1回のみ
             sig_key = latest["time"].isoformat() if hasattr(latest["time"], "isoformat") else str(latest["time"])

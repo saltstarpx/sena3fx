@@ -47,6 +47,8 @@ PORTFOLIO = [
     {"sym": "USDJPY", "logic": "C",   "rr": 3.0, "tol": 0.30},
 ]
 
+MAX_POS_PER_SYM = 3  # 銘柄ごと同時ポジション上限
+
 def get_risk_pct(equity):
     return RISK_ABOVE if equity >= RISK_THRESHOLD_JPY else RISK_BELOW
 
@@ -186,8 +188,8 @@ def main():
         ev = events[tid]
 
         if etype == "entry":
-            # 銘柄ごと1ポジ制限
-            if open_by_sym[ev["sym"]] > 0:
+            # 銘柄ごと3ポジ制限
+            if open_by_sym[ev["sym"]] >= MAX_POS_PER_SYM:
                 continue
 
             risk_pct = get_risk_pct(equity)
