@@ -68,18 +68,18 @@ broker = _create_broker()
 # ── 採用銘柄ユニバース ─────────────────────────────────────────
 # バックテスト検証済み銘柄のみ。OOS PF・Kelly基準に基づくティア配分。
 APPROVED_UNIVERSE = {
-    # ── Logic-C（オーパーツ v77: KMID+KLOW, 2.5R）─────────────
+    # ── Logic-C（オーパーツ v77: KMID+KLOW, 3.0R）─────────────
     "USDJPY": {
         "oanda":         "USD_JPY",
         "pip_size":      0.01,
         "spread_pips":   0.0,
         "strategy":      "v77",
-        "strategy_params": {},
+        "strategy_params": {"rr_ratio": 3.0},
         "tier":          1,
         "base_risk_pct": 0.03,                    # 資産規模連動（EQUITY_RISK_TABLE）
-        "oos_pf":        2.02,
-        "kelly":         0.34,
-        "note":          "Logic-C オーパーツ (Sharpe=7.83)",
+        "oos_pf":        1.83,
+        "kelly":         0.30,
+        "note":          "Logic-C オーパーツ 3.0R (PF 1.79→1.83, Sharpe=5.70)",
     },
     # ── v80（KMID+KLOW+Body 3.0R: 統一ロジック）─────────────
     "EURUSD": {
@@ -123,12 +123,12 @@ APPROVED_UNIVERSE = {
         "pip_size":      0.0001,
         "spread_pips":   0.4,
         "strategy":      "v79",
-        "strategy_params": {"use_1d_trend": True, "tol_factor": 0.20},  # MDD改善: 20.5%→12.8%
+        "strategy_params": {"h4_body_ratio_min": 0.3, "rr_ratio": 3.0},
         "tier":          5,
         "base_risk_pct": 0.03,                    # 資産規模連動（EQUITY_RISK_TABLE）
-        "oos_pf":        2.14,                    # tol=0.20適用後
-        "kelly":         0.37,
-        "note":          "Logic-A GOLD tol=0.20 (MDD12.8%, Sharpe=5.88)",
+        "oos_pf":        2.08,
+        "kelly":         0.34,
+        "note":          "v80 KMID+KLOW+Body 3.0R (PF 2.00→2.08, OOS/IS=0.87)",
     },
     "XAUUSD": {
         "oanda":         "XAU_USD",
@@ -142,18 +142,18 @@ APPROVED_UNIVERSE = {
         "kelly":         0.41,
         "note":          "Logic-A GOLD tol=0.20 (MDD12.6%, Sharpe=3.87)",
     },
-    # ── Logic-B（ADX+Streak v79BC）───────────────────────────
+    # ── v80（KMID+KLOW+Body 3.0R）────────────────────────────
     "AUDUSD": {
         "oanda":         "AUD_USD",
         "pip_size":      0.0001,
         "spread_pips":   0.0,
         "strategy":      "v79",
-        "strategy_params": {"adx_min": 20, "streak_min": 4, "h4_body_ratio_min": 0.3},  # 十字線除外: PnL+12%
+        "strategy_params": {"h4_body_ratio_min": 0.3, "rr_ratio": 3.0},
         "tier":          7,
         "base_risk_pct": 0.03,                    # 資産規模連動（EQUITY_RISK_TABLE）
-        "oos_pf":        2.49,
-        "kelly":         0.35,
-        "note":          "Logic-B ADX+Streak h4_body≥0.3 (PF 1.81→2.49, 総PnL+12%)",
+        "oos_pf":        2.52,
+        "kelly":         0.41,
+        "note":          "v80 KMID+KLOW+Body 3.0R (PF 2.47→2.52, OOS/IS=1.27)",
     },
     # ── v80（KMID+KLOW+Body 3.0R）新規追加 ────────────────────
     "USDCHF": {
