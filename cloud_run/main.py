@@ -534,26 +534,40 @@ def generate_daily_chart(trades_df):
 
 
 def send_daily_report(open_positions, trades_df):
-    n  = len(trades_df) if len(trades_df) > 0 else 0
+    """
+    日次レポートをDiscordに送信。
+    トレード履歴もオープンポジションもない場合は送信しない（空レポート防止）。
+    """
+    n = len(trades_df) if trades_df is not None and len(trades_df) > 0 else 0
+    has_open = len(open_positions) > 0
+
+    # トレード0件 かつ ポジションなし → 送信不要
+    if n == 0 and not has_open:
+        logger.info("daily report skipped: no trades and no open positions")
+        return
+
     if n > 0 and "pnl" in trades_df.columns:
         trades_df["pnl"] = pd.to_numeric(trades_df["pnl"], errors="coerce")
+
+    # ── 通算成績 ──
+    total_pnl = trades_df["pnl"].sum() if n > 0 else 0
     wr = (trades_df["pnl"] > 0).mean() * 100 if n > 0 else 0
     pf_pos = trades_df[trades_df["pnl"] > 0]["pnl"].sum() if n > 0 else 0
     pf_neg = abs(trades_df[trades_df["pnl"] < 0]["pnl"].sum()) if n > 0 else 1
     pf = pf_pos / pf_neg if pf_neg > 0 else 0
 
-    # 日次PnL（今日）
+    # ── 日次PnL ──
+    now_jst = datetime.now(timezone.utc) + timedelta(hours=9)
     today_pnl = 0
     today_trades = 0
     if n > 0 and "exit_time" in trades_df.columns:
-        now_jst = datetime.now(timezone.utc) + timedelta(hours=9)
         today_str = now_jst.strftime("%Y-%m-%d")
         today_mask = trades_df["exit_time"].astype(str).str.startswith(today_str)
         if today_mask.any():
             today_pnl = trades_df.loc[today_mask, "pnl"].sum()
             today_trades = today_mask.sum()
 
-    # 直近30日
+    # ── 直近30日 ──
     r30_pnl = 0
     r30_wr = 0
     if n > 0 and "exit_time" in trades_df.columns:
@@ -563,53 +577,54 @@ def send_daily_report(open_positions, trades_df):
             r30_pnl = r30["pnl"].sum()
             r30_wr = (r30["pnl"] > 0).mean() * 100
 
-    # 銘柄別成績
-    sym_stats = ""
+    # ── 銘柄別成績 ──
+    sym_lines = []
     if n > 0 and "pair" in trades_df.columns:
         for sym, cfg in APPROVED_UNIVERSE.items():
             pt = trades_df[trades_df["pair"] == sym]
             if len(pt) == 0:
                 continue
-            sw = (pt["pnl"] > 0).sum(); sn = len(pt)
+            sw = (pt["pnl"] > 0).sum()
+            sn = len(pt)
             sp = pt["pnl"].sum()
-            recent_risk = calc_dynamic_risk_pct(sym, trades_df, cfg["base_risk_pct"])
-            sym_stats += f"  {sym}: {sn}件 {sw/sn*100:.0f}% PnL:{sp:+.0f}p risk:{recent_risk*100:.1f}%\n"
+            risk = calc_dynamic_risk_pct(sym, trades_df, cfg["base_risk_pct"])
+            sym_lines.append(f"  {sym}: {sn}件 WR:{sw/sn*100:.0f}% {sp:+.0f}p R:{risk*100:.1f}%")
+    sym_stats = "\n".join(sym_lines) if sym_lines else "データなし"
 
-    # 現在のオープンポジション（含み損益付き）
+    # ── オープンポジション ──
     pos_lines = []
     for tid, p in open_positions.items():
         pair = p["pair"]
-        cfg  = APPROVED_UNIVERSE.get(pair, {})
+        cfg = APPROVED_UNIVERSE.get(pair, {})
+        ps = cfg.get("pip_size", 0.0001)
         cur = get_current_price(pair)
-        ps  = cfg.get("pip_size", 0.0001)
         if cur > 0:
             unreal = (cur - p["ep"]) * p["dir"] / ps
             pos_lines.append(
-                f"  {pair} {'L' if p['dir']>0 else 'S'} EP:{p['ep']:.5f} "
-                f"現値:{cur:.5f} 含み:{unreal:+.1f}p"
-            )
+                f"  {pair} {'L' if p['dir']>0 else 'S'} "
+                f"EP:{p['ep']:.5f} 現値:{cur:.5f} {unreal:+.1f}p")
         else:
             pos_lines.append(f"  {pair} {'L' if p['dir']>0 else 'S'} EP:{p['ep']:.5f}")
-    pos_str = "\n".join(pos_lines) or "  なし"
+    pos_str = "\n".join(pos_lines) or "なし"
 
-    now_jst = datetime.now(timezone.utc) + timedelta(hours=9)
+    # ── embed構築 ──
     embed = {
-        "title": f"📊 YAGAMI改 日次レポート - {now_jst.strftime('%Y/%m/%d')}",
+        "title": f"YAGAMI改 日次レポート - {now_jst.strftime('%Y/%m/%d')}",
         "color": 0x00ff88 if today_pnl >= 0 else 0xff4444,
         "fields": [
-            {"name": "日次損益",     "value": f"`{today_pnl:+.1f} pips ({today_trades}件)`", "inline": True},
-            {"name": "直近30日",     "value": f"`{r30_pnl:+.1f} pips (WR:{r30_wr:.0f}%)`",   "inline": True},
-            {"name": "通算",         "value": f"`{trades_df['pnl'].sum() if n > 0 else 0:+.1f} pips ({n}件)`", "inline": True},
-            {"name": "勝率",         "value": f"`{wr:.1f}%`",     "inline": True},
-            {"name": "PF",           "value": f"`{pf:.2f}`",      "inline": True},
-            {"name": "オープン",     "value": f"`{len(open_positions)}件`", "inline": True},
-            {"name": "銘柄別成績",   "value": f"```{sym_stats or 'データなし'}```", "inline": False},
-            {"name": "ポジション",   "value": f"```{pos_str}```", "inline": False},
+            {"name": "日次",   "value": f"{today_pnl:+.1f}p ({today_trades}件)", "inline": True},
+            {"name": "30日",   "value": f"{r30_pnl:+.1f}p (WR:{r30_wr:.0f}%)",   "inline": True},
+            {"name": "通算",   "value": f"{total_pnl:+.1f}p ({n}件)",             "inline": True},
+            {"name": "WR",     "value": f"{wr:.1f}%",     "inline": True},
+            {"name": "PF",     "value": f"{pf:.2f}",      "inline": True},
+            {"name": "建玉",   "value": f"{len(open_positions)}件", "inline": True},
+            {"name": "銘柄別", "value": f"```\n{sym_stats}\n```",   "inline": False},
+            {"name": "ポジション", "value": f"```\n{pos_str}\n```", "inline": False},
         ],
         "footer": {"text": f"YAGAMI改 | {now_jst.strftime('%H:%M JST')}"}
     }
 
-    # チャート生成・送信
+    # チャート付き or テキストのみ
     chart_buf = generate_daily_chart(trades_df)
     if chart_buf:
         send_discord_with_image("", [embed], chart_buf, "yagami_daily.png")
@@ -921,22 +936,23 @@ def run_cycle():
                     f"risk={risk_pct*100:.1f}% slip={slip:+.2f}p "
                     f"strategy={sym_cfg['strategy']}")
 
-    # ── 3. 朝9時レポート（JST 9:00台の最初の1回のみ） ──────────
-    now_jst    = now + timedelta(hours=9)
-    now_jst_h  = now_jst.hour
-    report_key = now_jst.strftime("%Y-%m-%d-09")   # "2026-03-10-09"
-    if now_jst_h == 9 and last_report.get("key") != report_key:
-        # GCSから最新状態を再読み込み（複数インスタンス対策: レースコンディション防止）
+    # ── 3. 朝9時レポート（JST 9:00〜9:04 の最初の1回のみ） ──────
+    now_jst   = now + timedelta(hours=9)
+    now_jst_h = now_jst.hour
+    now_jst_m = now_jst.minute
+    report_key = now_jst.strftime("%Y-%m-%d-09")
+    # 9:00〜9:04 の間だけ送信を試みる（9:05以降は送信しない → 重複防止）
+    if now_jst_h == 9 and now_jst_m < 5 and last_report.get("key") != report_key:
         fresh_report = gcs_read_json("state/last_report.json", default={"key": ""})
         if fresh_report.get("key") != report_key:
-            # 先にGCSにキーを書き込んで「送信予約」を確保（他インスタンスをブロック）
+            # 先にキー書込みで「送信済み」をマーク → 他インスタンスをブロック
             gcs_write_json("state/last_report.json", {"key": report_key})
-            send_daily_report(open_positions, trades_df)
             last_report = {"key": report_key}
+            send_daily_report(open_positions, trades_df)
             logger.info(f"daily report sent: {report_key}")
         else:
             last_report = fresh_report
-            logger.info(f"daily report already sent by another instance: {report_key}")
+            logger.info(f"daily report already sent: {report_key}")
 
     # ── 4. 週次GCSログ（月曜0時 JST・Discord通知なし） ───────
     week_no = now_jst.isocalendar()[1]
@@ -996,16 +1012,18 @@ async def health():
 
 @app.post("/report")
 async def report_endpoint():
-    """手動レポート送信用（Schedulerからは呼ばない）。"""
+    """手動レポート送信（トレード・ポジションがある場合のみ送信）。"""
     try:
         open_positions = gcs_read_json("state/open_positions.json", default={})
         trades_df = gcs_read_csv("logs/paper_trades.csv")
+        n = len(trades_df) if trades_df is not None and len(trades_df) > 0 else 0
+        if n == 0 and len(open_positions) == 0:
+            return {"status": "skipped", "note": "トレード履歴・ポジションなし"}
         send_daily_report(open_positions, trades_df)
-        # /run 側の重複防止キーと同じ形式で書き込む（固定 "-09" サフィックス）
         now_jst = datetime.now(timezone.utc) + timedelta(hours=9)
         report_key = now_jst.strftime("%Y-%m-%d-09")
         gcs_write_json("state/last_report.json", {"key": report_key})
-        return {"status": "ok", "note": "手動送信完了（/run側と重複防止キー統一済み）"}
+        return {"status": "ok", "note": "レポート送信完了"}
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
