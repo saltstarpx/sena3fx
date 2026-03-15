@@ -26,6 +26,7 @@ RR_RATIO_V80  = 3.0
 HALF_R        = 1.0
 USDJPY_RATE   = 150.0
 MAX_LOOKAHEAD = 20_000
+EQUITY_CAP    = 100_000_000  # 1億超でロットサイズ固定
 
 KLOW_THR        = 0.0015
 A1_EMA_DIST_MIN = 1.0
@@ -382,7 +383,8 @@ def simulate_detailed(signals, d1m, sym):
 
     for sig in signals:
         rm.risk_pct = 0.02
-        lot = rm.calc_lot(equity, sig["risk"], sig["ep"], usdjpy_rate=USDJPY_RATE)
+        sizing_eq = min(equity, EQUITY_CAP)  # 1億超でロット固定
+        lot = rm.calc_lot(sizing_eq, sig["risk"], sig["ep"], usdjpy_rate=USDJPY_RATE)
         sp  = m1t.searchsorted(sig["time"], side="right")
         if sp >= len(m1t): continue
 
@@ -426,7 +428,8 @@ def simulate_simple(signals, d1m, sym):
 
     for sig in signals:
         rm.risk_pct = 0.02
-        lot = rm.calc_lot(equity, sig["risk"], sig["ep"], usdjpy_rate=USDJPY_RATE)
+        sizing_eq = min(equity, EQUITY_CAP)  # 1億超でロット固定
+        lot = rm.calc_lot(sizing_eq, sig["risk"], sig["ep"], usdjpy_rate=USDJPY_RATE)
         sp  = m1t.searchsorted(sig["time"], side="right")
         if sp >= len(m1t): continue
         xp, result, half_done, _ = _exit(m1h[sp:], m1l[sp:],
@@ -728,23 +731,42 @@ def run_trials(df, data_cache):
     # ── 試練④ ────────────────────────────────────────────────────
     print_sep("試練④ 本当に耐えられるMDDを計算せよ（全期間）", out)
 
-    eq = df.sort_values("exit_time")["equity"].reset_index(drop=True)
-    mdd_pct, start_i, trough_i, recovery_i = calc_mdd_details(eq)
+    # ポートフォリオequity = 初期資金 + 全トレードPnL累積（時系列順）
+    df_time = df.sort_values("exit_time").reset_index(drop=True)
+    portfolio_eq = INIT_CASH + df_time["pnl"].cumsum()
+    mdd_pct, start_i, trough_i, recovery_i = calc_mdd_details(portfolio_eq)
     bt_mdd = abs(mdd_pct)
 
-    out.write(f"--- バックテストMDD ---\n")
+    out.write(f"--- ポートフォリオMDD（全トレードPnL累積ベース）---\n")
+    out.write(f"  初期資金: ¥{INIT_CASH:,}\n")
+    out.write(f"  最終equity: ¥{portfolio_eq.iloc[-1]:,.0f}\n")
     out.write(f"  MDD: {bt_mdd:.2f}%\n")
     out.write(f"  MDD開始→底: {trough_i - start_i} トレード\n")
-    if recovery_i:
+    if recovery_i is not None:
         out.write(f"  底→回復: {recovery_i - trough_i} トレード\n")
     else:
         out.write(f"  底→回復: 未回復\n")
 
-    out.write(f"\n--- 銘柄別MDD ---\n")
+    # Peak/Trough actual values
+    peak_val = portfolio_eq.iloc[:trough_i+1].max()
+    trough_val = portfolio_eq.iloc[trough_i]
+    out.write(f"  ピーク equity: ¥{peak_val:,.0f}\n")
+    out.write(f"  底 equity:     ¥{trough_val:,.0f}\n")
+    out.write(f"  ドローダウン額: ¥{peak_val - trough_val:,.0f}\n")
+
+    out.write(f"\n--- 銘柄別MDD（各銘柄独立equity）---\n")
+    sym_mdds = {}
     for sym in sorted(df["sym"].unique()):
-        sym_eq = df[df["sym"]==sym].sort_values("exit_time")["equity"]
+        sym_trades = df[df["sym"]==sym].sort_values("exit_time")
+        sym_eq = INIT_CASH + sym_trades["pnl"].cumsum()
         sym_mdd_pct, _, _, _ = calc_mdd_details(sym_eq)
+        sym_mdds[sym] = abs(sym_mdd_pct)
         out.write(f"  {sym:>8}: {abs(sym_mdd_pct):>6.2f}%\n")
+
+    avg_sym_mdd = np.mean(list(sym_mdds.values()))
+    max_sym_mdd = max(sym_mdds.values())
+    out.write(f"  {'平均':>8}: {avg_sym_mdd:>6.2f}%\n")
+    out.write(f"  {'最大':>8}: {max_sym_mdd:>6.2f}% ({max(sym_mdds, key=sym_mdds.get)})\n")
 
     corrected = bt_mdd * 1.5 / 0.85
     out.write(f"\n--- 補正後MDD ---\n")
