@@ -163,7 +163,7 @@ CANDLE_COUNT       = 200
 
 ACCOUNT_BALANCE_JPY = float(os.environ.get("EQUITY_JPY", "1000000"))  # .envフォールバック
 MIN_UNITS           = 100
-MAX_UNITS           = 100_000
+MAX_UNITS           = 20_000_000   # Exness 夜間上限: 20ロット×100,000通貨（1注文あたり）
 
 # ── 資産規模ベース リスク逓減テーブル ──────────────────────────────
 # (閾値JPY, base_risk_pct): 資産が閾値を超えたらそのリスク%を適用

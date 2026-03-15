@@ -67,31 +67,41 @@ from typing import Optional
 # クロス円（EURJPY等）: スタンダード口座 最小スプレッド
 # 貴金属: ロースプレッド口座 最小スプレッド
 # 指数: ゼロ口座 平均スプレッド
+# ── Exness ロット上限（1注文あたり） ────────────────────────────
+# 日中 (UTC 07:00-20:59): max_lots_day   標準ロット
+# 夜間 (UTC 21:00-06:59): max_lots_night 標準ロット
+# contract_size: 1標準ロットあたりの通貨数（FX=100,000, XAUUSD=100oz）
+# エキゾチック通貨は50ロット上限（該当銘柄なし）
+EXNESS_LOT_DAY   = 200   # 日中: 最大200ロット/注文
+EXNESS_LOT_NIGHT = 20    # 夜間: 最大20ロット/注文
+EXNESS_DAY_START = 7     # UTC 07:00〜
+EXNESS_DAY_END   = 21    # 〜UTC 20:59
+
 SYMBOL_CONFIG: dict[str, dict] = {
     # FX主要ペア（ロースプレッド口座 / fxfan.club 2026.3.8）
-    "USDJPY": {"pip": 0.01,   "spread": 0.0,  "quote_type": "A", "color": "#ef4444", "account": "raw_spread"},
-    "EURUSD": {"pip": 0.0001, "spread": 0.0,  "quote_type": "B", "color": "#f97316", "account": "raw_spread"},
-    "GBPUSD": {"pip": 0.0001, "spread": 0.1,  "quote_type": "B", "color": "#eab308", "account": "raw_spread"},
-    "AUDUSD": {"pip": 0.0001, "spread": 0.0,  "quote_type": "B", "color": "#22c55e", "account": "raw_spread"},
-    "USDCAD": {"pip": 0.0001, "spread": 0.1,  "quote_type": "C", "color": "#14b8a6", "account": "raw_spread"},
-    "USDCHF": {"pip": 0.0001, "spread": 0.2,  "quote_type": "C", "color": "#3b82f6", "account": "raw_spread"},
-    "NZDUSD": {"pip": 0.0001, "spread": 0.5,  "quote_type": "B", "color": "#8b5cf6", "account": "raw_spread"},
+    "USDJPY": {"pip": 0.01,   "spread": 0.0,  "quote_type": "A", "color": "#ef4444", "account": "raw_spread", "contract_size": 100_000},
+    "EURUSD": {"pip": 0.0001, "spread": 0.0,  "quote_type": "B", "color": "#f97316", "account": "raw_spread", "contract_size": 100_000},
+    "GBPUSD": {"pip": 0.0001, "spread": 0.1,  "quote_type": "B", "color": "#eab308", "account": "raw_spread", "contract_size": 100_000},
+    "AUDUSD": {"pip": 0.0001, "spread": 0.0,  "quote_type": "B", "color": "#22c55e", "account": "raw_spread", "contract_size": 100_000},
+    "USDCAD": {"pip": 0.0001, "spread": 0.1,  "quote_type": "C", "color": "#14b8a6", "account": "raw_spread", "contract_size": 100_000},
+    "USDCHF": {"pip": 0.0001, "spread": 0.2,  "quote_type": "C", "color": "#3b82f6", "account": "raw_spread", "contract_size": 100_000},
+    "NZDUSD": {"pip": 0.0001, "spread": 0.5,  "quote_type": "B", "color": "#8b5cf6", "account": "raw_spread", "contract_size": 100_000},
     # クロス円（スタンダード口座 / fxfan.club 2026.3.8）
-    "EURJPY": {"pip": 0.01,   "spread": 2.4,  "quote_type": "A", "color": "#ec4899", "account": "standard"},
-    "GBPJPY": {"pip": 0.01,   "spread": 2.2,  "quote_type": "A", "color": "#f43f5e", "account": "standard"},
-    "AUDJPY": {"pip": 0.01,   "spread": 1.9,  "quote_type": "A", "color": "#10b981", "account": "standard"},
-    "NZDJPY": {"pip": 0.01,   "spread": 4.3,  "quote_type": "A", "color": "#6366f1", "account": "standard"},
-    "CADJPY": {"pip": 0.01,   "spread": 3.8,  "quote_type": "A", "color": "#f472b6", "account": "standard"},
-    "CHFJPY": {"pip": 0.01,   "spread": 2.4,  "quote_type": "A", "color": "#a78bfa", "account": "raw_spread"},
-    "HKDJPY": {"pip": 0.001,  "spread": 3.0,  "quote_type": "A", "color": "#fb923c", "account": "raw_spread"},
-    "EURGBP": {"pip": 0.0001, "spread": 0.40, "quote_type": "B_GBP", "color": "#a855f7", "account": "zero"},
+    "EURJPY": {"pip": 0.01,   "spread": 2.4,  "quote_type": "A", "color": "#ec4899", "account": "standard", "contract_size": 100_000},
+    "GBPJPY": {"pip": 0.01,   "spread": 2.2,  "quote_type": "A", "color": "#f43f5e", "account": "standard", "contract_size": 100_000},
+    "AUDJPY": {"pip": 0.01,   "spread": 1.9,  "quote_type": "A", "color": "#10b981", "account": "standard", "contract_size": 100_000},
+    "NZDJPY": {"pip": 0.01,   "spread": 4.3,  "quote_type": "A", "color": "#6366f1", "account": "standard", "contract_size": 100_000},
+    "CADJPY": {"pip": 0.01,   "spread": 3.8,  "quote_type": "A", "color": "#f472b6", "account": "standard", "contract_size": 100_000},
+    "CHFJPY": {"pip": 0.01,   "spread": 2.4,  "quote_type": "A", "color": "#a78bfa", "account": "raw_spread", "contract_size": 100_000},
+    "HKDJPY": {"pip": 0.001,  "spread": 3.0,  "quote_type": "A", "color": "#fb923c", "account": "raw_spread", "contract_size": 100_000},
+    "EURGBP": {"pip": 0.0001, "spread": 0.40, "quote_type": "B_GBP", "color": "#a855f7", "account": "zero", "contract_size": 100_000},
     # 指数（ゼロ口座 平均スプレッド / fxfan.club 2026.3.8）
-    "US30":   {"pip": 1.0,    "spread": 0.8,  "quote_type": "D", "color": "#f59e0b", "account": "zero"},
-    "SPX500": {"pip": 0.1,    "spread": 0.1,  "quote_type": "D", "color": "#06b6d4", "account": "zero"},
-    "NAS100": {"pip": 1.0,    "spread": 8.3,  "quote_type": "D", "color": "#84cc16", "account": "zero"},
+    "US30":   {"pip": 1.0,    "spread": 0.8,  "quote_type": "D", "color": "#f59e0b", "account": "zero", "contract_size": 1},
+    "SPX500": {"pip": 0.1,    "spread": 0.1,  "quote_type": "D", "color": "#06b6d4", "account": "zero", "contract_size": 1},
+    "NAS100": {"pip": 1.0,    "spread": 8.3,  "quote_type": "D", "color": "#84cc16", "account": "zero", "contract_size": 1},
     # 貴金属（ロースプレッド口座 平均スプレッド / fxfan.club 2026.3.8）
-    "XAUUSD": {"pip": 0.01,   "spread": 5.2,  "quote_type": "B", "color": "#d97706", "account": "raw_spread"},
-    "XAGUSD": {"pip": 0.001,  "spread": 2.6,  "quote_type": "B", "color": "#6b7280", "account": "raw_spread"},
+    "XAUUSD": {"pip": 0.01,   "spread": 5.2,  "quote_type": "B", "color": "#d97706", "account": "raw_spread", "contract_size": 100},
+    "XAGUSD": {"pip": 0.001,  "spread": 2.6,  "quote_type": "B", "color": "#6b7280", "account": "raw_spread", "contract_size": 5_000},
 }
 
 
@@ -204,6 +214,42 @@ class RiskManager:
             lot = 0.0
 
         return max(lot, 0.0)
+
+    def max_units(self, entry_hour_utc: Optional[int] = None) -> float:
+        """
+        Exnessの1注文あたり最大ユニット数（通貨数/oz数）を返す。
+
+        Parameters
+        ----------
+        entry_hour_utc : int, optional
+            エントリー時刻のUTC時（0-23）。
+            日中(7-20): 200ロット、夜間(21-6): 20ロット。
+            None の場合は夜間上限（保守的）を返す。
+
+        Returns
+        -------
+        float
+            最大ユニット数（通貨数 or oz数）
+        """
+        cfg = SYMBOL_CONFIG[self.symbol]
+        cs  = cfg.get("contract_size", 100_000)
+        if entry_hour_utc is not None and EXNESS_DAY_START <= entry_hour_utc < EXNESS_DAY_END:
+            return cs * EXNESS_LOT_DAY
+        return cs * EXNESS_LOT_NIGHT
+
+    def cap_lot(self, lot: float, entry_hour_utc: Optional[int] = None) -> tuple:
+        """
+        ロットサイズをExness上限でキャップする。
+
+        Returns
+        -------
+        tuple[float, bool]
+            (capped_lot, was_capped)
+        """
+        mx = self.max_units(entry_hour_utc)
+        if lot > mx:
+            return mx, True
+        return lot, False
 
     def calc_pnl_jpy(
         self,
