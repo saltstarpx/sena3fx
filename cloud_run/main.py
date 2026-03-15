@@ -102,9 +102,9 @@ APPROVED_UNIVERSE = {
         "strategy_params": {"h4_body_ratio_min": 0.3, "rr_ratio": 3.0},
         "tier":          2,
         "base_risk_pct": 0.03,                    # 資産規模連動（EQUITY_RISK_TABLE）
-        "oos_pf":        2.21,
+        "oos_pf":        2.24,
         "kelly":         0.39,
-        "note":          "v80 KMID+KLOW+Body 3.0R (PF 1.79→2.21, OOS/IS=0.86)",
+        "note":          "v80 KMID+KLOW+Body 3.0R (PF 1.84→2.24, OOS/IS=0.85)",
     },
     "USDCAD": {
         "oanda":         "USD_CAD",
@@ -114,21 +114,22 @@ APPROVED_UNIVERSE = {
         "strategy_params": {"h4_body_ratio_min": 0.3, "rr_ratio": 3.0},
         "tier":          4,
         "base_risk_pct": 0.03,                    # 資産規模連動（EQUITY_RISK_TABLE）
-        "oos_pf":        3.31,
+        "oos_pf":        3.32,
         "kelly":         0.50,
-        "note":          "v80 KMID+KLOW+Body 3.0R (PF 1.93→3.31, MDD 25.5→12.8%)",
+        "note":          "v80 KMID+KLOW+Body 3.0R (PF 1.95→3.32, MDD 22.0→12.5%)",
     },
+    # ── Logic-A（GOLDYAGAMI 3.0R）────────────────────────────
     "NZDUSD": {
         "oanda":         "NZD_USD",
         "pip_size":      0.0001,
         "spread_pips":   0.4,
         "strategy":      "v79",
-        "strategy_params": {"h4_body_ratio_min": 0.3, "rr_ratio": 3.0},
+        "strategy_params": {"use_1d_trend": True, "tol_factor": 0.20, "rr_ratio": 3.0},
         "tier":          5,
         "base_risk_pct": 0.03,                    # 資産規模連動（EQUITY_RISK_TABLE）
-        "oos_pf":        2.08,
+        "oos_pf":        2.11,
         "kelly":         0.34,
-        "note":          "v80 KMID+KLOW+Body 3.0R (PF 2.00→2.08, OOS/IS=0.87)",
+        "note":          "Logic-A GOLD tol=0.20 3.0R (PF 2.00→2.11, MDD=14.6%)",
     },
     "XAUUSD": {
         "oanda":         "XAU_USD",
@@ -138,9 +139,9 @@ APPROVED_UNIVERSE = {
         "strategy_params": {"use_1d_trend": True, "tol_factor": 0.20},  # MDD改善: 20.5%→12.6%
         "tier":          6,
         "base_risk_pct": 0.03,                    # 資産規模連動（EQUITY_RISK_TABLE）
-        "oos_pf":        2.46,                    # tol=0.20適用後
-        "kelly":         0.41,
-        "note":          "Logic-A GOLD tol=0.20 (MDD12.6%, Sharpe=3.87)",
+        "oos_pf":        3.13,                    # 同一バックテストエンジン再計測
+        "kelly":         0.51,
+        "note":          "Logic-A GOLD tol=0.20 2.5R (PF=3.13, MDD=8.7%, Sharpe=3.85)",
     },
     # ── v80（KMID+KLOW+Body 3.0R）────────────────────────────
     "AUDUSD": {
@@ -153,7 +154,7 @@ APPROVED_UNIVERSE = {
         "base_risk_pct": 0.03,                    # 資産規模連動（EQUITY_RISK_TABLE）
         "oos_pf":        2.52,
         "kelly":         0.41,
-        "note":          "v80 KMID+KLOW+Body 3.0R (PF 2.47→2.52, OOS/IS=1.27)",
+        "note":          "v80 KMID+KLOW+Body 3.0R (PF 2.47→2.52, Sharpe=5.90, OOS/IS=1.27)",
     },
     # ── v80（KMID+KLOW+Body 3.0R）新規追加 ────────────────────
     "USDCHF": {
@@ -164,9 +165,9 @@ APPROVED_UNIVERSE = {
         "strategy_params": {"h4_body_ratio_min": 0.3, "rr_ratio": 3.0},
         "tier":          8,
         "base_risk_pct": 0.03,                    # 資産規模連動（EQUITY_RISK_TABLE）
-        "oos_pf":        1.95,
-        "kelly":         0.28,
-        "note":          "v80 KMID+KLOW+Body 3.0R (月次安定型, 直近3M占有25.7%)",
+        "oos_pf":        2.23,
+        "kelly":         0.38,
+        "note":          "v80 KMID+KLOW+Body 3.0R (PF 1.80→2.23, Sharpe=8.75, OOS/IS=1.04)",
     },
 }
 
