@@ -41,7 +41,7 @@ utils/risk_manager.py
     指数（US30, SPX500, NAS100）: ゼロ口座 平均スプレッド
   出典: Exness公式スプレッド一覧
   USDJPY=0.0,  EURUSD=0.0,  GBPUSD=0.0,  AUDUSD=0.0,  NZDUSD=0.4
-  USDCAD=0.0,  USDCHF=0.2
+  USDCAD=0.0,  USDCHF=0.1
   EURJPY=0.4,  GBPJPY=0.3
   US30=0.8pt,  SPX500=0.1pt, NAS100=8.3pt
   XAUUSD=3.7,  XAGUSD=2.6
@@ -79,7 +79,7 @@ SYMBOL_CONFIG: dict[str, dict] = {
     "GBPUSD": {"pip": 0.0001, "spread": 0.0,  "quote_type": "B", "color": "#eab308", "account": "raw_spread", "contract_size": 100_000},
     "AUDUSD": {"pip": 0.0001, "spread": 0.0,  "quote_type": "B", "color": "#22c55e", "account": "raw_spread", "contract_size": 100_000},
     "USDCAD": {"pip": 0.0001, "spread": 0.0,  "quote_type": "C", "color": "#14b8a6", "account": "raw_spread", "contract_size": 100_000},
-    "USDCHF": {"pip": 0.0001, "spread": 0.2,  "quote_type": "C", "color": "#3b82f6", "account": "raw_spread", "contract_size": 100_000},
+    "USDCHF": {"pip": 0.0001, "spread": 0.1,  "quote_type": "C", "color": "#3b82f6", "account": "raw_spread", "contract_size": 100_000},
     "NZDUSD": {"pip": 0.0001, "spread": 0.4,  "quote_type": "B", "color": "#8b5cf6", "account": "raw_spread", "contract_size": 100_000},
     # クロス円（ロースプレッド口座 平均スプレッド / Exness 2026.3.15）
     "EURJPY": {"pip": 0.01,   "spread": 0.4,  "quote_type": "A", "color": "#ec4899", "account": "raw_spread", "contract_size": 100_000},

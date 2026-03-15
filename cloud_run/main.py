@@ -159,7 +159,7 @@ APPROVED_UNIVERSE = {
     "USDCHF": {
         "oanda":         "USD_CHF",
         "pip_size":      0.0001,
-        "spread_pips":   0.2,
+        "spread_pips":   0.1,
         "strategy":      "v79",
         "strategy_params": {"h4_body_ratio_min": 0.3, "rr_ratio": 3.0},
         "tier":          8,
