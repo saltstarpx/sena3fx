@@ -6,12 +6,12 @@ main.py - Cloud Run 自動取引bot (YAGAMI改 全7銘柄本番運用)
   BROKER=exness  → MetaApi経由 Exness MT5（本番取引、Windows不要）
 
 【全7銘柄 資産規模連動リスク運用】
-  1. GBPUSD: Logic-A（GOLD v79A）    (OOS PF=1.86, Sharpe=7.12)
-  2. EURUSD: Logic-C（オーパーツ v77）(OOS PF=1.81, Sharpe=6.18)
-  3. USDCAD: Logic-A（GOLD v79A）    (OOS PF=2.02, Sharpe=5.62)
+  1. GBPUSD: v80（KMID+KLOW+Body 3.0R） (OOS PF=2.21, Sharpe=6.24)
+  2. EURUSD: v80（KMID+KLOW+Body 3.0R） (OOS PF=2.61, Sharpe=5.70)
+  3. USDCAD: v80（KMID+KLOW+Body 3.0R） (OOS PF=3.31, Sharpe=5.52)
   4. NZDUSD: Logic-A（GOLD v79A）    (PF=2.14, Sharpe=5.88, tol=0.20)
   5. XAUUSD: Logic-A（GOLD v79A）    (PF=2.46, Sharpe=3.87, tol=0.20)
-  6. AUDUSD: Logic-B（ADX+Streak）   (OOS PF=2.03, Sharpe=3.66)
+  6. AUDUSD: Logic-B（ADX+Streak）   (OOS PF=2.49, Sharpe=4.85)
   7. USDJPY: Logic-C（オーパーツ v77）(PF=2.02, Sharpe=7.83)
 
 【資産規模ベース リスク逓減テーブル】
@@ -29,9 +29,10 @@ main.py - Cloud Run 自動取引bot (YAGAMI改 全7銘柄本番運用)
   最大 5% / 最小 0.5% の安全上限
 
 【戦略バリアント】
-  USDJPY/EURUSD: yagami_mtf_v77 (Logic-C オーパーツ: KMID+KLOWフィルター)
-  GBPUSD/USDCAD/NZDUSD/XAUUSD: yagami_mtf_v79 (Logic-A GOLD: use_1d_trend=True)
+  GBPUSD/EURUSD/USDCAD: yagami_mtf_v79 (v80: KMID+KLOW+Body, rr=3.0)
+  NZDUSD/XAUUSD: yagami_mtf_v79 (Logic-A GOLD: use_1d_trend=True)
   AUDUSD: yagami_mtf_v79 (Logic-B: adx_min=20, streak_min=4)
+  USDJPY: yagami_mtf_v77 (Logic-C オーパーツ: KMID+KLOWフィルター)
 """
 import os, json, logging, requests, sys, io, threading
 import pandas as pd
@@ -66,7 +67,7 @@ broker = _create_broker()
 # ── 採用銘柄ユニバース ─────────────────────────────────────────
 # バックテスト検証済み銘柄のみ。OOS PF・Kelly基準に基づくティア配分。
 APPROVED_UNIVERSE = {
-    # ── Logic-C（オーパーツ v77: KMID+KLOW）──────────────────
+    # ── Logic-C（オーパーツ v77: KMID+KLOW, 2.5R）─────────────
     "USDJPY": {
         "oanda":         "USD_JPY",
         "pip_size":      0.01,
@@ -79,42 +80,42 @@ APPROVED_UNIVERSE = {
         "kelly":         0.34,
         "note":          "Logic-C オーパーツ (Sharpe=7.83)",
     },
+    # ── v80（KMID+KLOW+Body 3.0R: 統一ロジック）─────────────
     "EURUSD": {
         "oanda":         "EUR_USD",
         "pip_size":      0.0001,
         "spread_pips":   0.0,
-        "strategy":      "v77",
-        "strategy_params": {},
+        "strategy":      "v79",
+        "strategy_params": {"h4_body_ratio_min": 0.3, "rr_ratio": 3.0},
         "tier":          3,
         "base_risk_pct": 0.03,                    # 資産規模連動（EQUITY_RISK_TABLE）
-        "oos_pf":        1.81,
-        "kelly":         0.25,
-        "note":          "Logic-C オーパーツ (Sharpe=6.18)",
+        "oos_pf":        2.61,
+        "kelly":         0.43,
+        "note":          "v80 KMID+KLOW+Body 3.0R (PF 2.04→2.61, OOS/IS=1.17)",
     },
-    # ── Logic-A（GOLD v79A: 日足EMA20方向一致）───────────────
     "GBPUSD": {
         "oanda":         "GBP_USD",
         "pip_size":      0.0001,
         "spread_pips":   0.1,
         "strategy":      "v79",
-        "strategy_params": {"use_1d_trend": True},
+        "strategy_params": {"h4_body_ratio_min": 0.3, "rr_ratio": 3.0},
         "tier":          2,
         "base_risk_pct": 0.03,                    # 資産規模連動（EQUITY_RISK_TABLE）
-        "oos_pf":        1.86,
-        "kelly":         0.30,
-        "note":          "Logic-A GOLD (Sharpe=7.12)",
+        "oos_pf":        2.21,
+        "kelly":         0.39,
+        "note":          "v80 KMID+KLOW+Body 3.0R (PF 1.79→2.21, OOS/IS=0.86)",
     },
     "USDCAD": {
         "oanda":         "USD_CAD",
         "pip_size":      0.0001,
         "spread_pips":   0.1,
         "strategy":      "v79",
-        "strategy_params": {"use_1d_trend": True},
+        "strategy_params": {"h4_body_ratio_min": 0.3, "rr_ratio": 3.0},
         "tier":          4,
         "base_risk_pct": 0.03,                    # 資産規模連動（EQUITY_RISK_TABLE）
-        "oos_pf":        2.02,
-        "kelly":         0.35,
-        "note":          "Logic-A GOLD (Sharpe=5.62)",
+        "oos_pf":        3.31,
+        "kelly":         0.50,
+        "note":          "v80 KMID+KLOW+Body 3.0R (PF 1.93→3.31, MDD 25.5→12.8%)",
     },
     "NZDUSD": {
         "oanda":         "NZD_USD",
