@@ -41,6 +41,7 @@ from utils.risk_manager import RiskManager, SYMBOL_CONFIG
 # ── 定数 ─────────────────────────────────────────────────────────
 INIT_CASH     = 1_000_000
 RR_RATIO      = 2.5
+RR_RATIO_V80  = 3.0
 HALF_R        = 1.0
 USDJPY_RATE   = 150.0
 MAX_LOOKAHEAD = 20_000
@@ -54,6 +55,7 @@ E2_WINDOW_MIN   = 3
 E0_WINDOW_MIN   = 2
 ADX_MIN         = 20
 STREAK_MIN      = 4
+BODY_RATIO_MIN  = 0.3
 
 RISK_MIN  = 0.02
 RISK_MAX  = 0.03
@@ -66,21 +68,39 @@ OUT_DIR       = os.path.join(BASE_DIR, "results")
 os.makedirs(OUT_DIR, exist_ok=True)
 
 # ── 銘柄設定（ベストロジック × 最適リスクモード確定） ────────────
-TARGETS = [
-    {"sym": "XAUUSD",  "logic": "A", "risk": "fixed2",   "cat": "METALS",   "note": "Sharpe安定・採用済"},
-    {"sym": "GBPUSD",  "logic": "A", "risk": "fixed2",   "cat": "FX_USD",   "note": "Sharpe1位"},
-    {"sym": "USDJPY",  "logic": "C", "risk": "fixed2",   "cat": "FX_JPY",   "note": "オーパーツ最強・採用済"},
-    {"sym": "EURUSD",  "logic": "C", "risk": "fixed2",   "cat": "FX_USD",   "note": "オーパーツ有効"},
-    {"sym": "USDCAD",  "logic": "A", "risk": "fixed2",   "cat": "FX_USD",   "note": "採用済"},
-    {"sym": "NZDUSD",  "logic": "A", "risk": "fixed2",   "cat": "FX_USD",   "note": ""},
-    {"sym": "USDCHF",  "logic": "A", "risk": "fixed2",   "cat": "FX_USD",   "note": "低MDD12%"},
-    {"sym": "AUDUSD",  "logic": "B", "risk": "fixed2",   "cat": "FX_USD",   "note": "月次安定要確認"},
-    {"sym": "EURGBP",  "logic": "A", "risk": "adaptive", "cat": "FX_CROSS", "note": "適応リスク有効"},
-    {"sym": "AUDJPY",  "logic": "A", "risk": "adaptive", "cat": "FX_JPY",   "note": "適応リスク有効・高MDD要注意"},
-    {"sym": "XAGUSD",  "logic": "B", "risk": "fixed2",   "cat": "METALS",   "note": "Sharpe低め"},
+# 現行ベスト + v80統一ロジック（全銘柄で両方テストして勝つ方を採用）
+TARGETS_CURRENT = [
+    {"sym": "XAUUSD",  "logic": "A", "risk": "fixed2",   "cat": "METALS",   "tol": 0.20, "note": "現行Logic-A"},
+    {"sym": "GBPUSD",  "logic": "A", "risk": "fixed2",   "cat": "FX_USD",   "tol": 0.30, "note": "現行Logic-A"},
+    {"sym": "USDJPY",  "logic": "C", "risk": "fixed2",   "cat": "FX_JPY",   "tol": 0.30, "note": "現行Logic-C"},
+    {"sym": "EURUSD",  "logic": "C", "risk": "fixed2",   "cat": "FX_USD",   "tol": 0.30, "note": "現行Logic-C"},
+    {"sym": "USDCAD",  "logic": "A", "risk": "fixed2",   "cat": "FX_USD",   "tol": 0.30, "note": "現行Logic-A"},
+    {"sym": "NZDUSD",  "logic": "A", "risk": "fixed2",   "cat": "FX_USD",   "tol": 0.20, "note": "現行Logic-A"},
+    {"sym": "USDCHF",  "logic": "A", "risk": "fixed2",   "cat": "FX_USD",   "tol": 0.30, "note": "現行Logic-A"},
+    {"sym": "AUDUSD",  "logic": "B", "risk": "fixed2",   "cat": "FX_USD",   "tol": 0.30, "note": "現行Logic-B"},
 ]
 
-LOGIC_NAMES = {"A": "GOLDYAGAMI", "B": "ADX+Streak", "C": "オーパーツ"}
+TARGETS_V80 = [
+    {"sym": "XAUUSD",  "logic": "V80", "risk": "fixed2",  "cat": "METALS", "tol": 0.20, "note": "v80 KMID+KLOW+Body 3.0R"},
+    {"sym": "GBPUSD",  "logic": "V80", "risk": "fixed2",  "cat": "FX_USD", "tol": 0.30, "note": "v80 KMID+KLOW+Body 3.0R"},
+    {"sym": "USDJPY",  "logic": "V80", "risk": "fixed2",  "cat": "FX_JPY", "tol": 0.30, "note": "v80 KMID+KLOW+Body 3.0R"},
+    {"sym": "EURUSD",  "logic": "V80", "risk": "fixed2",  "cat": "FX_USD", "tol": 0.30, "note": "v80 KMID+KLOW+Body 3.0R"},
+    {"sym": "USDCAD",  "logic": "V80", "risk": "fixed2",  "cat": "FX_USD", "tol": 0.30, "note": "v80 KMID+KLOW+Body 3.0R"},
+    {"sym": "NZDUSD",  "logic": "V80", "risk": "fixed2",  "cat": "FX_USD", "tol": 0.20, "note": "v80 KMID+KLOW+Body 3.0R"},
+    {"sym": "USDCHF",  "logic": "V80", "risk": "fixed2",  "cat": "FX_USD", "tol": 0.30, "note": "v80 KMID+KLOW+Body 3.0R"},
+    {"sym": "AUDUSD",  "logic": "V80", "risk": "fixed2",  "cat": "FX_USD", "tol": 0.30, "note": "v80 KMID+KLOW+Body 3.0R"},
+]
+
+# 現行3.0Rテスト（既存ロジックにRR=3.0だけ変更）
+TARGETS_CURRENT_3R = [
+    {"sym": s["sym"], "logic": s["logic"], "risk": s["risk"], "cat": s["cat"],
+     "tol": s["tol"], "note": f"現行{s['logic']} 3.0R"}
+    for s in TARGETS_CURRENT
+]
+
+TARGETS = TARGETS_CURRENT + TARGETS_V80 + TARGETS_CURRENT_3R
+
+LOGIC_NAMES = {"A": "GOLDYAGAMI", "B": "ADX+Streak", "C": "オーパーツ", "V80": "v80統一"}
 RISK_NAMES  = {"fixed2": "固定2%", "fixed3": "固定3%", "adaptive": "適応2-3%"}
 
 # ── データロード ──────────────────────────────────────────────────
@@ -199,9 +219,13 @@ def pick_e2(t, direction, sp, atr_d, m1c):
 def chk_kmid(b, d): return (d == 1 and b["close"] > b["open"]) or (d == -1 and b["close"] < b["open"])
 def chk_klow(b): return (min(b["open"], b["close"]) - b["low"]) / b["open"] < KLOW_THR if b["open"] > 0 else False
 def chk_ema(b): return not pd.isna(b["atr"]) and b["atr"] > 0 and abs(b["close"] - b["ema20"]) >= b["atr"] * A1_EMA_DIST_MIN
+def chk_body_ratio(b, min_ratio=BODY_RATIO_MIN):
+    rng = b["high"] - b["low"]
+    if rng <= 0: return False
+    return abs(b["close"] - b["open"]) / rng >= min_ratio
 
 # ── シグナル生成 ──────────────────────────────────────────────────
-def generate_signals(d1m, d4h_full, spread, logic, atr_d, m1c):
+def generate_signals(d1m, d4h_full, spread, logic, atr_d, m1c, rr=RR_RATIO, tol=A3_DEFAULT_TOL):
     d4h, d1d = build_4h(d4h_full, need_1d=(logic == "A"))
     d1h = build_1h(d1m)
     signals = []; used = set()
@@ -229,11 +253,13 @@ def generate_signals(d1m, d4h_full, spread, logic, atr_d, m1c):
         if not chk_kmid(h4l, trend): continue
         if not chk_klow(h4l): continue
         if logic != "C" and not chk_ema(h4l): continue
+        # Logic B: 4Hボディ比率チェック
+        if logic == "B" and not chk_body_ratio(h4l): continue
 
         d = trend
         v1 = p2["low"]  if d == 1 else p2["high"]
         v2 = p1["low"]  if d == 1 else p1["high"]
-        if abs(v1 - v2) > atr1h * A3_DEFAULT_TOL: continue
+        if abs(v1 - v2) > atr1h * tol: continue
 
         if logic == "C":
             if d == 1 and p1["close"] <= p1["open"]: continue
@@ -249,7 +275,50 @@ def generate_signals(d1m, d4h_full, spread, logic, atr_d, m1c):
         risk = (raw - sl) if d == 1 else (sl - raw)
         if 0 < risk <= h4atr * 2:
             signals.append({"time": et, "dir": d, "ep": ep, "sl": sl,
-                            "tp": raw + d * risk * RR_RATIO, "risk": risk})
+                            "tp": raw + d * risk * rr, "risk": risk})
+            used.add(et)
+
+    return sorted(signals, key=lambda x: x["time"])
+
+
+def generate_signals_v80(d1m, d4h_full, spread, m1c, rr=RR_RATIO_V80, tol=A3_DEFAULT_TOL):
+    """v80統一ロジック: KMID + KLOW + 4Hボディ比率のみ、E0エントリー、不安定フィルター全除去"""
+    d4h, _ = build_4h(d4h_full, need_1d=False)
+    d1h = build_1h(d1m)
+    signals = []; used = set()
+
+    for i in range(2, len(d1h)):
+        hct = d1h.index[i]
+        p1  = d1h.iloc[i-1]; p2 = d1h.iloc[i-2]
+        atr1h = d1h.iloc[i]["atr"]
+        if pd.isna(atr1h) or atr1h <= 0: continue
+
+        h4b = d4h[d4h.index < hct]
+        if len(h4b) < 2: continue
+        h4l = h4b.iloc[-1]
+        if pd.isna(h4l.get("atr", np.nan)): continue
+        trend = h4l["trend"]; h4atr = h4l["atr"]
+
+        # v80フィルター: KMID + KLOW + 4Hボディ比率のみ
+        if not chk_kmid(h4l, trend): continue
+        if not chk_klow(h4l): continue
+        if not chk_body_ratio(h4l): continue
+
+        d = trend
+        v1 = p2["low"]  if d == 1 else p2["high"]
+        v2 = p1["low"]  if d == 1 else p1["high"]
+        if abs(v1 - v2) > atr1h * tol: continue
+
+        # E0エントリー統一
+        et, ep = pick_e0(hct, spread, d, m1c)
+        if et is None or et in used: continue
+
+        raw = ep - spread if d == 1 else ep + spread
+        sl  = (min(v1, v2) - atr1h * 0.15) if d == 1 else (max(v1, v2) + atr1h * 0.15)
+        risk = (raw - sl) if d == 1 else (sl - raw)
+        if 0 < risk <= h4atr * 2:
+            signals.append({"time": et, "dir": d, "ep": ep, "sl": sl,
+                            "tp": raw + d * risk * rr, "risk": risk})
             used.add(et)
 
     return sorted(signals, key=lambda x: x["time"])
@@ -356,14 +425,17 @@ def calc_stats(trades, init=INIT_CASH):
             "plus_m": plus_m, "total_m": len(monthly), "p_val": p_val,
             "final_eq": eq}
 
-def run(d1m, d4h, sym, logic, risk_mode):
+def run(d1m, d4h, sym, logic, risk_mode, rr=RR_RATIO, tol=A3_DEFAULT_TOL):
     cfg    = SYMBOL_CONFIG[sym]
     spread = cfg["spread"] * cfg["pip"]
     atr_d  = calc_atr(d1m, 10).to_dict()
     m1c    = {"idx": d1m.index, "opens": d1m["open"].values,
               "closes": d1m["close"].values,
               "highs":  d1m["high"].values, "lows": d1m["low"].values}
-    sigs = generate_signals(d1m, d4h, spread, logic, atr_d, m1c)
+    if logic == "V80":
+        sigs = generate_signals_v80(d1m, d4h, spread, m1c, rr=rr, tol=tol)
+    else:
+        sigs = generate_signals(d1m, d4h, spread, logic, atr_d, m1c, rr=rr, tol=tol)
     trades, final_eq, mdd = simulate(sigs, d1m, sym, risk_mode)
     st = calc_stats(trades)
     if st: st["mdd"] = mdd; st["final_eq"] = final_eq
@@ -378,41 +450,53 @@ def main():
 
     results = []
 
+    # データキャッシュ（同じ銘柄を3回ロードしない）
+    data_cache = {}
+
     for tgt in TARGETS:
         sym   = tgt["sym"]
         logic = tgt["logic"]
         rmode = tgt["risk"]
         lname = LOGIC_NAMES[logic]
         rname = RISK_NAMES[rmode]
+        tol   = tgt.get("tol", A3_DEFAULT_TOL)
+        # 現行3.0Rテストか判定
+        is_3r_test = tgt in TARGETS_CURRENT_3R
+        rr = RR_RATIO_V80 if (logic == "V80" or is_3r_test) else RR_RATIO
+        rr_label = f" {rr}R" if rr != RR_RATIO else " 2.5R"
 
-        print(f"\n  [{tgt['cat']}] {sym}  Logic-{logic}:{lname}  {rname}", end=" ... ", flush=True)
-        d1m_full, d4h_full = load_all(sym)
-        if d1m_full is None:
-            print("データ未発見"); continue
+        print(f"\n  [{tgt['cat']}] {sym}  Logic-{logic}:{lname}{rr_label}  {rname}", end=" ... ", flush=True)
 
-        is_d, oos_d, split_ts = split_is_oos(d1m_full)
+        if sym not in data_cache:
+            d1m_full, d4h_full = load_all(sym)
+            if d1m_full is None:
+                print("データ未発見"); continue
+            is_d, oos_d, split_ts = split_is_oos(d1m_full)
+            data_cache[sym] = (d1m_full, d4h_full, is_d, oos_d, split_ts)
+
+        d1m_full, d4h_full, is_d, oos_d, split_ts = data_cache[sym]
         start = d1m_full.index[0].strftime("%Y-%m-%d")
         end   = d1m_full.index[-1].strftime("%Y-%m-%d")
 
-        is_st   = run(is_d,      d4h_full, sym, logic, rmode)
-        oos_st  = run(oos_d,     d4h_full, sym, logic, rmode)
-        full_st = run(d1m_full,  d4h_full, sym, logic, rmode)
+        is_st   = run(is_d,      d4h_full, sym, logic, rmode, rr=rr, tol=tol)
+        oos_st  = run(oos_d,     d4h_full, sym, logic, rmode, rr=rr, tol=tol)
+        full_st = run(d1m_full,  d4h_full, sym, logic, rmode, rr=rr, tol=tol)
         print("完了")
 
         results.append({
             "tgt": tgt, "sym": sym, "logic": logic, "lname": lname,
-            "rmode": rmode, "rname": rname,
+            "rmode": rmode, "rname": rname, "rr": rr, "tol": tol,
             "start": start, "end": end, "split": split_ts.strftime("%Y-%m-%d"),
             "is": is_st, "oos": oos_st, "full": full_st,
         })
 
     # ── OOS結果 ──────────────────────────────────────────────────
-    print("\n" + "="*115)
-    print("  ■ OOS期間 最終結果（ベストロジック × 最適リスクモード）")
-    print(f"  {'#':>2} {'銘柄':8} {'ロジック':14} {'リスク':10} | "
+    print("\n" + "="*140)
+    print("  ■ OOS期間 全結果（現行2.5R vs 現行3.0R vs v80 3.0R）")
+    print(f"  {'#':>2} {'銘柄':8} {'ロジック':14} {'RR':>4} {'リスク':10} | "
           f"{'n':>5} {'WR':>6} {'PF':>6} {'Sharpe':>7} {'Kelly':>6} {'MDD':>7} {'月+':>5} | "
           f"{'IS PF':>6} {'OOS/IS':>8} | {'判定':>8}")
-    print("-"*115)
+    print("-"*140)
 
     def of_flag(is_pf, oos_pf):
         if not is_pf or is_pf == float("inf"): return "N/A  "
@@ -429,7 +513,7 @@ def main():
 
     rows = []
     for rank, r in enumerate(
-        sorted(results, key=lambda x: -x["oos"].get("sharpe", 0)), 1
+        sorted(results, key=lambda x: (x["sym"], x.get("rr", 2.5), x["logic"])), 1
     ):
         oos = r["oos"]; is_ = r["is"]
         if not oos: continue
@@ -441,12 +525,14 @@ def main():
         of  = of_flag(ipf, pf)
         vd  = final_verdict(pf, sh, mdd, pm, tm, of, n)
         pf_s = f"{pf:.2f}" if pf < 99 else "∞"
-        print(f"  #{rank:<2} {r['sym']:8} Logic-{r['logic']}:{r['lname']:10} {r['rname']:10} | "
+        rr_s = f"{r.get('rr', 2.5):.1f}"
+        print(f"  #{rank:<2} {r['sym']:8} Logic-{r['logic']}:{r['lname']:10} {rr_s:>4} {r['rname']:10} | "
               f"{n:>5} {wr*100:>5.1f}% {pf_s:>6} {sh:>7.2f} {kl:>6.3f} {mdd:>6.1f}% {pm:>2}/{tm:<2} | "
               f"{ipf:>6.2f} {of:>8} | {vd:>8}")
         rows.append({
             "rank": rank, "sym": r["sym"], "cat": r["tgt"]["cat"],
             "logic": r["logic"], "lname": r["lname"],
+            "rr": r.get("rr", 2.5), "tol": r.get("tol", 0.30),
             "risk_mode": r["rmode"], "risk_name": r["rname"],
             "period": f"{r['start']}~{r['end']}", "split": r["split"],
             "oos_n": n, "oos_wr": wr, "oos_pf": pf,
@@ -503,6 +589,49 @@ def main():
               f"{r['oos_kelly']:>7.3f} {r['oos_mdd']:>6.1f}% "
               f"{r['oos_plus_m']:>2}/{r['oos_total_m']:<2} "
               f"{r['full_sharpe']:>8.2f}")
+
+    # ── 銘柄別 最強ロジック判定 ────────────────────────────────────
+    print("\n" + "="*140)
+    print("  ■ 銘柄別 最強ロジック判定（OOS PF × OOS/IS比 総合）")
+    print(f"  {'銘柄':8} | {'現行2.5R':>12} {'現行3.0R':>12} {'v80 3.0R':>12} | {'推奨':20} {'理由'}")
+    print("  " + "-"*130)
+
+    syms_done = set()
+    for r in rows:
+        sym = r["sym"]
+        if sym in syms_done: continue
+        syms_done.add(sym)
+
+        # 同じ銘柄の3バリアントを取得
+        cur_25 = [x for x in rows if x["sym"] == sym and x["logic"] != "V80" and x.get("rr", 2.5) == 2.5]
+        cur_30 = [x for x in rows if x["sym"] == sym and x["logic"] != "V80" and x.get("rr", 2.5) == 3.0]
+        v80_30 = [x for x in rows if x["sym"] == sym and x["logic"] == "V80"]
+
+        def fmt_pf(lst):
+            if not lst: return "   N/A   "
+            x = lst[0]
+            pf = x["oos_pf"]; ois = x.get("oos_is_ratio", 0)
+            of_ok = "❌" not in x.get("overfitting", "")
+            return f"{pf:>5.2f}{'✅' if of_ok else '❌'}{ois:.2f}"
+
+        # 最強判定: OOS/IS≥0.70 かつ PF最高
+        candidates = []
+        for label, lst in [("現行2.5R", cur_25), ("現行3.0R", cur_30), ("v80 3.0R", v80_30)]:
+            if not lst: continue
+            x = lst[0]
+            of_ok = "❌" not in x.get("overfitting", "")
+            if of_ok:
+                candidates.append((label, x["oos_pf"], x.get("oos_sharpe", 0), x.get("oos_mdd", 99), x))
+
+        if candidates:
+            # PFが最も高いものを推奨
+            best = max(candidates, key=lambda c: c[1])
+            reason = f"PF={best[1]:.2f} Sharpe={best[2]:.2f} MDD={best[3]:.1f}%"
+            rec = f"★ {best[0]}"
+        else:
+            rec = "判定不可"; reason = "全バリアント過学習"
+
+        print(f"  {sym:8} | {fmt_pf(cur_25):>12} {fmt_pf(cur_30):>12} {fmt_pf(v80_30):>12} | {rec:20} {reason}")
 
     # ── CSV保存 ───────────────────────────────────────────────────
     out = os.path.join(OUT_DIR, "backtest_final_optimized.csv")
